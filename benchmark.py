@@ -1,7 +1,7 @@
 import time
 import json
 
-from simple_ai_benchmarking.mlpmixer_benchmark import MLPMixer
+from simple_ai_benchmarking.mlpmixer import MLPMixer
 
 def main():
     
