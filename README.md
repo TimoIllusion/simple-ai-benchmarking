@@ -2,7 +2,7 @@
 
 A collection of simple scripts and notebooks to quickly run reproducible tests on a variety of hardware and software for AI workloads.
 
-## Setup
+## Setup for NVIDIA GPUs
 
 1. Clone this repository.
 
@@ -12,12 +12,25 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 4. Install remaining packages using `pip install -r requirements.txt` from root of this repository.
 
+## Setup for AMD and Intel GPUs
+
+For AMD and Intel GPUs, DirectML on Windows and WSL can be used. Install the directml plugin after step 4 (with from setup for NVIDIA above):
+
+`pip install tensorflow-directml-plugin`
+
+See https://github.com/microsoft/tensorflow-directml-plugin for more information.
+
 ## Example results
 
 MLPMixer Benchmark (batch_size 128, input shape 32x32x3):
 
-- RTX4090[TF2.8+cu11.2]: 18743.99 it/s (inference), 760.49 it/s (training)
-- RX6600[TF2.10+directml0.4]: 2699.31 it/s (inference), 68.92 it/s (training)
+- NVIDIA RTX4090 [TF2.9.0+cuda11.2]: 18743.99 it/s (inference), 760.49 it/s (training)
+- AMD RX6600 [TF2.10.0+directml0.4]: 2699.31 it/s (inference), 68.92 it/s (training)
+
+EfficientNet Benchmark (batch_size 64, input shape 224x224x3):
+
+- NVIDIA RTX4090 [TF2.9.0+cuda11.2]: 2190.57 it/s (inference), 64.62 it/s (training)
+- AMD RX6600 [TF2.10.0+directml0.4]: 238.92 it/s (inference), 27.54 it/s (training)
 
 ## Utilized and modified open source code
 
