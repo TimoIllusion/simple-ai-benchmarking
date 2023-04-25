@@ -4,6 +4,8 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 ## Setup for NVIDIA GPUs
 
+Run `SETUP.bat` (only for windows) or follow these steps:
+
 1. Clone this repository.
 
 2. Create a conda environment via `conda create -n saibench python=3.8 -y` and activate it `conda activate saibench`.
