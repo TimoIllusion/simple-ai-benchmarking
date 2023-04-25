@@ -6,7 +6,7 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 1. Clone this repository.
 
-2. Create a conda environment via ´conda create -n saibench python=3.8 -y´ and activate it `conda activate saibench`.
+2. Create a conda environment via `conda create -n saibench python=3.8 -y` and activate it `conda activate saibench`.
 
 3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn`.
 
