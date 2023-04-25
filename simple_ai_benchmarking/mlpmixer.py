@@ -20,7 +20,7 @@ class MLPMixer(AIWorkload):
     The [MLP-Mixer](https://arxiv.org/abs/2105.01601) model, by Ilya Tolstikhin et al., based on two types of MLPs.
     """
     
-    def __init__(self):
+    def __init__(self, batch_size: int = 128):
         
         self.mlpmixer_classifier = None
         
@@ -32,7 +32,7 @@ class MLPMixer(AIWorkload):
         self.input_shape = (32, 32, 3)
         self.learning_rate = 0.005
         self.weight_decay = 0.0001
-        self.batch_size = 128
+        self.batch_size = batch_size
         self.num_epochs = 3 # Original: 50
         self.steps_per_epoch=10 # Original: None
         self.dropout_rate = 0.2

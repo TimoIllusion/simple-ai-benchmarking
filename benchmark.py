@@ -33,8 +33,8 @@ def benchmark(workload: AIWorkload) -> dict:
 def main():
     
     workloads = [
-        MLPMixer(), 
-        EfficientNet()
+        MLPMixer(128), 
+        EfficientNet(64)
         ]
     
     logs = []

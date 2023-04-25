@@ -8,7 +8,7 @@
 # - move imports to one place
 # - adjust hyperparameters
 # - only take a partial amount of sample for training form dataset
-
+# - change dataset to cifar10
 
 """
 Title: Image classification via fine-tuning with EfficientNet
@@ -205,18 +205,18 @@ class EfficientNet(AIWorkload):
     The [MLP-Mixer](https://arxiv.org/abs/2105.01601) model, by Ilya Tolstikhin et al., based on two types of MLPs.
     """
     
-    def __init__(self):
+    def __init__(self, batch_size: int = 64):
         
         # IMG_SIZE is determined by EfficientNet model choice
         self.IMG_SIZE = 224
 
 
-        self.batch_size = 64
+        self.batch_size = batch_size
         self.epochs = 3  # @param {type: "slider", min:10, max:100}
         self.num_training_batches = 10
         self.num_inference_batches = 10
 
-        dataset_name = "stanford_dogs"
+        dataset_name = "cifar10"
         (self.ds_train, self.ds_test), ds_info = tfds.load(
             dataset_name, split=["train", "test"], with_info=True, as_supervised=True
         )
