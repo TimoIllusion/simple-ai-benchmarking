@@ -205,9 +205,9 @@ class MLPMixer(AIWorkload):
             "device": "",
             "compute_precision": "",
             "batch_size_training": self.batch_size,
-            "num_samples_training": samples_training,
+            "num_iterations_training": samples_training,
             "batch_size_eval": self.batch_size,
-            "num_samples_eval": len(self.x_test),
+            "num_iterations_eval": len(self.x_test),
             "sample_input_shape": self.input_shape,
             }
         
