@@ -50,3 +50,5 @@ EfficientNet Benchmark (batch_size 64, input shape 224x224x3):
 - [ ] Refactor code into improved and refined structure
 - [ ] Improve logging
 - [ ] Add plotting
+- [ ] ROCm support
+- [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
