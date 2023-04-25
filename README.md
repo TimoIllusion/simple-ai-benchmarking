@@ -22,3 +22,11 @@ MLPMixer Benchmark (batch_size 128, input shape 32x32x3):
 ## Utilized and modified open source code
 
 - https://github.com/keras-team/keras-io/blob/master/examples/vision/mlp_image_classification.py (Apache License 2.0)
+
+## Upcoming
+
+- [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
+- [ ] Add models using pytorch
+- [ ] Refactor code into improved and refined structure
+- [ ] Improve logging
+- [ ] Add plotting
