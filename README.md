@@ -52,7 +52,8 @@ EfficientNet Benchmark (batch_size 64, input shape 224x224x3):
 ## Upcoming
 
 - [ ] Add warmup function
-- [ ] Implement unified architecture for inference/train to use any tf/pytorch model using synthetic data
+- [ ] Use synthetic data
+- [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
 - [ ] Add models using pytorch
 - [ ] Refactor code into improved and refined structure
@@ -60,3 +61,4 @@ EfficientNet Benchmark (batch_size 64, input shape 224x224x3):
 - [ ] Add plotting
 - [ ] ROCm support
 - [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
+- [ ] Add option to install package and put on pypi.org
