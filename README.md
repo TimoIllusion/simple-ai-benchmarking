@@ -22,6 +22,12 @@ To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the dir
 
 See https://github.com/microsoft/tensorflow-directml-plugin for more information.
 
+## Run Benchmark
+
+Run benchmark with in activated conda environment:
+
+`python benchmark.py`
+
 ## Example results
 
 MLPMixer Benchmark (batch_size 128, input shape 32x32x3):
