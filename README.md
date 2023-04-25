@@ -12,6 +12,13 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 4. Install remaining packages using `pip install -r requirements.txt` from root of this repository.
 
+## Example results
+
+MLPMixer Benchmark (batch_size 128, input shape 32x32x3):
+
+- RTX4090[TF2.8+cu11.2]: 18743.99 it/s (inference), 760.49 it/s (training)
+- RX6600[TF2.10+directml0.4]: 2699.31 it/s (inference), 68.92 it/s (training)
+
 ## Utilized and modified open source code
 
 - https://github.com/keras-team/keras-io/blob/master/examples/vision/mlp_image_classification.py (Apache License 2.0)
