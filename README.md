@@ -14,9 +14,11 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 ## Setup for AMD and Intel GPUs
 
-For AMD and Intel GPUs, DirectML on Windows and WSL can be used. Install the directml plugin after step 4 (with from setup for NVIDIA above):
+For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
 
-`pip install tensorflow-directml-plugin`
+To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the directml requirements with:
+
+`pip install -r directml_requirements.txt`
 
 See https://github.com/microsoft/tensorflow-directml-plugin for more information.
 
