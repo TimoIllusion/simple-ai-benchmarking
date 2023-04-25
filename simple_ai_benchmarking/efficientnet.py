@@ -333,7 +333,7 @@ class EfficientNet(AIWorkload):
         
         log = {
             "sw_framework": "tensorflow-" + tf.__version__,
-            "device": "",
+            "devices": str(tf.config.list_physical_devices()),
             "compute_precision": "",
             "batch_size_training": self.batch_size,
             "num_iterations_training": self.num_training_batches * self.batch_size * self.epochs, #TODO: check if number is correct, due to "drop_reminder"

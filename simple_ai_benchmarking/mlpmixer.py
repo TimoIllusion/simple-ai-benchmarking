@@ -202,7 +202,7 @@ class MLPMixer(AIWorkload):
         
         log = {
             "sw_framework": "tensorflow-" + tf.__version__,
-            "device": "",
+            "devices": str(tf.config.list_physical_devices()),
             "compute_precision": "",
             "batch_size_training": self.batch_size,
             "num_iterations_training": samples_training,
