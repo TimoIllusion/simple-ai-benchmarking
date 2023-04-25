@@ -35,6 +35,7 @@ EfficientNet Benchmark (batch_size 64, input shape 224x224x3):
 ## Utilized and modified open source code
 
 - https://github.com/keras-team/keras-io/blob/master/examples/vision/mlp_image_classification.py (Apache License 2.0)
+- https://github.com/keras-team/keras-io/blob/master/examples/vision/image_classification_efficientnet_fine_tuning.py (Apache License 2.0)
 
 ## Upcoming
 
