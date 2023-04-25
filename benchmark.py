@@ -53,7 +53,16 @@ def main():
         
         print(f"{workload_name} results:")
         [print(f"{key}: {val}") for key, val in log.items()]
-        print("")
+        
+        inference_its = round(log["iterations_per_second_inference"], 2)
+        training_its = round(log["iterations_per_second_training"], 2)
+        
+        sw = log["sw_framework"]
+        
+        print("\nCOPY THIS TO README AND EDIT IF YOU WANT:\n")
+        print(f"<GPU_NAME> [{sw}+<BACKEND_SHORTNAME><BACKEND_VERSION>] + <CPU_NAME>: {inference_its} it/s (inference), {training_its} it/s (training)")
+        
+        print("\n")
     
     with open("log.json", "w") as f:
         json.dump(logs, f, indent=4)
