@@ -25,6 +25,7 @@ MLPMixer Benchmark (batch_size 128, input shape 32x32x3):
 
 ## Upcoming
 
+- [ ] Add warmup function
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
 - [ ] Add models using pytorch
 - [ ] Refactor code into improved and refined structure
