@@ -8,7 +8,6 @@
 # - move imports to one place
 # - adjust hyperparameters
 # - only take a partial amount of sample for training form dataset
-# - change "stanford_dogs" dataset to "mnist"
 
 
 """
@@ -217,7 +216,7 @@ class EfficientNet(AIWorkload):
         self.num_training_batches = 10
         self.num_inference_batches = 10
 
-        dataset_name = "mnist" #"stanford_dogs"
+        dataset_name = "stanford_dogs"
         (self.ds_train, self.ds_test), ds_info = tfds.load(
             dataset_name, split=["train", "test"], with_info=True, as_supervised=True
         )
