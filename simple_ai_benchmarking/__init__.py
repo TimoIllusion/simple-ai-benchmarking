@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from simple_ai_benchmarking.log import BenchmarkResult
 
+#TODO: add TensorFlowAIWorkload as subclass
 class AIWorkload(ABC):
     
     @abstractmethod
