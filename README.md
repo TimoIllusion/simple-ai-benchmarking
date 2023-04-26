@@ -2,6 +2,16 @@
 
 A collection of simple scripts and notebooks to quickly run reproducible tests on a variety of hardware and software for AI workloads.
 
+## Simple setup: Install as package
+
+1. Clone this repository.
+
+2. Create a conda environment via `conda create -n saibench python=3.8 -y` and activate it `conda activate saibench`.
+
+3. Go into the directory of this cloned repo and run `pip install .`. Optionally install CUDA in your system or environment afterwards.
+
+4. Run `sai_benchmark` in a console with activated environment
+
 ## Setup for NVIDIA GPUs
 
 Run `SETUP.bat` (only for windows) or follow these steps:
@@ -14,6 +24,8 @@ Run `SETUP.bat` (only for windows) or follow these steps:
 
 4. Install remaining packages using `pip install -r requirements.txt` from root of this repository.
 
+5. Run benchmark with `python run.py`
+
 ## Setup for AMD and Intel GPUs
 
 For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
@@ -24,11 +36,7 @@ To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the dir
 
 See https://github.com/microsoft/tensorflow-directml-plugin for more information.
 
-## Run Benchmark
-
-Run benchmark with in activated conda environment:
-
-`python run_benchmark.py`
+Run benchmark with `python run.py`.
 
 ## Example results
 
