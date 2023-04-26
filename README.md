@@ -63,7 +63,7 @@ EfficientNet Benchmark (batch_size 32, input shape 224x224x3):
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
 - [ ] Add models using pytorch
 - [ ] Refactor code into improved and refined structure
-- [ ] Improve logging
+- [x] Improve logging 
 - [ ] Add plotting
 - [ ] ROCm support
 - [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
