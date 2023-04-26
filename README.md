@@ -40,22 +40,18 @@ Run benchmark with `python run.py`.
 
 ## Example results
 
-MLPMixer Benchmark (batch_size 128, input shape 32x32x3):
-
-- NVIDIA RTX4090 [TF2.9.0+cuda11.2] + AMD Ryzen 7 7800X3D: 18743.99 it/s (inference), 760.49 it/s (training)
-- NVIDIA RTX4090 [TF2.10.0+directml0.4] + AMD Ryzen 7 7800X3D: 7979.99 it/s (inference), 75.98 it/s (training)
-- NVIDIA RTX2060 Mobile [TF2.10.0+cuda11.2] + AMD Ryzen 7 4800H: 5354.33 it/s (inference), 39.34 it/s (training)
-- AMD RX6600 [TF2.10.0+directml0.4] + Intel Core i5 12600K: 2699.31 it/s (inference), 68.92 it/s (training)
-
-EfficientNet Benchmark (batch_size 64, input shape 224x224x3):
-
-- NVIDIA RTX4090 [TF2.9.0+cuda11.2] + AMD Ryzen 7 7800X3D: 2190.57 it/s (inference), 64.62 it/s (training)
-- NVIDIA RTX4090 [TF2.10.0+directml0.4] + AMD Ryzen 7 7800X3D: 1775.09 it/s (inference), 39.14 it/s (training)
-- AMD RX6600 [TF2.10.0+directml0.4] + Intel Core i5 12600K: 238.92 it/s (inference), 27.54 it/s (training)
-
-EfficientNet Benchmark (batch_size 32, input shape 224x224x3):
-
-- NVIDIA RTX2060 Mobile [TF2.10.0+cuda11.2] + AMD Ryzen 7 4800H: 487.68 it/s (inference), 22.39 it/s (training)
+| Model             | Batch size | Software Framework | GPU                    | CPU                 | Inference Speed (it/s) | Training Speed (it/s) |
+|-------------------|------------|---------------------|-----------------------|---------------------|------------------------|-----------------------|
+| MLPMixer           | 128        | tensorflow-2.9.0    | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 18743.99                | 760.49                |
+| MLPMixer           | 128        | tensorflow-2.10.0+directml0.4 | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 7979.99                 | 75.98                 |
+| MLPMixer           | 128        | tensorflow-2.10.0   | NVIDIA RTX 2060 Mobile | AMD Ryzen 7 4800H    | 5354.33                 | 39.34                 |
+| MLPMixer           | 128        | tensorflow-2.10.0+directml0.4 | AMD RX 6600            | Intel Core i5 12600K | 2699.31                 | 68.92                 |
+| MLPMixer           | 128        | tensorflow-2.10.0   | -      | AMD Ryzen 7 7800X3D                   | 1965.07                 | 207.56                |
+| EfficientNet       | 64         | tensorflow-2.9.0    | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 2190.57                 | 64.62                 |
+| EfficientNet       | 64         | tensorflow-2.10.0+directml0.4 | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 1775.09                 | 39.14                 |
+| EfficientNet       | 64         | tensorflow-2.10.0+directml0.4 | AMD RX 6600            | Intel Core i5 12600K | 238.92                  | 27.54                 |
+| EfficientNet       | 64         | tensorflow-2.10.0   |   -    | AMD Ryzen 7 7800X3D                   | 108.16                  | 18.47                 |
+| EfficientNet       | 32         | tensorflow-2.10.0   | NVIDIA RTX 2060 Mobile | AMD Ryzen 7 4800H    | 487.68                  | 22.39                 |
 
 ## Utilized and modified open source code
 
