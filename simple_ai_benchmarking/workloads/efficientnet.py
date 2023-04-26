@@ -153,6 +153,7 @@ from tensorflow.keras import layers
 from tensorflow.keras.applications import EfficientNetB0
 
 from simple_ai_benchmarking import AIWorkload
+from simple_ai_benchmarking.log import BenchmarkResult
 
 # try:
 #     tpu = tf.distribute.cluster_resolver.TPUClusterResolver.connect()
@@ -329,18 +330,22 @@ class EfficientNet(AIWorkload):
         print(f"Test loss: {round(loss, 2)}")
         print(f"Test accuracy: {round(accuracy * 100, 2)}%")    
     
-    def build_log_dict(self):
+    def build_result_log(self):
         
-        log = {
-            "sw_framework": "tensorflow-" + tf.__version__,
-            "devices": str(tf.config.list_physical_devices()),
-            "compute_precision": "",
-            "batch_size_training": self.batch_size,
-            "num_iterations_training": self.num_training_batches * self.batch_size * self.epochs, #TODO: check if number is correct, due to "drop_reminder"
-            "batch_size_eval": self.batch_size,
-            "num_iterations_eval": self.num_inference_batches * self.batch_size, #TODO: check if number is correct, due to "drop_reminder"
-            "sample_input_shape": self.input_shape,
-            }
+        benchmark_result = BenchmarkResult(
+            self.__class__.__name__,
+            "tensorflow-" + tf.__version__,
+            str(tf.config.list_physical_devices()),
+            "",
+            self.batch_size,
+            self.num_training_batches * self.batch_size * self.epochs, #TODO: check if number is correct, due to "drop_reminder"
+            self.batch_size,
+            self.num_inference_batches * self.batch_size, #TODO: check if number is correct, due to "drop_reminder"
+            self.input_shape,
+            None,
+            None,
+            None,
+            None
+        )
         
-        return log    
-    
+        return benchmark_result

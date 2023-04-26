@@ -28,7 +28,7 @@ See https://github.com/microsoft/tensorflow-directml-plugin for more information
 
 Run benchmark with in activated conda environment:
 
-`python benchmark.py`
+`python run_benchmark.py`
 
 ## Example results
 
@@ -59,6 +59,7 @@ EfficientNet Benchmark (batch_size 32, input shape 224x224x3):
 - [ ] Add warmup function
 - [ ] Use synthetic data
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
+- [ ] Add unit tests
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
 - [ ] Add models using pytorch
 - [ ] Refactor code into improved and refined structure

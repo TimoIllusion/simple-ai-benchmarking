@@ -6,6 +6,7 @@ from typing import List
 
 @dataclass
 class BenchmarkResult:
+    workload_type: str
     sw_framework: str
     devices: str
     compute_precision: str
@@ -39,3 +40,18 @@ class Logger:
         
         print("Saved logs to ", target_json_path)
     
+    def print_info(self):
+        
+        print("\n===== BENCHMARKS FINISHED =====")
+        print("Benchmark results log:")
+        print("\n")
+        
+        for result in self.results:
+            print(f"{result.workload_type} results:")
+            [print(f"{key}: {val}") for key, val in result.__dict__.items()]
+            
+            inference_its = round(result.iterations_per_second_inference, 2)
+            training_its = round(result.iterations_per_second_training, 2)
+            
+            print("\nCOPY THIS TO README AND EDIT IF YOU WANT:\n")
+            print(f"<GPU_NAME> [{result.sw_framework}+<BACKEND_SHORTNAME><BACKEND_VERSION>] + <CPU_NAME>: {inference_its} it/s (inference), {training_its} it/s (training)")
