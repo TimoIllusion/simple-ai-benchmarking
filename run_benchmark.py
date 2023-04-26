@@ -21,11 +21,11 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
     result_log.train_duration_s = training_duration_s
     result_log.eval_duration_s = eval_duration_s
     
-    result_log = calculate_iterations_per_second(result_log)
+    result_log = add_iterations_per_second(result_log)
     
     return result_log
 
-def calculate_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
+def add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
     result.iterations_per_second_inference =  result.num_iterations_eval / result.eval_duration_s
     result.iterations_per_second_training = result.num_iterations_training / result.train_duration_s
     return result
