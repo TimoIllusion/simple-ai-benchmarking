@@ -35,7 +35,7 @@ def main():
     
     workloads = [
         MLPMixer(128), 
-        EfficientNet(64)
+        EfficientNet(None, 64)
         ]
     
     result_logger = Logger(log_dir="")

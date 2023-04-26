@@ -9,6 +9,7 @@
 # - adjust hyperparameters
 # - only take a partial amount of sample for training form dataset
 # - change dataset to cifar10
+# - add tf device
 
 """
 Title: Image classification via fine-tuning with EfficientNet
@@ -206,11 +207,12 @@ class EfficientNet(AIWorkload):
     The [MLP-Mixer](https://arxiv.org/abs/2105.01601) model, by Ilya Tolstikhin et al., based on two types of MLPs.
     """
     
-    def __init__(self, batch_size: int = 64):
+    def __init__(self, device_name=None, batch_size: int = 64):
         
         # IMG_SIZE is determined by EfficientNet model choice
         self.IMG_SIZE = 224
-
+        
+        self.device_name = device_name
 
         self.batch_size = batch_size
         self.epochs = 3  # @param {type: "slider", min:10, max:100}
@@ -232,103 +234,108 @@ class EfficientNet(AIWorkload):
         shared size. The Stanford Dogs dataset includes only images at least 200x200
         pixels in size. Here we resize the images to the input size needed for EfficientNet.
         """
+        
+        with tf.device(self.device_name):
 
-        self.size = (self.IMG_SIZE, self.IMG_SIZE)
-        self.ds_train = self.ds_train.map(lambda image, label: (tf.image.resize(image, self.size), label))
-        self.ds_test = self.ds_test.map(lambda image, label: (tf.image.resize(image, self.size), label))
-
-
-
-        """
-        ### Data augmentation
-
-        We can use the preprocessing layers APIs for image augmentation.
-        """
+            self.size = (self.IMG_SIZE, self.IMG_SIZE)
+            self.ds_train = self.ds_train.map(lambda image, label: (tf.image.resize(image, self.size), label))
+            self.ds_test = self.ds_test.map(lambda image, label: (tf.image.resize(image, self.size), label))
 
 
-        img_augmentation = Sequential(
-            [
-                layers.RandomRotation(factor=0.15),
-                layers.RandomTranslation(height_factor=0.1, width_factor=0.1),
-                layers.RandomFlip(),
-                layers.RandomContrast(factor=0.1),
-            ],
-            name="img_augmentation",
-        )
+
+            """
+            ### Data augmentation
+
+            We can use the preprocessing layers APIs for image augmentation.
+            """
 
 
-        """
-        ### Prepare inputs
-
-        Once we verify the input data and augmentation are working correctly,
-        we prepare dataset for training. The input data are resized to uniform
-        `IMG_SIZE`. The labels are put into one-hot
-        (a.k.a. categorical) encoding. The dataset is batched.
-
-        Note: `prefetch` and `AUTOTUNE` may in some situation improve
-        performance, but depends on environment and the specific dataset used.
-        See this [guide](https://www.tensorflow.org/guide/data_performance)
-        for more information on data pipeline performance.
-        """
-
-        # One-hot / categorical encoding
-        def input_preprocess(image, label):
-            label = tf.one_hot(label, self.NUM_CLASSES)
-            return image, label
-
-        self.ds_train = self.ds_train.map(input_preprocess, num_parallel_calls=tf.data.AUTOTUNE)
-        self.ds_train = self.ds_train.batch(batch_size=self.batch_size, drop_remainder=True)
-        self.ds_train = self.ds_train.prefetch(tf.data.AUTOTUNE)
-        self.ds_train = self.ds_train.take(self.num_training_batches)
-
-        self.ds_test = self.ds_test.map(input_preprocess)
-        self.ds_test = self.ds_test.batch(batch_size=self.batch_size, drop_remainder=True)
-        self.ds_test = self.ds_test.take(self.num_inference_batches)
+            img_augmentation = Sequential(
+                [
+                    layers.RandomRotation(factor=0.15),
+                    layers.RandomTranslation(height_factor=0.1, width_factor=0.1),
+                    layers.RandomFlip(),
+                    layers.RandomContrast(factor=0.1),
+                ],
+                name="img_augmentation",
+            )
 
 
-        """
-        ## Training a model from scratch
+            """
+            ### Prepare inputs
 
-        We build an EfficientNetB0 with 120 output classes, that is initialized from scratch:
+            Once we verify the input data and augmentation are working correctly,
+            we prepare dataset for training. The input data are resized to uniform
+            `IMG_SIZE`. The labels are put into one-hot
+            (a.k.a. categorical) encoding. The dataset is batched.
 
-        Note: the accuracy will increase very slowly and may overfit.
-        """
+            Note: `prefetch` and `AUTOTUNE` may in some situation improve
+            performance, but depends on environment and the specific dataset used.
+            See this [guide](https://www.tensorflow.org/guide/data_performance)
+            for more information on data pipeline performance.
+            """
 
-        self.input_shape = (self.IMG_SIZE, self.IMG_SIZE, 3)
-        inputs = layers.Input(shape=self.input_shape)
-        x = img_augmentation(inputs)
-        outputs = EfficientNetB0(include_top=True, weights=None, classes=self.NUM_CLASSES)(x)
+            # One-hot / categorical encoding
+            def input_preprocess(image, label):
+                label = tf.one_hot(label, self.NUM_CLASSES)
+                return image, label
 
-        self.model = tf.keras.Model(inputs, outputs)
-        self.model.compile(
-            optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
-        )
+            self.ds_train = self.ds_train.map(input_preprocess, num_parallel_calls=tf.data.AUTOTUNE)
+            self.ds_train = self.ds_train.batch(batch_size=self.batch_size, drop_remainder=True)
+            self.ds_train = self.ds_train.prefetch(tf.data.AUTOTUNE)
+            self.ds_train = self.ds_train.take(self.num_training_batches)
 
-        self.model.summary()    
+            self.ds_test = self.ds_test.map(input_preprocess)
+            self.ds_test = self.ds_test.batch(batch_size=self.batch_size, drop_remainder=True)
+            self.ds_test = self.ds_test.take(self.num_inference_batches)
+
+
+            """
+            ## Training a model from scratch
+
+            We build an EfficientNetB0 with 120 output classes, that is initialized from scratch:
+
+            Note: the accuracy will increase very slowly and may overfit.
+            """
+
+            self.input_shape = (self.IMG_SIZE, self.IMG_SIZE, 3)
+            inputs = layers.Input(shape=self.input_shape)
+            x = img_augmentation(inputs)
+            outputs = EfficientNetB0(include_top=True, weights=None, classes=self.NUM_CLASSES)(x)
+
+            self.model = tf.keras.Model(inputs, outputs)
+            self.model.compile(
+                optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"]
+            )
+
+            self.model.summary()    
     
 
     def train(self):
+        with tf.device(self.device_name):
         
 
-        _ = self.model.fit(self.ds_train, epochs=self.epochs, validation_data=self.ds_test, verbose=1)
+            _ = self.model.fit(self.ds_train, epochs=self.epochs, validation_data=self.ds_test, verbose=1)
 
-        """
-        Training the model is relatively fast (takes only 20 seconds per epoch on TPUv2 that is
-        available on Colab). This might make it sounds easy to simply train EfficientNet on any
-        dataset wanted from scratch. However, training EfficientNet on smaller datasets,
-        especially those with lower resolution like CIFAR-100, faces the significant challenge of
-        overfitting.
+            """
+            Training the model is relatively fast (takes only 20 seconds per epoch on TPUv2 that is
+            available on Colab). This might make it sounds easy to simply train EfficientNet on any
+            dataset wanted from scratch. However, training EfficientNet on smaller datasets,
+            especially those with lower resolution like CIFAR-100, faces the significant challenge of
+            overfitting.
 
-        Hence training from scratch requires very careful choice of hyperparameters and is
-        difficult to find suitable regularization. It would also be much more demanding in resources.
-        Plotting the training and validation accuracy
-        makes it clear that validation accuracy stagnates at a low value.
-        """
+            Hence training from scratch requires very careful choice of hyperparameters and is
+            difficult to find suitable regularization. It would also be much more demanding in resources.
+            Plotting the training and validation accuracy
+            makes it clear that validation accuracy stagnates at a low value.
+            """
         
     def eval(self):
-        loss, accuracy = self.model.evaluate(self.ds_test)
-        print(f"Test loss: {round(loss, 2)}")
-        print(f"Test accuracy: {round(accuracy * 100, 2)}%")    
+        with tf.device(self.device_name):
+            
+            loss, accuracy = self.model.evaluate(self.ds_test)
+            print(f"Test loss: {round(loss, 2)}")
+            print(f"Test accuracy: {round(accuracy * 100, 2)}%")    
     
     def build_result_log(self):
         
