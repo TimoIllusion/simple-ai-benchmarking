@@ -14,6 +14,7 @@ from tensorflow.keras import layers
 import tensorflow_addons as tfa
 
 from simple_ai_benchmarking import AIWorkload
+from simple_ai_benchmarking.log import BenchmarkResult
 
 class MLPMixer(AIWorkload):
     """
@@ -193,25 +194,30 @@ class MLPMixer(AIWorkload):
         print(f"Test accuracy: {round(accuracy * 100, 2)}%")
         print(f"Test top 5 accuracy: {round(top_5_accuracy * 100, 2)}%")
         
-    def build_log_dict(self):
+    def build_result_log(self):
         
         if self.steps_per_epoch is None:
             samples_training = self.num_epochs * len(self.x_train)
         else:
             samples_training = self.num_epochs * self.steps_per_epoch * self.batch_size
         
-        log = {
-            "sw_framework": "tensorflow-" + tf.__version__,
-            "devices": str(tf.config.list_physical_devices()),
-            "compute_precision": "",
-            "batch_size_training": self.batch_size,
-            "num_iterations_training": samples_training,
-            "batch_size_eval": self.batch_size,
-            "num_iterations_eval": len(self.x_test),
-            "sample_input_shape": self.input_shape,
-            }
+        benchmark_result = BenchmarkResult(
+            self.__class__.__name__,
+            "tensorflow-" + tf.__version__,
+            str(tf.config.list_physical_devices()),
+            "",
+            self.batch_size,
+            samples_training,
+            self.batch_size,
+            len(self.x_test),
+            self.input_shape,
+            None,
+            None,
+            None,
+            None
+        )
         
-        return log
+        return benchmark_result
 
 
 

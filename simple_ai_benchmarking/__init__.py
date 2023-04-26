@@ -1,6 +1,6 @@
 
 from abc import ABC, abstractmethod
-
+from simple_ai_benchmarking.log import BenchmarkResult
 
 class AIWorkload(ABC):
     
@@ -17,6 +17,6 @@ class AIWorkload(ABC):
         pass    
     
     @abstractmethod
-    def build_log_dict(self):
-        pass    
+    def build_result_log(self) -> BenchmarkResult:
+        return BenchmarkResult()    
     
