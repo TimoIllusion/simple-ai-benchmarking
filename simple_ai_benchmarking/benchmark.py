@@ -1,6 +1,6 @@
-from simple_ai_benchmarking import AIWorkload
 from simple_ai_benchmarking.workloads.mlpmixer import MLPMixer
 from simple_ai_benchmarking.workloads.efficientnet import EfficientNet
+from simple_ai_benchmarking.workloads import TensorFlowWorkload, SimpleClassificationCNN, AIWorkload
 from simple_ai_benchmarking.log import BenchmarkResult, Logger
 from simple_ai_benchmarking.timer import Timer
 
@@ -13,7 +13,7 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
     training_duration_s = t.duration_s
     
     with Timer() as t:
-        workload.eval()
+        workload.predict()
     eval_duration_s = t.duration_s
 
     result_log = workload.build_result_log()
@@ -34,8 +34,9 @@ def add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
 def main():
     
     workloads = [
-        MLPMixer(128), 
-        EfficientNet(None, 64)
+        # MLPMixer(128), 
+        # EfficientNet(None, 64)
+        TensorFlowWorkload(SimpleClassificationCNN.build_model(100, [224,224,3]), 3, 10, 64, "/gpu:0")
         ]
     
     result_logger = Logger(log_dir="")

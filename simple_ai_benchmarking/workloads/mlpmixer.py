@@ -13,7 +13,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 import tensorflow_addons as tfa
 
-from simple_ai_benchmarking import AIWorkload
+from simple_ai_benchmarking.workloads import AIWorkload
 from simple_ai_benchmarking.log import BenchmarkResult
 
 class MLPMixer(AIWorkload):

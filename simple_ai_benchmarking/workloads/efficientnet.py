@@ -153,7 +153,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras import layers
 from tensorflow.keras.applications import EfficientNetB0
 
-from simple_ai_benchmarking import AIWorkload
+from simple_ai_benchmarking.workloads import AIWorkload
 from simple_ai_benchmarking.log import BenchmarkResult
 
 # try:
