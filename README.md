@@ -63,6 +63,7 @@ Run benchmark with `python run.py`.
 - [ ] Add warmup function
 - [ ] Use synthetic data
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
+- [ ] Model registry
 - [ ] Add config file to customize benchmarks
 - [ ] Add unit tests
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
