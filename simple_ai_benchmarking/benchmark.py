@@ -1,8 +1,11 @@
+import tensorflow as tf
+
 from simple_ai_benchmarking.workloads.mlpmixer import MLPMixer
 from simple_ai_benchmarking.workloads.efficientnet import EfficientNet
-from simple_ai_benchmarking.workloads import TensorFlowWorkload, SimpleClassificationCNN, AIWorkload
+from simple_ai_benchmarking.workloads import TensorFlowKerasWorkload, SimpleClassificationCNN, AIWorkload
 from simple_ai_benchmarking.log import BenchmarkResult, Logger
 from simple_ai_benchmarking.timer import Timer
+
 
 def benchmark(workload: AIWorkload) -> BenchmarkResult:
     
@@ -31,12 +34,16 @@ def add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
     return result
 
 
+
 def main():
     
+    # model zoo: https://keras.io/api/applications/
     workloads = [
         # MLPMixer(128), 
         # EfficientNet(None, 64)
-        TensorFlowWorkload(SimpleClassificationCNN.build_model(100, [224,224,3]), 3, 10, 64, "/gpu:0")
+        # TensorFlowWorkload(SimpleClassificationCNN.build_model(100, [224,224,3]), 3, 10, 64, "/gpu:0"),
+        TensorFlowKerasWorkload(tf.keras.applications.EfficientNetB5(), 100, 10, 8, "/gpu:0"), # ~11 GB
+        #TensorFlowKerasWorkload(tf.keras.applications.EfficientNetB0(), 100, 10, 8, "/gpu:0"), # ~1 GB
         ]
     
     result_logger = Logger(log_dir="")
