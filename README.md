@@ -63,11 +63,14 @@ Run benchmark with `python run.py`.
 - [ ] Add warmup function
 - [ ] Use synthetic data
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
+- [ ] Add config file to customize benchmarks
 - [ ] Add unit tests
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
 - [ ] Add models using pytorch
 - [ ] Refactor code into improved and refined structure
 - [x] Improve logging 
+- [ ] Save results to csv
+- [ ] Implement interfaces for TensorRT and ONNXRuntime
 - [ ] Add plotting
 - [ ] ROCm support
 - [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
