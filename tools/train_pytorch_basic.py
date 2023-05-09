@@ -8,6 +8,7 @@ import torchvision
 
 class BasicCNN(nn.Module):
     def __init__(self):
+        super().__init__()
         
         self.relu = nn.ReLU()
         
@@ -97,13 +98,13 @@ def main():
         # torchvision.transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.1),
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505, 0.26158768]),
-        torchvision.transforms.Resize(224),
+        # torchvision.transforms.Resize(224),
     ])
 
     transform_test = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.Normalize(mean=[0.49139968, 0.48215827 ,0.44653124], std=[0.24703233, 0.24348505, 0.26158768]),
-        torchvision.transforms.Resize(224),
+        # torchvision.transforms.Resize(224),
     ])
 
     # Load the CIFAR10 dataset
@@ -118,7 +119,7 @@ def main():
     # model = torchvision.models.resnet101(pretrained=False, num_classes=10)
     # model = torchvision.models.resnet152(pretrained=False, num_classes=10)
     # model = torchvision.models.resnext50_32x4d(pretrained=False, num_classes=10)
-    model = torchvision.models.mobilenet_v3_small(pretrained=False, num_classes=10) # common, very lightweight and quite accurate 
+    #model = torchvision.models.mobilenet_v3_small(pretrained=False, num_classes=10) # common, very lightweight and quite accurate 
     # model = torchvision.models.mobilenet_v3_large(pretrained=False, num_classes=10) 
     # model = torchvision.models.convnext_small(pretrained=False, num_classes=10)
     # model = torchvision.models.efficientnet_b0(pretrained=True, num_classes=10)
@@ -130,7 +131,7 @@ def main():
     #     param.requires_grad = False
     # model.fc = torch.nn.Linear(2048, 10)
 
-    # model = BasicCNN()
+    model = BasicCNN()
     
     print(model)
     
