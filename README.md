@@ -60,6 +60,7 @@ Run benchmark with `python run.py`.
 
 ## Upcoming
 
+- [ ] Remove dependencies on tf_addons and tf_datasets
 - [ ] Add warmup function
 - [ ] Use synthetic data
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
