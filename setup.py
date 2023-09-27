@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="simple-ai-benchmarking",
-    version="0.1.0",
+    version="0.2.0",
     author="Timo Leitritz",
     author_email="placeholder@example.com",
     description="A package for benchmarking various AI models in a simple way.",
@@ -20,13 +20,11 @@ setuptools.setup(
     ],
     python_requires='>=3.7',
     install_requires=[
-        "tensorflow==2.10.0",
-        "tensorflow-addons==0.20.0",
-        "tensorflow_datasets==4.8.0",
+        "tensorflow>=2.3.0",
     ],
     entry_points={
         "console_scripts": [
-            "sai_benchmark = simple_ai_benchmarking.benchmark:main"
+            "bench_tf = simple_ai_benchmarking.benchmark:main"
         ]
     }
 )
