@@ -20,11 +20,27 @@ setuptools.setup(
     ],
     python_requires='>=3.7',
     install_requires=[
-        "tensorflow>=2.3.0",
+        "numpy",
+        "tqdm",
     ],
+    extras_require={
+        "pt": [
+            "torch>=1.0.0", 
+            "torchvision", 
+            "torchaudio", 
+            ],
+        "tfdml": [
+            "tensorflow-cpu==2.10.0", 
+            "tensorflow-directml-plugin"
+            ],
+        "tf": [
+            "tensorflow>=2.3.0"
+            ], 
+    },
     entry_points={
         "console_scripts": [
-            "bench_tf = simple_ai_benchmarking.benchmark:main"
+            "sai-tf = simple_ai_benchmarking.benchmark:run_tf_benchmarks",
+            "sai-pt = simple_ai_benchmarking.benchmark:run_pt_benchmarks"
         ]
-    }
+    },
 )
