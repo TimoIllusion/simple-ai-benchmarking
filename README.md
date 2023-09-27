@@ -4,41 +4,44 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 ## Simple setup: Install as package
 
-1. Clone this repository.
+1. Create a conda environment via `conda create -n sai python=3.9 -y` and activate it `conda activate sai`.
 
-2. Create a conda environment via `conda create -n saibench python=3.8 -y` and activate it `conda activate saibench`.
+2. [OPTIONAL] Install your prefered pytorch or tensorflow version and respective CUDA version.
 
-3. Go into the directory of this cloned repo and run `pip install .`. Optionally install CUDA in your system or environment afterwards.
+3. Either clone this repo and run `pip install .` OR just run `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (use extras [tf,pt,...] for direct install of cpu tensorflow, cpu pytorch or directml tensorflow)
 
-4. Run `sai_benchmark` in a console with activated environment
+4. Run `sai-tf` or `sai-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run.py` for tf benchmark.
 
-## Setup for NVIDIA GPUs
+## Setup TensorFlow for NVIDIA GPUs
 
-Run `SETUP.bat` (only for windows) or follow these steps:
+1. Create and activate a virtual environment
 
-1. Clone this repository.
+2. Run `pip install tensorflow` (`tensorflow<2.11` for windows native) and run `pip list` and check https://www.tensorflow.org/install/source#gpu for the relevant CUDA/cudnn version for your tensorflow version
 
-2. Create a conda environment via `conda create -n saibench python=3.8 -y` and activate it `conda activate saibench`.
+3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.11, CUDA 11.2 and CUDNN 8.1 is needed)
 
-3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn`.
-
-4. Install remaining packages using `pip install -r requirements.txt` from root of this repository.
-
-5. Run benchmark with `python run.py`
-
-## Setup for AMD and Intel GPUs
+4. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
+## Setup TensorFlow for AMD and Intel GPUs
 
 For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
 
 To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the directml requirements with:
 
-`pip install -r directml_requirements.txt`
+`pip install tensorflow-cpu==2.10.0 tensorflow-directml-plugin`
 
 See https://github.com/microsoft/tensorflow-directml-plugin for more information.
 
-Run benchmark with `python run.py`.
+Clone repo and run benchmark with `python run.py`.
 
-## Example results
+## Setup PyTorch for NVIDIA GPUs
+
+1. Run `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
+
+2. Run `python -c "import torch;print(torch.cuda.is_available())"`
+
+## Example results [LATEST]
+
+## Example results [LEGACY]
 
 | Model             | Batch size | Software Framework | GPU                    | CPU                 | Inference Speed (it/s) | Training Speed (it/s) |
 |-------------------|------------|---------------------|-----------------------|---------------------|------------------------|-----------------------|
@@ -53,21 +56,23 @@ Run benchmark with `python run.py`.
 | EfficientNet       | 64         | tensorflow2.10.0   |   -    | AMD Ryzen 7 7800X3D                   | 108.16                  | 18.47                 |
 | EfficientNet       | 32         | tensorflow2.10.0+cuda11.2    | NVIDIA RTX 2060 Mobile | AMD Ryzen 7 4800H    | 487.68                  | 22.39                 |
 
-## Utilized and modified open source code
-
-- https://github.com/keras-team/keras-io/blob/master/examples/vision/mlp_image_classification.py (Apache License 2.0)
-- https://github.com/keras-team/keras-io/blob/master/examples/vision/image_classification_efficientnet_fine_tuning.py (Apache License 2.0)
 
 ## Upcoming
 
+- [x] Remove dependencies on tf_addons and tf_datasets
 - [ ] Add warmup function
-- [ ] Use synthetic data
+- [x] Use synthetic data
+- [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
+- [ ] Model registry
+- [ ] Add config file to customize benchmarks
 - [ ] Add unit tests
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
-- [ ] Add models using pytorch
+- [x] Add models using pytorch
 - [ ] Refactor code into improved and refined structure
 - [x] Improve logging 
+- [ ] Save results to csv
+- [ ] Implement interfaces for TensorRT and ONNXRuntime
 - [ ] Add plotting
 - [ ] ROCm support
 - [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)

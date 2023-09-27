@@ -1,5 +1,5 @@
-from simple_ai_benchmarking.benchmark import main
+from simple_ai_benchmarking.benchmark import run_tf_benchmarks
 
 
 if __name__ == "__main__":
-    main()
+    run_tf_benchmarks()

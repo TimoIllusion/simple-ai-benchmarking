@@ -1,19 +1,20 @@
-from simple_ai_benchmarking import AIWorkload
-from simple_ai_benchmarking.workloads.mlpmixer import MLPMixer
-from simple_ai_benchmarking.workloads.efficientnet import EfficientNet
+from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import BenchmarkResult, Logger
 from simple_ai_benchmarking.timer import Timer
 
-def benchmark(workload: AIWorkload) -> BenchmarkResult:
+
+def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     workload.setup()
      
     with Timer() as t:
+        print("TRAINING")
         workload.train()
     training_duration_s = t.duration_s
     
     with Timer() as t:
-        workload.eval()
+        print("INFERENCE")
+        workload.predict()
     eval_duration_s = t.duration_s
 
     result_log = workload.build_result_log()
@@ -21,23 +22,16 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
     result_log.train_duration_s = training_duration_s
     result_log.eval_duration_s = eval_duration_s
     
-    result_log = add_iterations_per_second(result_log)
+    result_log = _add_iterations_per_second(result_log)
     
     return result_log
 
-def add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
+def _add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
     result.iterations_per_second_inference =  result.num_iterations_eval / result.eval_duration_s
     result.iterations_per_second_training = result.num_iterations_training / result.train_duration_s
     return result
 
-
-def main():
-    
-    workloads = [
-        MLPMixer(128), 
-        EfficientNet(None, 64)
-        ]
-    
+def _proccess_workloads(workloads: list[AIWorkloadBase]) -> list[BenchmarkResult]:
     result_logger = Logger(log_dir="")
     
     for workload in workloads:
@@ -47,6 +41,60 @@ def main():
     result_logger.print_info()
     result_logger.save()
         
+def run_tf_benchmarks():
+    
+    import tensorflow as tf
+    
+    from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
+    from simple_ai_benchmarking.models.tf.simple_classification_cnn import SimpleClassificationCNN
+    
+    device = "/gpu:0"
+    
+    # Get more models form keras model zoo: https://keras.io/api/applications/
+    workloads = [
+        TensorFlowKerasWorkload(
+            SimpleClassificationCNN.build_model(100, [224,224,3]), 
+            10, 
+            10, 
+            64, 
+            device,
+            ), # <1 GB
+        # TensorFlowKerasWorkload(
+        #     tf.keras.applications.EfficientNetB5(),
+        #     10, 
+        #     10, 
+        #     8, 
+        #     device,
+        #     ), # ~11 GB
+        TensorFlowKerasWorkload(
+            tf.keras.applications.EfficientNetB0(), 
+            10, 
+            10, 
+            8, 
+            device,
+            ), # ~1 GB
+        ]
+    
+    _proccess_workloads(workloads)
+    
+def run_pt_benchmarks():
+    
+    import torchvision
 
-if __name__ == "__main__":
-    main()
+    from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchSyntheticImageClassification
+    
+    device = "cuda:0"
+    
+    workloads = [
+            PyTorchSyntheticImageClassification(
+                torchvision.models.resnet50(pretrained=False, num_classes=10),
+                10,
+                10,
+                32,
+                device,
+            )
+        ]
+    
+    _proccess_workloads(workloads)
+    
+    
