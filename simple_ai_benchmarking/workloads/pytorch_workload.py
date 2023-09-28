@@ -56,10 +56,16 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
             outputs = self.model(inputs)
 
     def build_result_log(self) -> BenchmarkResult:
+        
+        if torch.cuda.is_available():
+            device_info = str(torch.cuda.get_device_name(0))
+        else:
+            device_info = platform.processor()
+        
         benchmark_result = BenchmarkResult(
             self.__class__.__name__,
             "torch-" + torch.__version__,
-            str(torch.cuda.get_device_name(0)),
+            device_info,
             "",
             self.batch_size,
             len(self.dataloader.dataset) * self.epochs,

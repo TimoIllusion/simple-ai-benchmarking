@@ -81,11 +81,15 @@ def run_tf_benchmarks():
     
 def run_pt_benchmarks():
     
+    import torch
     import torchvision
 
     from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchSyntheticImageClassification
     
-    device = "cuda:0"
+    if torch.cuda.is_available():
+        device = "cuda:0"
+    else:
+        device = "cpu"
     
     workloads = [
             PyTorchSyntheticImageClassification(
