@@ -8,17 +8,17 @@ Assuming tensorflow or pytorch is already installed in your environment:
 
 1. Install SAI directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
 
-2. Run benchmark: `sai-tf` or `sai-pt` to benchmark tensorflow or pytorch respectively. 
+2. Run benchmark with command `sai-tf` or `sai-pt` using tensorflow or pytorch respectively. 
 
 NOTE: The results are not comparable, since different model architectures are used per default.
 
 To install tensorflow and pytorch when installing SAI, you can also install using the following commands: 
 
-`pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git[tf]` (installs tensorflow)
+`pip install simple-ai-benchmarking[tf]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs tensorflow)
 
 OR
 
-`pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git[pt]` (installs torch)
+`pip install simple-ai-benchmarking[pt]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs torch)
 
 NOTE: Usually only CPU will be supported when installing with the two above options. It is recommended to setup pytorch or tensorflow prior.
 
