@@ -93,7 +93,7 @@ def run_pt_benchmarks():
     
     workloads = [
             PyTorchSyntheticImageClassification(
-                torchvision.models.resnet50(pretrained=False, num_classes=10),
+                torchvision.models.resnet50(weights=None, num_classes=10),
                 10,
                 10,
                 8,
