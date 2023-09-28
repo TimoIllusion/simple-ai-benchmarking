@@ -32,7 +32,10 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 4. Run `sai-tf` or `sai-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run.py` for tf benchmark.
 
-## Setup TensorFlow for NVIDIA GPUs
+## Hardware Acceleration for PyTorch and TensorFlow
+
+This section shows how to use GPUs for training and inference benchmarking.
+### Setup TensorFlow for NVIDIA GPUs
 
 1. Create and activate a virtual environment
 
@@ -41,7 +44,7 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.11, CUDA 11.2 and CUDNN 8.1 is needed)
 
 4. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
-## Setup TensorFlow for AMD and Intel GPUs
+### Setup TensorFlow for AMD and Intel GPUs
 
 For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
 
@@ -53,13 +56,15 @@ See https://github.com/microsoft/tensorflow-directml-plugin for more information
 
 Clone repo and run benchmark with `python run.py`.
 
-## Setup PyTorch for NVIDIA GPUs
+### Setup PyTorch for NVIDIA GPUs
 
 1. Run `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
 
 2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
 ## Example results [LATEST]
+
+WIP
 
 ## Example results [LEGACY]
 
