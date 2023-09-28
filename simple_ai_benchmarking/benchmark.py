@@ -1,3 +1,5 @@
+from typing import List
+
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import BenchmarkResult, Logger
 from simple_ai_benchmarking.timer import Timer
@@ -31,7 +33,7 @@ def _add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
     result.iterations_per_second_training = result.num_iterations_training / result.train_duration_s
     return result
 
-def _proccess_workloads(workloads: list[AIWorkloadBase]) -> list[BenchmarkResult]:
+def _proccess_workloads(workloads: List[AIWorkloadBase]) -> List[BenchmarkResult]:
     result_logger = Logger(log_dir="")
     
     for workload in workloads:
