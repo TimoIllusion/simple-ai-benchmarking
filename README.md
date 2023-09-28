@@ -86,6 +86,7 @@ WIP
 
 - [x] Remove dependencies on tf_addons and tf_datasets
 - [ ] Add warmup function
+- [ ] Implement simple baseline cnn with identical architecture for pytorch/tensorflow
 - [x] Use synthetic data
 - [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
