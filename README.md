@@ -1,8 +1,29 @@
-# simple-ai-benchmarking
+# simple-ai-benchmarking (SAI)
 
 A collection of simple scripts and notebooks to quickly run reproducible tests on a variety of hardware and software for AI workloads.
 
-## Simple setup: Install as package
+## Quickstart
+
+Assuming tensorflow or pytorch is already installed in your environment (and gpu is available).
+
+Install SAI directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
+
+Run benchmark: `sai-tf` or `sai-pt` to benchmark tensorflow or pytorch respectively. 
+
+NOTE: The results are not comparable, since different model architectures are used per default.
+
+
+To install base tensorflow and pytorch, you can also install SAI with 
+
+`pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git[tf]` (installs tensorflow)
+
+OR
+
+`pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git[pt]` (installs torch)
+
+NOTE: Usually only CPU will be supported when installing with the two above options. It is recommended to setup pytorch or tensorflow prior.
+
+## Setup & Usage
 
 1. Create a conda environment via `conda create -n sai python=3.9 -y` and activate it `conda activate sai`.
 
