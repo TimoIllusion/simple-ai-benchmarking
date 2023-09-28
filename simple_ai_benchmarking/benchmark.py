@@ -58,7 +58,7 @@ def run_tf_benchmarks():
             SimpleClassificationCNN.build_model(100, [224,224,3]), 
             10, 
             10, 
-            64, 
+            8, 
             device,
             ), # <1 GB
         # TensorFlowKerasWorkload(
@@ -92,7 +92,7 @@ def run_pt_benchmarks():
                 torchvision.models.resnet50(pretrained=False, num_classes=10),
                 10,
                 10,
-                32,
+                8,
                 device,
             )
         ]
