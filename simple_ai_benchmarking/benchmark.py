@@ -3,6 +3,7 @@ from typing import List
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import BenchmarkResult, Logger
 from simple_ai_benchmarking.timer import Timer
+from simple_ai_benchmarking.definitions import DataType
 
 
 def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
@@ -98,6 +99,15 @@ def run_pt_benchmarks():
                 10,
                 8,
                 device,
+                DataType.FP32,
+            ),
+            PyTorchSyntheticImageClassification(
+                torchvision.models.resnet50(weights=None, num_classes=10),
+                10,
+                10,
+                8,
+                device,
+                DataType.FP16,
             )
         ]
     

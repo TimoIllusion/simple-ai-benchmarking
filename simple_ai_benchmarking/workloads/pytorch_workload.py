@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader, TensorDataset
 
 from simple_ai_benchmarking.log import BenchmarkResult
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
+from simple_ai_benchmarking.definitions import DataType
 
 class PyTorchSyntheticImageClassification(AIWorkloadBase):
 
@@ -19,6 +20,10 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
         self.criterion = torch.nn.CrossEntropyLoss()
+
+        if self.data_type == DataType.FP16:
+            self.model = self.model.half()
+            self.dataset = self.dataset.half()
 
         self.model.to(self.device)
 
@@ -66,7 +71,7 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
             self.__class__.__name__,
             "torch-" + torch.__version__,
             device_info,
-            "",
+            self.data_type.name,
             self.batch_size,
             len(self.dataloader.dataset) * self.epochs,
             self.batch_size,
