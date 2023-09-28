@@ -1,3 +1,5 @@
+from typing import List
+
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import BenchmarkResult, Logger
 from simple_ai_benchmarking.timer import Timer
@@ -31,7 +33,7 @@ def _add_iterations_per_second(result: BenchmarkResult) -> BenchmarkResult:
     result.iterations_per_second_training = result.num_iterations_training / result.train_duration_s
     return result
 
-def _proccess_workloads(workloads: list[AIWorkloadBase]) -> list[BenchmarkResult]:
+def _proccess_workloads(workloads: List[AIWorkloadBase]) -> List[BenchmarkResult]:
     result_logger = Logger(log_dir="")
     
     for workload in workloads:
@@ -56,7 +58,7 @@ def run_tf_benchmarks():
             SimpleClassificationCNN.build_model(100, [224,224,3]), 
             10, 
             10, 
-            64, 
+            8, 
             device,
             ), # <1 GB
         # TensorFlowKerasWorkload(
@@ -90,7 +92,7 @@ def run_pt_benchmarks():
                 torchvision.models.resnet50(pretrained=False, num_classes=10),
                 10,
                 10,
-                32,
+                8,
                 device,
             )
         ]
