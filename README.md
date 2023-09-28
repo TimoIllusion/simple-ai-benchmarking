@@ -4,16 +4,15 @@ A collection of simple scripts and notebooks to quickly run reproducible tests o
 
 ## Quickstart
 
-Assuming tensorflow or pytorch is already installed in your environment (and gpu is available).
+Assuming tensorflow or pytorch is already installed in your environment:
 
-Install SAI directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
+1. Install SAI directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
 
-Run benchmark: `sai-tf` or `sai-pt` to benchmark tensorflow or pytorch respectively. 
+2. Run benchmark: `sai-tf` or `sai-pt` to benchmark tensorflow or pytorch respectively. 
 
 NOTE: The results are not comparable, since different model architectures are used per default.
 
-
-To install base tensorflow and pytorch, you can also install SAI with 
+To install tensorflow and pytorch when installing SAI, you can also install using the following commands: 
 
 `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git[tf]` (installs tensorflow)
 
