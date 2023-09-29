@@ -10,6 +10,9 @@ from simple_ai_benchmarking.definitions import NumericalPrecision
 class PyTorchSyntheticImageClassification(AIWorkloadBase):
 
     def setup(self):
+        print(self.model)
+        print("Number of model parameters:", self.count_model_parameters())
+
         self.device = torch.device(self.device_name)
         
         synthetic_data = torch.randn(self.num_batches * self.batch_size, 3, 224, 224, dtype=torch.float32)
@@ -45,6 +48,9 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
 
     def _assign_autocast_device_type(self):
         self.autocast_device_type =  "cuda" if "cuda" in self.device_name else "cpu"
+
+    def count_model_parameters(self):
+        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
     def train(self):
         self.model.train()
