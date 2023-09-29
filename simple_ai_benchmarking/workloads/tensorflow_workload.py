@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from simple_ai_benchmarking.definitions import NumericalPrecision
 
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import BenchmarkResult
@@ -8,6 +9,13 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
 
     def setup(self):
         
+        if self.data_type == NumericalPrecision.MIXED_FP16_FP32:
+            tf.keras.mixed_precision.set_global_policy('mixed_float16')
+        elif self.data_type == NumericalPrecision.DEFAULT_FP32:
+            tf.keras.mixed_precision.set_global_policy('float32')
+        else:
+            raise NotImplementedError(f"Data type not implemented: {self.data_type}")
+        
         self.model.compile(
             optimizer='adam',   
             loss='categorical_crossentropy',
@@ -15,7 +23,6 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
         self.model.summary()
         
         mem_usage_gb = TensorFlowKerasWorkload.get_model_memory_usage(self.batch_size, self.model)
-        
         print("Memory usage in GB: ", mem_usage_gb)
         
         output_shape = list(self.model.layers[-1].output_shape)
@@ -31,42 +38,35 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
             dataset_shape = input_shape
             targets_shape = output_shape
             
-            self.dataset_train = tf.random.normal(dataset_shape, dtype=tf.float32)
-            # pseudo one hot
-            self.targets_train = tf.random.uniform(targets_shape, minval=0, maxval=2, dtype=tf.int32) 
+            self.inputs = tf.random.normal(dataset_shape, dtype=tf.float32)
+            self.targets = tf.random.uniform(targets_shape, minval=0, maxval=2, dtype=tf.int32)
             
-            print("dataset shape:", self.dataset_train.shape)
-            print("targets shape:", self.targets_train.shape)
+            print("inputs shape:", self.inputs.shape)
+            print("targets shape:", self.targets.shape)
             
-            self.dataset_val = tf.random.normal(dataset_shape, dtype=tf.float32)
-             # pseudo one hot
-            self.targets_val = tf.random.uniform(targets_shape, minval=0, maxval=2, dtype=tf.int32)
+            self.syn_dataset = tf.data.Dataset.from_tensor_slices((self.inputs, self.targets))
+
+            self.syn_dataset = self.syn_dataset.shuffle(buffer_size=10000)
+            self.syn_dataset = self.syn_dataset.batch(self.batch_size)
+            self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
             
-            self.train_dataset = tf.data.Dataset.from_tensor_slices((self.dataset_train, self.targets_train))
-            self.train_dataset = self.train_dataset.shuffle(buffer_size=10000)
-            self.train_dataset = self.train_dataset.batch(self.batch_size)
-            self.train_dataset = self.train_dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-            
-            self.val_dataset = tf.data.Dataset.from_tensor_slices((self.dataset_val, self.targets_val))
-            self.val_dataset = self.val_dataset.batch(self.batch_size)
-            self.val_dataset = self.val_dataset.prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
     
     def train(self):
-        _ = self.model.fit(self.train_dataset, epochs=self.epochs, validation_data=None, verbose=1)
+        _ = self.model.fit(self.syn_dataset, epochs=self.epochs, validation_data=None, verbose=1)
     
     def eval(self):
-        _, _ = self.model.evaluate(self.val_dataset)
+        raise NotImplementedError("Evaluation not implemented for TensorFlow Keras Workload")
         
     def predict(self):
-        _ = self.model.predict(self.val_dataset)
-        
+        self.model.predict(self.syn_dataset, verbose=1)
+  
     def build_result_log(self) -> BenchmarkResult:
         
         benchmark_result = BenchmarkResult(
             self.__class__.__name__,
             "tensorflow-" + tf.__version__,
             str(tf.config.list_physical_devices()),
-            "",
+            self.data_type.name,
             self.batch_size,
             self.num_batches * self.batch_size * self.epochs, #TODO: check if number is correct, due to "drop_reminder"
             self.batch_size,
