@@ -58,12 +58,7 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
         raise NotImplementedError("Evaluation not implemented for TensorFlow Keras Workload")
         
     def predict(self):
-
-        # this is intentionally implemented similar to pytorch (probably less efficient than
-        # predicting the whole dataset at once
-        for batch in self.syn_dataset:
-            batch_inputs, batch_targets = batch
-            output = self.model.predict(batch_inputs)
+        self.model.predict(self.syn_dataset, verbose=1)
   
     def build_result_log(self) -> BenchmarkResult:
         
