@@ -12,7 +12,7 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
         if self.data_type == NumericalPrecision.MIXED_FP16_FP32:
             tf.keras.mixed_precision.set_global_policy('mixed_float16')
         elif self.data_type == NumericalPrecision.DEFAULT_FP32:
-            pass
+            tf.keras.mixed_precision.set_global_policy('float32')
         else:
             raise NotImplementedError(f"Data type not implemented: {self.data_type}")
         
