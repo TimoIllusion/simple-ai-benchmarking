@@ -49,14 +49,14 @@ def run_tf_benchmarks():
     import tensorflow as tf
     
     from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
-    from simple_ai_benchmarking.models.tf.simple_classification_cnn import SimpleClassificationCNN
+    from simple_ai_benchmarking.models.tf.simple_classification_cnn import TFSimpleClassificationCNN
     
     device = "/gpu:0"
     
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
         TensorFlowKerasWorkload(
-            SimpleClassificationCNN.build_model(100, [224,224,3]), 
+            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
             10, 
             10, 
             8, 
@@ -64,13 +64,29 @@ def run_tf_benchmarks():
             NumericalPrecision.MIXED_FP16_FP32
             ), # <1 GB
          TensorFlowKerasWorkload(
-            SimpleClassificationCNN.build_model(100, [224,224,3]), 
+            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
             10, 
             10, 
             8, 
             device,
             NumericalPrecision.DEFAULT_FP32,
             ), # <1 GB
+        # TensorFlowKerasWorkload(
+        #     tf.keras.applications.ResNet50(weights=None),
+        #     10, 
+        #     10, 
+        #     8, 
+        #     device,
+        #     NumericalPrecision.MIXED_FP16_FP32,
+        #     ),
+        # TensorFlowKerasWorkload(
+        #     tf.keras.applications.ResNet50(weights=None),
+        #     10, 
+        #     10, 
+        #     8, 
+        #     device,
+        #     NumericalPrecision.DEFAULT_FP32,
+        #     ),
         # TensorFlowKerasWorkload(
         #     tf.keras.applications.EfficientNetB5(),
         #     10, 
@@ -95,6 +111,7 @@ def run_pt_benchmarks():
     import torchvision
 
     from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchSyntheticImageClassification
+    from simple_ai_benchmarking.models.pt.simple_classification_cnn import PTSimpleClassificationCNN
     
     if torch.cuda.is_available():
         device = "cuda:0"
@@ -103,21 +120,37 @@ def run_pt_benchmarks():
     
     workloads = [
             PyTorchSyntheticImageClassification(
-                torchvision.models.resnet50(num_classes=10),
-                10,
-                10,
-                8,
+                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
+                10, 
+                10, 
+                8, 
                 device,
-                NumericalPrecision.MIXED_FP16_FP32,
-            ),
+                NumericalPrecision.MIXED_FP16_FP32
+                ),
             PyTorchSyntheticImageClassification(
-                torchvision.models.resnet50(num_classes=10),
-                10,
-                10,
-                8,
+                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
+                10, 
+                10, 
+                8, 
                 device,
-                NumericalPrecision.DEFAULT_FP32,
-            )
+                NumericalPrecision.DEFAULT_FP32
+                ),
+            # PyTorchSyntheticImageClassification(
+            #     torchvision.models.resnet50(num_classes=1000),
+            #     10,
+            #     10,
+            #     8,
+            #     device,
+            #     NumericalPrecision.MIXED_FP16_FP32,
+            # ),
+            # PyTorchSyntheticImageClassification(
+            #     torchvision.models.resnet50(num_classes=1000),
+            #     10,
+            #     10,
+            #     8,
+            #     device,
+            #     NumericalPrecision.DEFAULT_FP32,
+            # )
         ]
     
     _proccess_workloads(workloads)

@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-class SimpleClassificationCNN:
+class TFSimpleClassificationCNN:
     
     @staticmethod
     def build_model(num_classes, input_shape):
