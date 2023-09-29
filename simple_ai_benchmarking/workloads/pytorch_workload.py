@@ -14,16 +14,16 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
         
         synthetic_data = torch.randn(self.num_batches * self.batch_size, 3, 224, 224, dtype=torch.float32)
         synthetic_labels = torch.randint(0, 1, (self.num_batches * self.batch_size,))
-        
+    
+        if self.data_type == DataType.FP16:
+            self.model = self.model.to(torch.float16)
+            synthetic_data = synthetic_data.to(torch.float16)
+
         dataset = TensorDataset(synthetic_data, synthetic_labels)
         self.dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
         self.criterion = torch.nn.CrossEntropyLoss()
-
-        if self.data_type == DataType.FP16:
-            self.model = self.model.half()
-            self.dataset = self.dataset.half()
 
         self.model.to(self.device)
 

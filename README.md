@@ -88,6 +88,7 @@ WIP
 - [ ] Add warmup function
 - [x] Use synthetic data
 - [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
+- [ ] Add automatic mixed precision options
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
 - [ ] Model registry
 - [ ] Add config file to customize benchmarks

@@ -99,7 +99,7 @@ def run_pt_benchmarks():
                 10,
                 8,
                 device,
-                DataType.FP32,
+                DataType.FP16,
             ),
             PyTorchSyntheticImageClassification(
                 torchvision.models.resnet50(weights=None, num_classes=10),
@@ -107,7 +107,7 @@ def run_pt_benchmarks():
                 10,
                 8,
                 device,
-                DataType.FP16,
+                DataType.FP32,
             )
         ]
     
