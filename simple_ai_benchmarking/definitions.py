@@ -1,6 +1,6 @@
 from enum import Enum
 
 
-class DataType(Enum):
-    FP32 = 0
-    FP16 = 1
+class NumericalPrecision(Enum):
+    DEFAULT_FP32 = 0
+    MIXED_FP16_FP32 = 1

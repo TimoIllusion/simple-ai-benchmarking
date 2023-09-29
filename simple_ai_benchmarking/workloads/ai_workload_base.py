@@ -1,11 +1,11 @@
 from abc import abstractmethod, ABC
 
 from simple_ai_benchmarking.log import BenchmarkResult
-from simple_ai_benchmarking.definitions import DataType
+from simple_ai_benchmarking.definitions import NumericalPrecision
 
 class AIWorkloadBase(ABC):
     
-    def __init__(self, model, epochs: int, num_batches: int, batch_size: int, device_name: str, data_type: DataType):
+    def __init__(self, model, epochs: int, num_batches: int, batch_size: int, device_name: str, data_type: NumericalPrecision):
         self.model = model
         self.epochs = epochs
         self.num_batches = num_batches
