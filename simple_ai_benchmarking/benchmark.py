@@ -94,7 +94,7 @@ def run_pt_benchmarks():
     
     workloads = [
             PyTorchSyntheticImageClassification(
-                torchvision.models.resnet50(weights=None, num_classes=10),
+                torchvision.models.resnet50(num_classes=10),
                 10,
                 10,
                 8,
@@ -102,7 +102,7 @@ def run_pt_benchmarks():
                 DataType.FP16,
             ),
             PyTorchSyntheticImageClassification(
-                torchvision.models.resnet50(weights=None, num_classes=10),
+                torchvision.models.resnet50(num_classes=10),
                 10,
                 10,
                 8,
