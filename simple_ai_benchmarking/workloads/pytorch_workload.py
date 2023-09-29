@@ -19,7 +19,7 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
         synthetic_labels = torch.randint(0, 1, (self.num_batches * self.batch_size,))
 
         dataset = TensorDataset(synthetic_data, synthetic_labels)
-        self.dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False)
+        self.dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False, pin_memory=True)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
         self.criterion = torch.nn.CrossEntropyLoss()
