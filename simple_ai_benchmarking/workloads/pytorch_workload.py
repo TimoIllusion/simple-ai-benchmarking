@@ -1,9 +1,12 @@
 import platform
+import multiprocessing
+
+import psutil
 import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from simple_ai_benchmarking.log import BenchmarkResult
+from simple_ai_benchmarking.log import *
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.definitions import NumericalPrecision
 
@@ -74,7 +77,7 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
     def eval(self):
         raise NotImplementedError("Eval not implemented yet")
 
-    def predict(self):
+    def infer(self):
         self.model.eval()
 
         with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
@@ -83,27 +86,18 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
 
-    def build_result_log(self) -> BenchmarkResult:
-        
+    def _get_accelerator_info(self) -> str:
         if torch.cuda.is_available():
-            device_info = str(torch.cuda.get_device_name(0))
+            device_info = str(torch.cuda.get_device_name(None))
         else:
-            device_info = "CPU:" + platform.processor()
+            device_info = ""
+            
+        return device_info
+    
+    def _get_ai_framework_name(self) -> str:
+        return "torch"
+    
+    def _get_ai_framework_version(self) -> str:
+        return torch.__version__
+
         
-        benchmark_result = BenchmarkResult(
-            self.__class__.__name__,
-            "torch-" + torch.__version__,
-            device_info,
-            self.data_type.name,
-            self.batch_size,
-            len(self.dataloader.dataset) * self.epochs,
-            self.batch_size,
-            len(self.dataloader.dataset),
-            None,
-            None,
-            None,
-            None,
-            None
-            )
-        
-        return benchmark_result
