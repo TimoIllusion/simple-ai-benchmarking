@@ -1,7 +1,8 @@
 # Additional ignores
 
 log.json
-
+benchmark_result.csv
+benchmark_result.xlsx
 
 
 

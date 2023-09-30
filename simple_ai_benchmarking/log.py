@@ -1,57 +1,104 @@
-import os
-import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field, asdict
 from typing import List
 
+import pandas as pd
+from tabulate import tabulate
+
+@dataclass
+class SWInfo:
+    ai_framework: str
+    ai_framework_version: str
+    python_version: str
+
+@dataclass
+class HWInfo:
+    cpu: str
+    num_cores: int
+    ram_gb: float
+    accelerator: str
+
+@dataclass
+class PerformanceResult:
+    iterations: int
+    duration_s: float = field(init=False)
+    throughput: float = field(init=False)
+    finished_successfully: bool = True
+    error_message: str = ""
+    
+    def update_duration_and_calc_throughput(self, duration_s: float) -> float:   
+        self.duration_s = duration_s     
+        self.throughput = self.iterations / self.duration_s if self.duration_s > 0 else 0.0
+
+@dataclass
+class BenchInfo:
+    workload_type: str
+    compute_precision: str
+    batch_size_training: int
+    batch_size_inference: int
+    sample_shape: List[int]
 
 @dataclass
 class BenchmarkResult:
-    workload_type: str
-    sw_framework: str
-    devices: str
-    compute_precision: str
-    batch_size_training: int
-    num_iterations_training: int
-    batch_size_eval: int
-    num_iterations_eval: int
-    sample_input_shape: list
-    train_duration_s: float
-    eval_duration_s: float
-    iterations_per_second_training: float
-    iterations_per_second_inference: float
+    sw_info: SWInfo
+    hw_info: HWInfo
+    bench_info: BenchInfo
+    train_performance: PerformanceResult
+    infer_performance: PerformanceResult
     
-    
-class Logger:
-    results: List[BenchmarkResult] = []
-    
-    def __init__(self, log_dir):
-        self.log_dir = log_dir
+    def update_train_performance_duration(self, duration_s: float):
+        self.train_performance.update_duration_and_calc_throughput(duration_s)
         
-    def add_result(self, result):
+    def update_infer_performance_duration(self, duration_s: float):
+        self.infer_performance.update_duration_and_calc_throughput(duration_s)
+
+class BenchmarkLogger:
+    def __init__(self):
+        self.results: List[BenchmarkResult] = []
+
+    def add_result(self, result: BenchmarkResult):
         self.results.append(result)
+
+    def to_dataframe(self) -> pd.DataFrame:
+        # Convert each BenchmarkResult to a nested dictionary
+        nested_dicts = [asdict(result) for result in self.results]
         
-    def save(self):
+        # Flatten the nested dictionaries for Pandas
+        flat_dicts = []
+        for nested_dict in nested_dicts:
+            flat_dict = {}
+            for key, value in nested_dict.items():
+                if isinstance(value, dict):
+                    for sub_key, sub_value in value.items():
+                        flat_dict[f"{key}_{sub_key}"] = sub_value
+                else:
+                    flat_dict[key] = value
+            flat_dicts.append(flat_dict)
         
-        data_to_dump = [x.__dict__  for x in self.results]
+        return pd.DataFrame(flat_dicts)
+
+    def pretty_print_summary(self):
+        print("\n===== BENCHMARK SUMMARY =====\n")
         
-        target_json_path = os.path.join(self.log_dir, "log.json")
-        with open(target_json_path, "w") as f:
-            json.dump(data_to_dump, f, indent=4)
+        header = ["#RUN", "SW Framework", "Workload Type", "Accelerator", "Precision", "Train Throughput", "Infer Throughput"]
+        table_data = []
+
+        for i, result in enumerate(self.results):
+            sw_framework = result.sw_info.ai_framework
+            workload_type = result.bench_info.workload_type
+            accelerator = result.hw_info.accelerator
+            precision = result.bench_info.compute_precision
+            train_throughput = round(result.train_performance.throughput, 2)
+            infer_throughput = round(result.infer_performance.throughput, 2)
+
+            row_data = [str(i), sw_framework, workload_type, accelerator, precision, train_throughput, infer_throughput]
+            table_data.append(row_data)
+
+        print(tabulate(table_data, headers=header, tablefmt="pretty"))
+
+    def export_to_csv(self, file_name: str):
+        df = self.to_dataframe()
+        df.to_csv(file_name, index=False)
         
-        print("Saved logs to ", target_json_path)
-    
-    def print_info(self):
-        
-        print("\n===== BENCHMARKS FINISHED =====")
-        print("Benchmark results log:")
-        print("\n")
-        
-        for result in self.results:
-            print(f"{result.workload_type} results:")
-            [print(f"{key}: {val}") for key, val in result.__dict__.items()]
-            
-            inference_its = round(result.iterations_per_second_inference, 2)
-            training_its = round(result.iterations_per_second_training, 2)
-            
-            print("\nCOPY THIS TO README AND EDIT IF YOU WANT:\n")
-            print(f"<GPU_NAME> [{result.sw_framework}+<BACKEND_SHORTNAME><BACKEND_VERSION>] + <CPU_NAME>: {inference_its} it/s (inference), {training_its} it/s (training)")
+    def export_to_excel(self, file_name: str):
+        df = self.to_dataframe()
+        df.to_excel(file_name, index=False)

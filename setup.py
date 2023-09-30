@@ -22,6 +22,9 @@ setuptools.setup(
     install_requires=[
         "numpy",
         "tqdm",
+        "psutil",
+        "pandas",
+        "tabulate",
     ],
     extras_require={
         "pt": [
@@ -36,6 +39,9 @@ setuptools.setup(
         "tf": [
             "tensorflow>=2.3.0"
             ], 
+        "xlsx":[
+            "openpyxl"
+        ]
     },
     entry_points={
         "console_scripts": [

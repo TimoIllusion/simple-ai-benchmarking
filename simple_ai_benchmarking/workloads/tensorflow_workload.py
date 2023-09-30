@@ -57,28 +57,23 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
     def eval(self):
         raise NotImplementedError("Evaluation not implemented for TensorFlow Keras Workload")
         
-    def predict(self):
+    def infer(self):
         self.model.predict(self.syn_dataset, verbose=1)
   
-    def build_result_log(self) -> BenchmarkResult:
-        
-        benchmark_result = BenchmarkResult(
-            self.__class__.__name__,
-            "tensorflow-" + tf.__version__,
-            str(tf.config.list_physical_devices()),
-            self.data_type.name,
-            self.batch_size,
-            self.num_batches * self.batch_size * self.epochs, #TODO: check if number is correct, due to "drop_reminder"
-            self.batch_size,
-            self.num_batches * self.batch_size, #TODO: check if number is correct, due to "drop_reminder"
-            self.input_shape_without_batch_dim,
-            None,
-            None,
-            None,
-            None
-        )
-        
-        return benchmark_result
+    def _get_accelerator_info(self) -> str:
+        gpus = tf.config.list_physical_devices('GPU')
+        if len(gpus) > 0:
+            details = self.device_name + " - " +  str(tf.config.experimental.get_device_details(self.device_name))
+        else:
+            details = ""
+            
+        return details
+    
+    def _get_ai_framework_name(self) -> str:
+        return "tensorflow"
+    
+    def _get_ai_framework_version(self) -> str:
+        return tf.__version__
     
     @staticmethod
     def get_model_memory_usage(batch_size, model):
