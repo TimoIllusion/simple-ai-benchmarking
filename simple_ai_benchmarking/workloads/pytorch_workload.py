@@ -8,7 +8,7 @@ from simple_ai_benchmarking.log import *
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.definitions import NumericalPrecision
 
-class PyTorchSyntheticImageClassification(AIWorkloadBase):
+class PyTorchWorkload(AIWorkloadBase):
 
     def setup(self):
         print(self.model)

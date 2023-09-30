@@ -119,7 +119,7 @@ def run_pt_benchmarks():
     import torch
     import torchvision
 
-    from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchSyntheticImageClassification
+    from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchWorkload
     from simple_ai_benchmarking.models.pt.simple_classification_cnn import PTSimpleClassificationCNN
     
     if torch.cuda.is_available():
@@ -128,7 +128,7 @@ def run_pt_benchmarks():
         device = "cpu"
     
     workloads = [
-            PyTorchSyntheticImageClassification(
+            PyTorchWorkload(
                 PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
                 10, 
                 10, 
@@ -136,7 +136,7 @@ def run_pt_benchmarks():
                 device,
                 NumericalPrecision.MIXED_FP16
                 ),
-            PyTorchSyntheticImageClassification(
+            PyTorchWorkload(
                 PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
                 10, 
                 10, 
@@ -144,7 +144,7 @@ def run_pt_benchmarks():
                 device,
                 NumericalPrecision.DEFAULT_PRECISION
                 ),
-            PyTorchSyntheticImageClassification(
+            PyTorchWorkload(
                 PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
                 10, 
                 10, 
