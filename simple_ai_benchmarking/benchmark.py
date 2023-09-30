@@ -29,7 +29,7 @@ def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     return result_log
 
-def _proccess_workloads(workloads: List[AIWorkloadBase]) -> List[BenchmarkResult]:
+def _proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmark_results") -> List[BenchmarkResult]:
     result_logger = BenchmarkLogger()
     
     for workload in workloads:
@@ -38,21 +38,21 @@ def _proccess_workloads(workloads: List[AIWorkloadBase]) -> List[BenchmarkResult
     
     result_logger.pretty_print_summary()
     
-    result_logger.export_to_csv("benchmark_results.csv")
+    result_logger.export_to_csv(out_file_base + ".csv")
     try:
-        result_logger.export_to_excel("benchmark_results.xlsx")
+        result_logger.export_to_excel(out_file_base + ".xlsx")
     except ModuleNotFoundError as e:
         print("Could not export to excel:", e, "\nPlease install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
     
 def run_tf_benchmarks():
     
     workloads = build_default_tf_workloads()
-    _proccess_workloads(workloads)
+    _proccess_workloads(workloads, "benchmark_results_tf")
     
 def run_pt_benchmarks():
     
     workloads = build_default_pt_workloads()
-    _proccess_workloads(workloads)
+    _proccess_workloads(workloads, "benchmark_results_pt")
     
 
     
