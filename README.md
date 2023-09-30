@@ -30,7 +30,7 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 3. Either clone this repo and run `pip install .` OR just run `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (use extras [tf,pt,...] for direct install of cpu tensorflow, cpu pytorch or directml tensorflow)
 
-4. Run `sai-tf` or `sai-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run.py` for tf benchmark.
+4. Run `sai-tf` or `sai-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
 
 ## Hardware Acceleration for PyTorch and TensorFlow
 
@@ -54,7 +54,7 @@ To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the dir
 
 See https://github.com/microsoft/tensorflow-directml-plugin for more information.
 
-Clone repo and run benchmark with `python run.py`.
+Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 ### Setup PyTorch for NVIDIA GPUs
 

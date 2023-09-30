@@ -21,6 +21,10 @@ class AIWorkloadBase(ABC):
     def setup(self) -> None:
         pass    
     
+    def warmup(self) -> None:
+        self.train()
+        self.infer()
+    
     @abstractmethod
     def train(self) -> None:
         pass
@@ -47,7 +51,6 @@ class AIWorkloadBase(ABC):
     
     def build_result_log(self) -> BenchmarkResult:
         
-        # SWInfo
         sw_info = SWInfo(
             ai_framework=self._get_ai_framework_name(),
             ai_framework_version=self._get_ai_framework_version(),
@@ -57,20 +60,19 @@ class AIWorkloadBase(ABC):
         hw_info = HWInfo(
             cpu=str(platform.processor()) + str(platform.architecture()),
             num_cores=multiprocessing.cpu_count(),
-            ram_gb=psutil.virtual_memory().total / 1e9,  # You'd need to fill this in
+            ram_gb=psutil.virtual_memory().total / 1e9,
             accelerator=self._get_accelerator_info()
         )
         
-        # BenchInfo
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
+            model=self.model.__class__.__name__,
             compute_precision=self.data_type.name,
             batch_size_training=self.batch_size,
             batch_size_inference=self.batch_size,
-            sample_shape=None  # You'd need to fill this in
+            sample_shape=None
         )
         
-        # PerformanceResult (Note: These are placeholders; actual values should be filled later)
         train_performance = PerformanceResult(
             iterations=self.num_batches * self.batch_size * self.epochs
         )
@@ -79,7 +81,6 @@ class AIWorkloadBase(ABC):
             iterations=self.num_batches * self.batch_size
         )
         
-        # Combine into BenchmarkResult
         benchmark_result = BenchmarkResult(
             sw_info=sw_info,
             hw_info=hw_info,

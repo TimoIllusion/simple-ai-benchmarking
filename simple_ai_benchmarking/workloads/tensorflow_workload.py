@@ -3,18 +3,21 @@ import numpy as np
 from simple_ai_benchmarking.definitions import NumericalPrecision
 
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
-from simple_ai_benchmarking.log import BenchmarkResult
 
 class TensorFlowKerasWorkload(AIWorkloadBase):
 
     def setup(self):
         
-        if self.data_type == NumericalPrecision.MIXED_FP16_FP32:
+        if self.data_type == NumericalPrecision.MIXED_FP16:
             tf.keras.mixed_precision.set_global_policy('mixed_float16')
-        elif self.data_type == NumericalPrecision.DEFAULT_FP32:
+        elif self.data_type == NumericalPrecision.EXPLICIT_FP32:
             tf.keras.mixed_precision.set_global_policy('float32')
+        elif self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+            pass
         else:
             raise NotImplementedError(f"Data type not implemented: {self.data_type}")
+        
+
         
         self.model.compile(
             optimizer='adam',   
@@ -22,21 +25,13 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
             metrics=['accuracy'])
         self.model.summary()
         
-        mem_usage_gb = TensorFlowKerasWorkload.get_model_memory_usage(self.batch_size, self.model)
-        print("Memory usage in GB: ", mem_usage_gb)
-        
-        output_shape = list(self.model.layers[-1].output_shape)
-        output_shape[0] = self.num_batches * self.batch_size
-        
-        input_shape = list(self.model.input_shape)
-        input_shape[0] = self.num_batches * self.batch_size
-        
-        self.input_shape_without_batch_dim = input_shape[1:]
+        # mem_usage_gb = TensorFlowKerasWorkload.get_model_memory_usage(self.batch_size, self.model)
+        # print("Memory usage in GB: ", mem_usage_gb)
         
         # always generate dataset on system RAM, that is why CPU is forced here
         with tf.device("/cpu:0"):
-            dataset_shape = input_shape
-            targets_shape = output_shape
+            dataset_shape = (self.num_batches * self.batch_size, 224, 224, 3)
+            targets_shape = (self.num_batches * self.batch_size, 100)
             
             self.inputs = tf.random.normal(dataset_shape, dtype=tf.float32)
             self.targets = tf.random.uniform(targets_shape, minval=0, maxval=2, dtype=tf.int32)

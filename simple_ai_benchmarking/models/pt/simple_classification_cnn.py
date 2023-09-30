@@ -2,44 +2,43 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-class PTSimpleClassificationCNN:
-
-    @staticmethod
-    def find_flatten_dim(model, input_shape):
-        dummy_input = torch.randn(1, *input_shape)
-        output_feat = model(dummy_input)
-        return int(np.prod(output_feat.size()))
-
-    @staticmethod
-    def build_model(num_classes, input_shape):
+class PTSimpleClassificationCNN(nn.Module):
+    
+    def __init__(self, num_classes, input_shape):
+        super(PTSimpleClassificationCNN, self).__init__()
         
-        model_conv_part = nn.Sequential(
-
-            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=0),  # Output: 222x222x32
+        self.model_conv_part = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=0),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Output: 111x111x32
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),  # Output: 109x109x64
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=0),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Output: 54x54x64
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),  # Output: 52x52x64
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Output: 26x26x64
+            nn.MaxPool2d(kernel_size=2, stride=2),
 
-            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),  # Output: 24x24x64
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=0),
             nn.ReLU()
         )
-
-        input_dim = PTSimpleClassificationCNN.find_flatten_dim(model_conv_part, input_shape)
         
-        model = nn.Sequential(
-            model_conv_part,
+        input_dim = self.find_flatten_dim(input_shape)
+        
+        self.model = nn.Sequential(
+            self.model_conv_part,
             nn.Flatten(),
             nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.Linear(64, num_classes),
             nn.Softmax(dim=1)
         )
-        
-        return model
+    
+    def find_flatten_dim(self, input_shape):
+        dummy_input = torch.randn(1, *input_shape)
+        output_feat = self.model_conv_part(dummy_input)
+        return int(np.prod(output_feat.size()))
+    
+    def forward(self, x):
+        return self.model(x)

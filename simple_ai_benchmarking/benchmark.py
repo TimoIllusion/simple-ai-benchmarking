@@ -3,12 +3,14 @@ from typing import List
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import *
 from simple_ai_benchmarking.timer import Timer
-from simple_ai_benchmarking.definitions import NumericalPrecision
-
+from simple_ai_benchmarking.config import build_default_tf_workloads, build_default_pt_workloads
 
 def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     workload.setup()
+    
+    print("WARMUP")
+    workload.warmup()
      
     with Timer() as t:
         print("TRAINING")
@@ -27,7 +29,7 @@ def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     return result_log
 
-def _proccess_workloads(workloads: List[AIWorkloadBase]) -> List[BenchmarkResult]:
+def _proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmark_results") -> List[BenchmarkResult]:
     result_logger = BenchmarkLogger()
     
     for workload in workloads:
@@ -36,121 +38,21 @@ def _proccess_workloads(workloads: List[AIWorkloadBase]) -> List[BenchmarkResult
     
     result_logger.pretty_print_summary()
     
-    result_logger.export_to_csv("benchmark_results.csv")
+    result_logger.export_to_csv(out_file_base + ".csv")
     try:
-        result_logger.export_to_excel("benchmark_results.xlsx")
+        result_logger.export_to_excel(out_file_base + ".xlsx")
     except ModuleNotFoundError as e:
         print("Could not export to excel:", e, "\nPlease install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
     
 def run_tf_benchmarks():
     
-    import tensorflow as tf
-    
-    from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
-    from simple_ai_benchmarking.models.tf.simple_classification_cnn import TFSimpleClassificationCNN
-    
-    device = "/gpu:0"
-    
-    # Get more models form keras model zoo: https://keras.io/api/applications/
-    workloads = [
-        TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
-            10, 
-            10, 
-            8, 
-            device,
-            NumericalPrecision.MIXED_FP16_FP32
-            ), # <1 GB
-         TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
-            10, 
-            10, 
-            8, 
-            device,
-            NumericalPrecision.DEFAULT_FP32,
-            ), # <1 GB
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.ResNet50(weights=None),
-        #     10, 
-        #     10, 
-        #     8, 
-        #     device,
-        #     NumericalPrecision.MIXED_FP16_FP32,
-        #     ),
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.ResNet50(weights=None),
-        #     10, 
-        #     10, 
-        #     8, 
-        #     device,
-        #     NumericalPrecision.DEFAULT_FP32,
-        #     ),
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.EfficientNetB5(),
-        #     10, 
-        #     10, 
-        #     8, 
-        #     device,
-        #     ), # ~11 GB
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.EfficientNetB0(), 
-        #     10, 
-        #     10, 
-        #     8, 
-        #     device,
-        #     ), # ~1 GB
-        ]
-    
-    _proccess_workloads(workloads)
+    workloads = build_default_tf_workloads()
+    _proccess_workloads(workloads, "benchmark_results_tf")
     
 def run_pt_benchmarks():
     
-    import torch
-    import torchvision
+    workloads = build_default_pt_workloads()
+    _proccess_workloads(workloads, "benchmark_results_pt")
+    
 
-    from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchSyntheticImageClassification
-    from simple_ai_benchmarking.models.pt.simple_classification_cnn import PTSimpleClassificationCNN
-    
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    else:
-        device = "cpu"
-    
-    workloads = [
-            PyTorchSyntheticImageClassification(
-                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
-                10, 
-                10, 
-                8, 
-                device,
-                NumericalPrecision.MIXED_FP16_FP32
-                ),
-            PyTorchSyntheticImageClassification(
-                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
-                10, 
-                10, 
-                8, 
-                device,
-                NumericalPrecision.DEFAULT_FP32
-                ),
-            # PyTorchSyntheticImageClassification(
-            #     torchvision.models.resnet50(num_classes=1000),
-            #     10,
-            #     10,
-            #     8,
-            #     device,
-            #     NumericalPrecision.MIXED_FP16_FP32,
-            # ),
-            # PyTorchSyntheticImageClassification(
-            #     torchvision.models.resnet50(num_classes=1000),
-            #     10,
-            #     10,
-            #     8,
-            #     device,
-            #     NumericalPrecision.DEFAULT_FP32,
-            # )
-        ]
-    
-    _proccess_workloads(workloads)
-    
     

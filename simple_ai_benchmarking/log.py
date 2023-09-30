@@ -32,6 +32,7 @@ class PerformanceResult:
 @dataclass
 class BenchInfo:
     workload_type: str
+    model: str
     compute_precision: str
     batch_size_training: int
     batch_size_inference: int
@@ -79,18 +80,21 @@ class BenchmarkLogger:
     def pretty_print_summary(self):
         print("\n===== BENCHMARK SUMMARY =====\n")
         
-        header = ["#RUN", "SW Framework", "Workload Type", "Accelerator", "Precision", "Train Throughput", "Infer Throughput"]
+        header = ["#RUN", "Lib", "Model", "Accelerator", "Precision", "BS", "it/s train", "it/s infer"]
         table_data = []
 
         for i, result in enumerate(self.results):
             sw_framework = result.sw_info.ai_framework
-            workload_type = result.bench_info.workload_type
+            model = result.bench_info.model
             accelerator = result.hw_info.accelerator
             precision = result.bench_info.compute_precision
             train_throughput = round(result.train_performance.throughput, 2)
             infer_throughput = round(result.infer_performance.throughput, 2)
+            
+            assert result.bench_info.batch_size_inference == result.bench_info.batch_size_training
+            batch_size = result.bench_info.batch_size_training
 
-            row_data = [str(i), sw_framework, workload_type, accelerator, precision, train_throughput, infer_throughput]
+            row_data = [str(i), sw_framework, model, accelerator, precision, batch_size, train_throughput, infer_throughput]
             table_data.append(row_data)
 
         print(tabulate(table_data, headers=header, tablefmt="pretty"))
