@@ -58,7 +58,10 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
     def _get_accelerator_info(self) -> str:
         gpus = tf.config.list_physical_devices('GPU')
         if len(gpus) > 0:
-            details = self.device_name + " - " +  str(tf.config.experimental.get_device_details(self.device_name))
+
+            gpu_id = int(self.device_name.split(":")[1])
+            device_infos = tf.config.experimental.get_device_details(gpus[gpu_id])
+            details = self.device_name + " - " +  device_infos["device_name"]
         else:
             details = ""
             
