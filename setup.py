@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="simple-ai-benchmarking",
-    version="0.2.0",
+    version="0.3.0",
     author="Timo Leitritz",
     author_email="placeholder@example.com",
     description="A package for benchmarking various AI models in a simple way.",
@@ -46,7 +46,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "sai-tf = simple_ai_benchmarking.benchmark:run_tf_benchmarks",
-            "sai-pt = simple_ai_benchmarking.benchmark:run_pt_benchmarks"
+            "sai-pt = simple_ai_benchmarking.benchmark:run_pt_benchmarks",
         ]
     },
 )
