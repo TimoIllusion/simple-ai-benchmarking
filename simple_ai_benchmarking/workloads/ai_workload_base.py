@@ -21,6 +21,10 @@ class AIWorkloadBase(ABC):
     def setup(self) -> None:
         pass    
     
+    def warmup(self) -> None:
+        self.train()
+        self.infer()
+    
     @abstractmethod
     def train(self) -> None:
         pass

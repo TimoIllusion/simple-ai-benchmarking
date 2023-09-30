@@ -9,6 +9,9 @@ from simple_ai_benchmarking.definitions import NumericalPrecision
 def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     workload.setup()
+    
+    print("WARMUP")
+    workload.warmup()
      
     with Timer() as t:
         print("TRAINING")
