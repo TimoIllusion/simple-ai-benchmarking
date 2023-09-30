@@ -59,7 +59,7 @@ def run_tf_benchmarks():
             10, 
             8, 
             device,
-            NumericalPrecision.MIXED_FP16_FP32
+            NumericalPrecision.MIXED_FP16
             ), # <1 GB
          TensorFlowKerasWorkload(
             TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
@@ -67,7 +67,7 @@ def run_tf_benchmarks():
             10, 
             8, 
             device,
-            NumericalPrecision.DEFAULT_FP32,
+            NumericalPrecision.DEFAULT_PRECISION,
             ), # <1 GB
         # TensorFlowKerasWorkload(
         #     tf.keras.applications.ResNet50(weights=None),
@@ -123,7 +123,7 @@ def run_pt_benchmarks():
                 10, 
                 8, 
                 device,
-                NumericalPrecision.MIXED_FP16_FP32
+                NumericalPrecision.MIXED_FP16
                 ),
             PyTorchSyntheticImageClassification(
                 PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
@@ -131,7 +131,7 @@ def run_pt_benchmarks():
                 10, 
                 8, 
                 device,
-                NumericalPrecision.DEFAULT_FP32
+                NumericalPrecision.DEFAULT_PRECISION
                 ),
             # PyTorchSyntheticImageClassification(
             #     torchvision.models.resnet50(num_classes=1000),

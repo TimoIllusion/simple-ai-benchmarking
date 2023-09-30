@@ -42,9 +42,11 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
             torch.compile(self.model) 
 
     def _assign_numerical_precision(self):
-        if self.data_type == NumericalPrecision.MIXED_FP16_FP32:
+        if self.data_type == NumericalPrecision.MIXED_FP16:
             self.numerical_precision = torch.float16
-        elif self.data_type == NumericalPrecision.DEFAULT_FP32:
+        elif self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+            pass
+        elif self.data_type == NumericalPrecision.EXPLICIT_FP32:
             self.numerical_precision = torch.float32
         else:
             raise NotImplementedError(f"Data type not implemented: {self.data_type}")
@@ -56,33 +58,40 @@ class PyTorchSyntheticImageClassification(AIWorkloadBase):
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
     def train(self):
+        if self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+            self._training_loop()
+        else:
+            with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
+                self._training_loop()
+                         
+    def _training_loop(self):
         self.model.train()
-        running_loss = 0.0
 
-        with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
-
-            for epoch in tqdm.tqdm(range(self.epochs)):
-                for inputs, labels in self.dataloader:
-                    inputs, labels = inputs.to(self.device), labels.to(self.device)
-                    
-                    self.optimizer.zero_grad()
-                    
-                    outputs = self.model(inputs)
-                    loss = self.criterion(outputs, labels)
-                    loss.backward()
-                    self.optimizer.step()
-
-                    running_loss += loss.item()
+        for epoch in tqdm.tqdm(range(self.epochs)):
+            for inputs, labels in self.dataloader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                
+                self.optimizer.zero_grad()
+                
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
 
     def eval(self):
         raise NotImplementedError("Eval not implemented yet")
 
     def infer(self):
+        if self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+            self._infer_loop()
+        else:
+            with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
+                self._infer_loop()
+                
+    def _infer_loop(self):
         self.model.eval()
-
-        with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
         
-            for inputs, labels in tqdm.tqdm(self.dataloader):
+        for inputs, labels in tqdm.tqdm(self.dataloader):
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self.model(inputs)
 
