@@ -18,7 +18,7 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     
     workloads = [
             PyTorchWorkload(
-                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
+                PTSimpleClassificationCNN(100, [3,224,224]), 
                 10, 
                 10, 
                 8, 
@@ -26,7 +26,7 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
                 NumericalPrecision.MIXED_FP16
                 ),
             PyTorchWorkload(
-                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
+                PTSimpleClassificationCNN(100, [3,224,224]), 
                 10, 
                 10, 
                 8, 
@@ -34,7 +34,7 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
                 NumericalPrecision.DEFAULT_PRECISION
                 ),
             PyTorchWorkload(
-                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
+                PTSimpleClassificationCNN(100, [3,224,224]), 
                 10, 
                 10, 
                 8, 
@@ -70,10 +70,11 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
     
     device = "/gpu:0"
     
+    
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
         TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
+            TFSimpleClassificationCNN(100, [224,224,3]), 
             10, 
             10, 
             8, 
@@ -81,7 +82,7 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
             NumericalPrecision.MIXED_FP16
             ), # <1 GB
          TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
+            TFSimpleClassificationCNN(100, [224,224,3]), 
             10, 
             10, 
             8, 
@@ -89,7 +90,7 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
             NumericalPrecision.DEFAULT_PRECISION,
             ), # <1 GB
         TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
+            TFSimpleClassificationCNN(100, [224,224,3]), 
             10, 
             10, 
             8, 
