@@ -72,6 +72,14 @@ def run_tf_benchmarks():
             device,
             NumericalPrecision.DEFAULT_PRECISION,
             ), # <1 GB
+        TensorFlowKerasWorkload(
+            TFSimpleClassificationCNN.build_model(100, [224,224,3]), 
+            10, 
+            10, 
+            8, 
+            device,
+            NumericalPrecision.EXPLICIT_FP32,
+            ), # <1 GB
         # TensorFlowKerasWorkload(
         #     tf.keras.applications.ResNet50(weights=None),
         #     10, 
@@ -135,6 +143,14 @@ def run_pt_benchmarks():
                 8, 
                 device,
                 NumericalPrecision.DEFAULT_PRECISION
+                ),
+            PyTorchSyntheticImageClassification(
+                PTSimpleClassificationCNN.build_model(100, [3,224,224]), 
+                10, 
+                10, 
+                8, 
+                device,
+                NumericalPrecision.EXPLICIT_FP32
                 ),
             # PyTorchSyntheticImageClassification(
             #     torchvision.models.resnet50(num_classes=1000),
