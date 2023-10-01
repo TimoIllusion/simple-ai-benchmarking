@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field, asdict
 from typing import List
 
+from loguru import logger
+
 import pandas as pd
 from tabulate import tabulate
 
@@ -78,7 +80,7 @@ class BenchmarkLogger:
         return pd.DataFrame(flat_dicts)
 
     def pretty_print_summary(self):
-        print("\n===== BENCHMARK SUMMARY =====\n")
+        logger.info("\n===== BENCHMARK SUMMARY =====\n")
         
         header = ["#RUN", "Lib", "Model", "Accelerator", "Precision", "BS", "it/s train", "it/s infer"]
         table_data = []

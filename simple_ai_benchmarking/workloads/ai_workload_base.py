@@ -3,6 +3,7 @@ import platform
 import multiprocessing
 from typing import Tuple
 
+from loguru import logger
 import numpy as np
 import psutil
 
@@ -23,8 +24,8 @@ class AIWorkloadBase(ABC):
         inputs = np.random.random(self.dataset_inputs_shape).astype(np.float32)
         targets = np.random.randint(low=0, high=2, size=self.dataset_targets_shape).astype(np.int64)
         
-        print("Synthetic Dataset NumPy Inputs Shape:", inputs.shape, inputs.dtype)
-        print("Synthetic Dataset NumPy Targets Shape:", targets.shape, targets.dtype)
+        logger.info("Synthetic Dataset NumPy Inputs Shape: {} {}", inputs.shape, inputs.dtype)
+        logger.info("Synthetic Dataset NumPy Targets Shape: {} {}", targets.shape, targets.dtype)
         
         return inputs, targets
         

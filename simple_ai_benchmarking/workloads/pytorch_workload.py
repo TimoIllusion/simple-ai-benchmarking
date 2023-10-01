@@ -1,5 +1,6 @@
 import platform
 
+from loguru import logger
 import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
@@ -11,8 +12,8 @@ from simple_ai_benchmarking.definitions import NumericalPrecision
 class PyTorchWorkload(AIWorkloadBase):
 
     def setup(self):
-        print(self.model)
-        print("Number of model parameters:", self.count_model_parameters())
+        logger.info(self.model)
+        logger.info("Number of model parameters: {}", self.count_model_parameters())
 
         self.device = torch.device(self.cfg.device_name)
         
@@ -21,8 +22,8 @@ class PyTorchWorkload(AIWorkloadBase):
         self.inputs = torch.Tensor(self.inputs).to(torch.float32)
         self.targets = torch.Tensor(self.targets).to(torch.int64)
 
-        print("Synthetic Dataset PyTorch Inputs Shape:", self.inputs.shape, self.inputs.dtype)
-        print("Synthetic Dataset PyTorch Targets Shape:", self.targets.shape, self.targets.dtype)
+        logger.info("Synthetic Dataset PyTorch Inputs Shape: {} {}", self.inputs.shape, self.inputs.dtype)
+        logger.info("Synthetic Dataset PyTorch Targets Shape: {} {}", self.targets.shape, self.targets.dtype)
 
         dataset = TensorDataset(self.inputs, self.targets)
         self.dataloader = DataLoader(dataset, batch_size=self.cfg.batch_size, shuffle=False, pin_memory=True)

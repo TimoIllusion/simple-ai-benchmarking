@@ -1,7 +1,8 @@
+from loguru import logger
 import tensorflow as tf
 import numpy as np
-from simple_ai_benchmarking.definitions import NumericalPrecision
 
+from simple_ai_benchmarking.definitions import NumericalPrecision
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 
 class TensorFlowKerasWorkload(AIWorkloadBase):
@@ -31,8 +32,8 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
             self.inputs = tf.convert_to_tensor(self.inputs, dtype=tf.float32)
             self.targets = tf.convert_to_tensor(self.targets, dtype=tf.int64)
             
-            print("Synthetic Dataset TensorFlow Inputs Shape:", self.inputs.shape, self.inputs.dtype)
-            print("Synthetic Dataset TensorFlow Targets Shape:", self.targets.shape, self.targets.dtype)
+            logger.info("Synthetic Dataset TensorFlow Inputs Shape: {} {}", self.inputs.shape, self.inputs.dtype)
+            logger.info("Synthetic Dataset TensorFlow Targets Shape: {} {}", self.targets.shape, self.targets.dtype)
             
             self.syn_dataset = tf.data.Dataset.from_tensor_slices((self.inputs, self.targets))
 

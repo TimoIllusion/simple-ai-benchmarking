@@ -1,5 +1,7 @@
 from typing import List
 
+from loguru import logger
+
 from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
 from simple_ai_benchmarking.log import *
 from simple_ai_benchmarking.timer import Timer
@@ -9,16 +11,16 @@ def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     workload.setup()
     
-    print("WARMUP")
+    logger.info("WARMUP")
     workload.warmup()
      
     with Timer() as t:
-        print("TRAINING")
+        logger.info("TRAINING")
         workload.train()
     training_duration_s = t.duration_s
     
     with Timer() as t:
-        print("INFERENCE")
+        logger.info("INFERENCE")
         workload.infer()
     infer_duration_s = t.duration_s
 
@@ -42,7 +44,7 @@ def _proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmar
     try:
         result_logger.export_to_excel(out_file_base + ".xlsx")
     except ModuleNotFoundError as e:
-        print("Could not export to excel:", e, "\nPlease install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
+        logger.info("Could not export to excel:", e, "\nPlease install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
     
 def run_tf_benchmarks():
     
