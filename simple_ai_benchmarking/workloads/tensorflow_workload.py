@@ -8,46 +8,41 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
 
     def setup(self):
         
-        if self.data_type == NumericalPrecision.MIXED_FP16:
+        if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
             tf.keras.mixed_precision.set_global_policy('mixed_float16')
-        elif self.data_type == NumericalPrecision.EXPLICIT_FP32:
+        elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
             tf.keras.mixed_precision.set_global_policy('float32')
-        elif self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             pass
         else:
-            raise NotImplementedError(f"Data type not implemented: {self.data_type}")
-        
-
-        
+            raise NotImplementedError(f"Data type not implemented: {self.cfg.data_type}")
+    
         self.model.compile(
-            optimizer='adam',   
-            loss='categorical_crossentropy',
+            optimizer='adam', 
+            loss='sparse_categorical_crossentropy', # to use target shape of (N, ) instead of (N, num_classes)
             metrics=['accuracy'])
         self.model.summary()
         
-        # mem_usage_gb = TensorFlowKerasWorkload.get_model_memory_usage(self.batch_size, self.model)
-        # print("Memory usage in GB: ", mem_usage_gb)
+        self.inputs, self.targets = self._generate_random_dataset_with_numpy()
         
         # always generate dataset on system RAM, that is why CPU is forced here
         with tf.device("/cpu:0"):
-            dataset_shape = (self.num_batches * self.batch_size, 224, 224, 3)
-            targets_shape = (self.num_batches * self.batch_size, 100)
+ 
+            self.inputs = tf.convert_to_tensor(self.inputs, dtype=tf.float32)
+            self.targets = tf.convert_to_tensor(self.targets, dtype=tf.int64)
             
-            self.inputs = tf.random.normal(dataset_shape, dtype=tf.float32)
-            self.targets = tf.random.uniform(targets_shape, minval=0, maxval=2, dtype=tf.int32)
-            
-            print("inputs shape:", self.inputs.shape)
-            print("targets shape:", self.targets.shape)
+            print("Synthetic Dataset TensorFlow Inputs Shape:", self.inputs.shape, self.inputs.dtype)
+            print("Synthetic Dataset TensorFlow Targets Shape:", self.targets.shape, self.targets.dtype)
             
             self.syn_dataset = tf.data.Dataset.from_tensor_slices((self.inputs, self.targets))
 
             self.syn_dataset = self.syn_dataset.shuffle(buffer_size=10000)
-            self.syn_dataset = self.syn_dataset.batch(self.batch_size)
+            self.syn_dataset = self.syn_dataset.batch(self.cfg.batch_size)
             self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
             
     
     def train(self):
-        _ = self.model.fit(self.syn_dataset, epochs=self.epochs, validation_data=None, verbose=1)
+        _ = self.model.fit(self.syn_dataset, epochs=self.cfg.epochs, validation_data=None, verbose=1)
     
     def eval(self):
         raise NotImplementedError("Evaluation not implemented for TensorFlow Keras Workload")
@@ -59,9 +54,9 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
         gpus = tf.config.list_physical_devices('GPU')
         if len(gpus) > 0:
 
-            gpu_id = int(self.device_name.split(":")[1])
+            gpu_id = int(self.cfg.device_name.split(":")[1])
             device_infos = tf.config.experimental.get_device_details(gpus[gpu_id])
-            details = self.device_name + " - " +  device_infos["device_name"]
+            details = self.cfg.device_name + " - " +  device_infos["device_name"]
         else:
             details = ""
             

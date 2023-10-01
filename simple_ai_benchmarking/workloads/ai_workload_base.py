@@ -1,21 +1,33 @@
 from abc import abstractmethod, ABC
 import platform
 import multiprocessing
+from typing import Tuple
 
+import numpy as np
 import psutil
 
 from simple_ai_benchmarking.log import *
-from simple_ai_benchmarking.definitions import NumericalPrecision
+from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig
 
 class AIWorkloadBase(ABC):
     
-    def __init__(self, model, epochs: int, num_batches: int, batch_size: int, device_name: str, data_type: NumericalPrecision):
+    def __init__(self, model, config: AIWorkloadBaseConfig):
+        
         self.model = model
-        self.epochs = epochs
-        self.num_batches = num_batches
-        self.batch_size = batch_size
-        self.device_name = device_name
-        self.data_type = data_type
+        self.cfg = config
+        
+        self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(self.cfg.input_shape_without_batch)
+        self.dataset_targets_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(self.cfg.target_shape_without_batch)
+        
+    def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
+        inputs = np.random.random(self.dataset_inputs_shape).astype(np.float32)
+        targets = np.random.randint(low=0, high=2, size=self.dataset_targets_shape).astype(np.int64)
+        
+        print("Synthetic Dataset NumPy Inputs Shape:", inputs.shape, inputs.dtype)
+        print("Synthetic Dataset NumPy Targets Shape:", targets.shape, targets.dtype)
+        
+        return inputs, targets
+        
 
     @abstractmethod
     def setup(self) -> None:
@@ -67,18 +79,18 @@ class AIWorkloadBase(ABC):
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
             model=self.model.__class__.__name__,
-            compute_precision=self.data_type.name,
-            batch_size_training=self.batch_size,
-            batch_size_inference=self.batch_size,
+            compute_precision=self.cfg.data_type.name,
+            batch_size_training=self.cfg.batch_size,
+            batch_size_inference=self.cfg.batch_size,
             sample_shape=None
         )
         
         train_performance = PerformanceResult(
-            iterations=self.num_batches * self.batch_size * self.epochs
+            iterations=self.cfg.num_batches * self.cfg.batch_size * self.cfg.epochs
         )
         
         infer_performance = PerformanceResult(
-            iterations=self.num_batches * self.batch_size
+            iterations=self.cfg.num_batches * self.cfg.batch_size
         )
         
         benchmark_result = BenchmarkResult(
