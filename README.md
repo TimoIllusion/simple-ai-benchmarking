@@ -84,23 +84,23 @@ WIP
 
 ## Upcoming
 
-- [x] Remove dependencies on tf_addons and tf_datasets
-- [ ] Add warmup function
-- [ ] Implement simple baseline cnn with identical architecture for pytorch/tensorflow
-- [x] Use synthetic data
-- [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
-- [ ] Add automatic mixed precision options
-- [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
-- [ ] Model registry
-- [ ] Add config file to customize benchmarks
 - [ ] Add unit tests
+- [ ] Add config file to customize benchmarks
+- [ ] Model registry
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
-- [x] Add models using pytorch
-- [ ] Refactor code into improved and refined structure
-- [x] Improve logging 
-- [ ] Save results to csv
+- [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
 - [ ] Implement interfaces for TensorRT and ONNXRuntime
-- [ ] Add plotting
 - [ ] ROCm support
 - [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
+- [ ] Add plotting
 - [ ] Add option to install package and put on pypi.org
+- [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
+- [x] Refactor code into improved and refined structure
+- [x] Remove dependencies on tf_addons and tf_datasets
+- [x] Add warmup function
+- [x] Implement simple baseline cnn with identical architecture for pytorch/tensorflow
+- [x] Use synthetic data
+- [x] Improve logging 
+- [x] Save results to csv
+- [x] Add models using pytorch
+- [x] Add automatic mixed precision options

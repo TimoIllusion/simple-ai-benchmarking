@@ -25,6 +25,7 @@ setuptools.setup(
         "psutil",
         "pandas",
         "tabulate",
+        "loguru",
     ],
     extras_require={
         "pt": [

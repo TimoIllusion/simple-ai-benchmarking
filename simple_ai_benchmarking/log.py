@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field, asdict
 from typing import List
 
+from loguru import logger
+
 import pandas as pd
 from tabulate import tabulate
 
