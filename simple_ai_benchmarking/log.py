@@ -80,7 +80,7 @@ class BenchmarkLogger:
         return pd.DataFrame(flat_dicts)
 
     def pretty_print_summary(self):
-        logger.info("\n===== BENCHMARK SUMMARY =====\n")
+        print("\n===== BENCHMARK SUMMARY =====\n")
         
         header = ["#RUN", "Lib", "Model", "Accelerator", "Precision", "BS", "it/s train", "it/s infer"]
         table_data = []

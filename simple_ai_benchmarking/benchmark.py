@@ -44,7 +44,7 @@ def _proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmar
     try:
         result_logger.export_to_excel(out_file_base + ".xlsx")
     except ModuleNotFoundError as e:
-        logger.info("Could not export to excel:", e, "\nPlease install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
+        logger.warning(f"Could not export to excel: \"{e}\" -> Please install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
     
 def run_tf_benchmarks():
     
