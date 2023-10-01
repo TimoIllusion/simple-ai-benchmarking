@@ -14,13 +14,18 @@ class PyTorchWorkload(AIWorkloadBase):
         print(self.model)
         print("Number of model parameters:", self.count_model_parameters())
 
-        self.device = torch.device(self.device_name)
+        self.device = torch.device(self.cfg.device_name)
         
-        synthetic_data = torch.randn(self.num_batches * self.batch_size, 3, 224, 224, dtype=torch.float32)
-        synthetic_labels = torch.randint(0, 1, (self.num_batches * self.batch_size,))
+        self.inputs, self.targets = self._generate_random_dataset_with_numpy()
+        
+        self.inputs = torch.Tensor(self.inputs).to(torch.float32)
+        self.targets = torch.Tensor(self.targets).to(torch.int64)
 
-        dataset = TensorDataset(synthetic_data, synthetic_labels)
-        self.dataloader = DataLoader(dataset, batch_size=self.batch_size, shuffle=False, pin_memory=True)
+        print("Synthetic Dataset PyTorch Inputs Shape:", self.inputs.shape, self.inputs.dtype)
+        print("Synthetic Dataset PyTorch Targets Shape:", self.targets.shape, self.targets.dtype)
+
+        dataset = TensorDataset(self.inputs, self.targets)
+        self.dataloader = DataLoader(dataset, batch_size=self.cfg.batch_size, shuffle=False, pin_memory=True)
 
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=0.001, momentum=0.9)
         self.criterion = torch.nn.CrossEntropyLoss()
@@ -40,23 +45,23 @@ class PyTorchWorkload(AIWorkloadBase):
             torch.compile(self.model) 
 
     def _assign_numerical_precision(self):
-        if self.data_type == NumericalPrecision.MIXED_FP16:
+        if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
             self.numerical_precision = torch.float16
-        elif self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             pass
-        elif self.data_type == NumericalPrecision.EXPLICIT_FP32:
+        elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
             self.numerical_precision = torch.float32
         else:
-            raise NotImplementedError(f"Data type not implemented: {self.data_type}")
+            raise NotImplementedError(f"Data type not implemented: {self.cfg.data_type}")
 
     def _assign_autocast_device_type(self):
-        self.autocast_device_type =  "cuda" if "cuda" in self.device_name else "cpu"
+        self.autocast_device_type =  "cuda" if "cuda" in self.cfg.device_name else "cpu"
 
     def count_model_parameters(self):
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
     def train(self):
-        if self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             self._training_loop()
         else:
             with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
@@ -65,7 +70,7 @@ class PyTorchWorkload(AIWorkloadBase):
     def _training_loop(self):
         self.model.train()
 
-        for epoch in tqdm.tqdm(range(self.epochs)):
+        for epoch in tqdm.tqdm(range(self.cfg.epochs)):
             for inputs, labels in self.dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
                 
@@ -80,7 +85,7 @@ class PyTorchWorkload(AIWorkloadBase):
         raise NotImplementedError("Eval not implemented yet")
 
     def infer(self):
-        if self.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             self._infer_loop()
         else:
             with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
