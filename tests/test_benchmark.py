@@ -48,4 +48,4 @@ def test_benchmark_dummy():
     workloads = [DummyWorkload(None, cfg)]
     _proccess_workloads(workloads, "benchmark_results_dummy")
     
-    assert os.path.exists("benchmark_results_dummy.csv")
+    assert os.path.exists("benchmark_results_dummy.csv"), "Result file does not exist"
