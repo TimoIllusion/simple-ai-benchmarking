@@ -1,18 +1,18 @@
-# simple-ai-benchmarking (SAI)
+# simple-ai-benchmarking (SAIB)
 
-A collection of simple scripts and notebooks to quickly run reproducible tests on a variety of hardware and software for AI workloads.
+A simple repo to quickly run reproducible tests on a variety of hardware and software for AI workloads.
 
 ## Quickstart
 
 Assuming tensorflow or pytorch is already installed in your environment:
 
-1. Install SAI directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
+1. Install SAIB directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
 
 2. Run benchmark with command `sai-tf` or `sai-pt` using tensorflow or pytorch respectively. 
 
 NOTE: The results are not comparable, since different model architectures are used per default.
 
-To install tensorflow and pytorch when installing SAI, you can also install using the following commands: 
+To install tensorflow and pytorch when installing SAIB, you can also install using the following commands: 
 
 `pip install simple-ai-benchmarking[tf]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs tensorflow)
 
@@ -24,7 +24,7 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 ## Setup & Usage
 
-1. Create a conda environment via `conda create -n sai python=3.9 -y` and activate it `conda activate sai`.
+1. Create a conda environment via `conda create -n saib python=3.9 -y` and activate it `conda activate saib`.
 
 2. [OPTIONAL] Install your prefered pytorch or tensorflow version and respective CUDA version.
 
@@ -84,7 +84,7 @@ WIP
 
 ## Upcoming
 
-- [ ] Add unit tests
+- [x] Add unit tests
 - [ ] Add config file to customize benchmarks
 - [ ] Model registry
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
