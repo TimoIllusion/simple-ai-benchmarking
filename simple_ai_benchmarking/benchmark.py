@@ -31,7 +31,12 @@ def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
     return result_log
 
-def _proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmark_results") -> List[BenchmarkResult]:
+def proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmark_results"):
+
+    if not workloads:
+        logger.info(f"Got empty list fo workloads: {workloads} -> Please check config.py to set workload configuration.")
+        return []
+
     result_logger = BenchmarkLogger()
     
     for workload in workloads:
@@ -49,12 +54,12 @@ def _proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmar
 def run_tf_benchmarks():
     
     workloads = build_default_tf_workloads()
-    _proccess_workloads(workloads, "benchmark_results_tf")
+    proccess_workloads(workloads, "benchmark_results_tf")
     
 def run_pt_benchmarks():
     
     workloads = build_default_pt_workloads()
-    _proccess_workloads(workloads, "benchmark_results_pt")
+    proccess_workloads(workloads, "benchmark_results_pt")
     
 
     

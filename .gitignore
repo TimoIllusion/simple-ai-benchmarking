@@ -1,12 +1,8 @@
 # Additional ignores
 
 log.json
-benchmark_results.csv
-benchmark_results.xlsx
-benchmark_results_tf.csv
-benchmark_results_tf.xlsx
-benchmark_results_pt.csv
-benchmark_results_pt.xlsx
+*.csv
+*.xlsx
 
 
 # Byte-compiled / optimized / DLL files
