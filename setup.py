@@ -26,6 +26,7 @@ setuptools.setup(
         "pandas",
         "tabulate",
         "loguru",
+        "pytest",
     ],
     extras_require={
         "pt": [
