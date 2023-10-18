@@ -64,7 +64,15 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 ## Example results [LATEST]
 
-WIP
+
+Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.0.1+cu118, Python 3.9.18:
++------+-------+---------------------------+-------------------------+-------------------+----+------------+------------+
+| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
++------+-------+---------------------------+-------------------------+-------------------+----+------------+------------+
+|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  2702.73   |  4210.51   |
+|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  2492.21   |  3352.16   |
+|  2   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |   EXPLICIT_FP32   | 8  |  2628.62   |  3478.48   |
++------+-------+---------------------------+-------------------------+-------------------+----+------------+------------+
 
 ## Example results [LEGACY]
 
