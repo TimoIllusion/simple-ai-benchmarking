@@ -26,8 +26,8 @@ def proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmark
     result_logger = BenchmarkLogger()
     
     for workload in workloads:
-        combined_benchmark_result = _repeat_benchmark_n_times(workload, repetitions)
-        result_logger.add_result(combined_benchmark_result)
+        benchmark_repetition_results = _repeat_benchmark_n_times(workload, repetitions)
+        result_logger.add_repetitions_for_one_benchmark(benchmark_repetition_results)
     
     result_logger.pretty_print_summary()
     
@@ -37,14 +37,14 @@ def proccess_workloads(workloads: List[AIWorkloadBase], out_file_base="benchmark
     except ModuleNotFoundError as e:
         logger.warning(f"Could not export to excel: \"{e}\" -> Please install openpyxl to export to excel, e.g. via SAI [xlsx] extra.")
 
-def _repeat_benchmark_n_times(workload: AIWorkloadBase, n_repetitions: int) -> BenchmarkResult:
-    benchmark_repetition_result = []
+def _repeat_benchmark_n_times(workload: AIWorkloadBase, n_repetitions: int) -> List[BenchmarkResult]:
+    benchmark_repetition_results = []
     for i in range(n_repetitions):
         logger.info(f"Repetition ({i+1}/{n_repetitions})")
         benchmark_result = benchmark(workload)
-        benchmark_repetition_result.append(benchmark_result)
-    combined_benchmark_result = _average_benchmark_results(benchmark_repetition_result)
-    return combined_benchmark_result
+        benchmark_repetition_results.append(benchmark_result)
+
+    return benchmark_repetition_results
 
 def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     
@@ -69,35 +69,6 @@ def benchmark(workload: AIWorkloadBase) -> BenchmarkResult:
     result_log.update_infer_performance_duration(infer_duration_s)
     
     return result_log
-
-def _average_benchmark_results(benchmark_results: List[BenchmarkResult]) -> BenchmarkResult:
-        assert benchmark_results, "Got empty list of benchmark results"
-    
-        infer_performances = [result.infer_performance for result in benchmark_results]
-        train_performances = [result.train_performance for result in benchmark_results]
-        
-        infer_avg_perf = _accumulate_and_average_performance_results(infer_performances)
-        train_avg_perf = _accumulate_and_average_performance_results(train_performances)
-        
-        combined_avg_benchmark_result = benchmark_results[0]
-        combined_avg_benchmark_result.infer_performance = infer_avg_perf
-        combined_avg_benchmark_result.train_performance = train_avg_perf
-        
-        return combined_avg_benchmark_result
-    
-def _accumulate_and_average_performance_results(perf_results: List[PerformanceResult]) -> PerformanceResult:
-    
-    iterations_sum = 0
-    duration_s_sum = 0.0
-    
-    for perf in perf_results:
-        iterations_sum += perf.iterations
-        duration_s_sum += perf.duration_s
-        
-    avg_result = PerformanceResult(iterations_sum)
-    avg_result.update_duration_and_calc_throughput(duration_s_sum)
-    
-    return avg_result
 
 
     

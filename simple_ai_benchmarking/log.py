@@ -66,6 +66,39 @@ class BenchmarkLogger:
 
     def add_result(self, result: BenchmarkResult):
         self.results.append(result)
+        
+    def add_repetitions_for_one_benchmark(self, repetition_results: List[BenchmarkResult]):
+        averaged_benchmark_result = self._average_benchmark_results(repetition_results)
+        self.add_result(averaged_benchmark_result)
+        
+    def _average_benchmark_results(self, benchmark_results: List[BenchmarkResult]) -> BenchmarkResult:
+        assert benchmark_results, "Got empty list of benchmark results"
+    
+        infer_performances = [result.infer_performance for result in benchmark_results]
+        train_performances = [result.train_performance for result in benchmark_results]
+        
+        infer_avg_perf = self._accumulate_and_average_performance_results(infer_performances)
+        train_avg_perf = self._accumulate_and_average_performance_results(train_performances)
+        
+        combined_avg_benchmark_result = benchmark_results[0]
+        combined_avg_benchmark_result.infer_performance = infer_avg_perf
+        combined_avg_benchmark_result.train_performance = train_avg_perf
+        
+        return combined_avg_benchmark_result
+    
+    def _accumulate_and_average_performance_results(self, perf_results: List[PerformanceResult]) -> PerformanceResult:
+        
+        iterations_sum = 0
+        duration_s_sum = 0.0
+        
+        for perf in perf_results:
+            iterations_sum += perf.iterations
+            duration_s_sum += perf.duration_s
+            
+        avg_result = PerformanceResult(iterations_sum)
+        avg_result.update_duration_and_calc_throughput(duration_s_sum)
+        
+        return avg_result
 
     def to_dataframe(self) -> pd.DataFrame:
         # Convert each BenchmarkResult to a nested dictionary
