@@ -47,8 +47,8 @@ setuptools.setup(
     },
     entry_points={
         "console_scripts": [
-            "sai-tf = simple_ai_benchmarking.benchmark:run_tf_benchmarks",
-            "sai-pt = simple_ai_benchmarking.benchmark:run_pt_benchmarks",
+            "saib-tf = simple_ai_benchmarking.benchmark:run_tf_benchmarks",
+            "saib-pt = simple_ai_benchmarking.benchmark:run_pt_benchmarks",
         ]
     },
 )

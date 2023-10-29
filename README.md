@@ -8,7 +8,7 @@ Assuming tensorflow or pytorch is already installed in your environment:
 
 1. Install SAIB directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
 
-2. Run benchmark with command `sai-tf` or `sai-pt` using tensorflow or pytorch respectively. 
+2. Run benchmark with command `saib-tf` or `saib-pt` using tensorflow or pytorch respectively. 
 
 NOTE: The results are not comparable, since different model architectures are used per default.
 
@@ -30,7 +30,7 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 3. Either clone this repo and run `pip install .` OR just run `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (use extras [tf,pt,...] for direct install of cpu tensorflow, cpu pytorch or directml tensorflow)
 
-4. Run `sai-tf` or `sai-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
+4. Run `saib-tf` or `saib-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
 
 ## Hardware Acceleration for PyTorch and TensorFlow
 

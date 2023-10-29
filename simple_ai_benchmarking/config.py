@@ -22,7 +22,7 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     common_cfg_default = AIWorkloadBaseConfig(
         batch_size=8,
         num_batches=50,
-        epochs=20,
+        epochs=10,
         input_shape_without_batch=model_shape,
         target_shape_without_batch=[],
         device_name=device,
@@ -35,6 +35,9 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     common_cfg_fp32_explicit = copy(common_cfg_default)
     common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
     
+    common_cfg_bs1_default = copy(common_cfg_default)
+    common_cfg_bs1_default.batch_size = 1
+    
     workloads = [
             PyTorchWorkload(
                 PTSimpleClassificationCNN(100, model_shape), 
@@ -45,25 +48,9 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
                 common_cfg_fp16_mixed
                 ),
             PyTorchWorkload(
-                PTSimpleClassificationCNN(100, model_shape), 
-                common_cfg_fp32_explicit
+                torchvision.models.resnet50(num_classes=1000),
+                common_cfg_bs1_default
                 ),
-            # PyTorchSyntheticImageClassification(
-            #     torchvision.models.resnet50(num_classes=1000),
-            #     10,
-            #     10,
-            #     8,
-            #     device,
-            #     NumericalPrecision.MIXED_FP16_FP32,
-            # ),
-            # PyTorchSyntheticImageClassification(
-            #     torchvision.models.resnet50(num_classes=1000),
-            #     10,
-            #     10,
-            #     8,
-            #     device,
-            #     NumericalPrecision.DEFAULT_FP32,
-            # )
         ]
     
     return workloads
@@ -82,7 +69,7 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
     common_cfg_default = AIWorkloadBaseConfig(
         batch_size=8,
         num_batches=50,
-        epochs=20,
+        epochs=10,
         input_shape_without_batch=model_shape,
         target_shape_without_batch=[],
         device_name=device,
@@ -94,6 +81,9 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
     
     common_cfg_fp32_explicit = copy(common_cfg_default)
     common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
+    
+    common_cfg_bs1_default = copy(common_cfg_default)
+    common_cfg_bs1_default.batch_size = 1
     
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
@@ -109,14 +99,10 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
             TFSimpleClassificationCNN(100, model_shape), 
             common_cfg_fp32_explicit
             ), # <1 GB
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.ResNet50(weights=None),
-        #     10, 
-        #     10, 
-        #     8, 
-        #     device,
-        #     NumericalPrecision.MIXED_FP16_FP32,
-        #     ),
+        TensorFlowKerasWorkload(
+            tf.keras.applications.ResNet50(weights=None),
+            common_cfg_bs1_default
+            ),
         # TensorFlowKerasWorkload(
         #     tf.keras.applications.ResNet50(weights=None),
         #     10, 
