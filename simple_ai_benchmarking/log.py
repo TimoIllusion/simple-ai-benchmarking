@@ -27,9 +27,15 @@ class PerformanceResult:
     finished_successfully: bool = True
     error_message: str = ""
     
-    def update_duration_and_calc_throughput(self, duration_s: float) -> float:   
-        self.duration_s = duration_s     
+    def update_duration(self, duration_s: float) -> float:   
+        self.duration_s = duration_s 
+        
+    def calc_throughput_and_update(self):
         self.throughput = self.iterations / self.duration_s if self.duration_s > 0 else 0.0
+        
+    def update_duration_and_calc_throughput(self, duration_s: float):
+        self.update_duration(duration_s)
+        self.calc_throughput_and_update()
 
 @dataclass
 class BenchInfo:
