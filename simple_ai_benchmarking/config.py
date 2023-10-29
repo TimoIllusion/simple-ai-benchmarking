@@ -21,8 +21,8 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     
     common_cfg_default = AIWorkloadBaseConfig(
         batch_size=8,
-        num_batches=10,
-        epochs=10,
+        num_batches=50,
+        epochs=20,
         input_shape_without_batch=model_shape,
         target_shape_without_batch=[],
         device_name=device,
@@ -81,8 +81,8 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
     
     common_cfg_default = AIWorkloadBaseConfig(
         batch_size=8,
-        num_batches=10,
-        epochs=10,
+        num_batches=50,
+        epochs=20,
         input_shape_without_batch=model_shape,
         target_shape_without_batch=[],
         device_name=device,
