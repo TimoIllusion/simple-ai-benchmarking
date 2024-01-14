@@ -1,6 +1,8 @@
 # simple-ai-benchmarking (SAIB)
 
-A simple repo to quickly run reproducible tests on a variety of hardware and software for AI workloads.
+A simple application to quickly run tests on a variety of hardware and software for AI workloads, to get an intuition on the performance. For more sophisticated and complex benchmarking, I recommend to use [MLPerf Benchmarks](https://mlcommons.org/benchmarks/). 
+
+I develop this application in my free time as a hobby.
 
 ## Quickstart
 
@@ -64,15 +66,13 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 ## Example results [LATEST]
 
-
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.0.1+cu118, Python 3.9.18:
-+------+-------+---------------------------+-------------------------+-------------------+----+------------+------------+
+
 | #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-+------+-------+---------------------------+-------------------------+-------------------+----+------------+------------+
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
 |  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  2702.73   |  4210.51   |
 |  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  2492.21   |  3352.16   |
 |  2   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |   EXPLICIT_FP32   | 8  |  2628.62   |  3478.48   |
-+------+-------+---------------------------+-------------------------+-------------------+----+------------+------------+
 
 ## Example results [LEGACY]
 
@@ -92,17 +92,20 @@ Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 
 
 ## Upcoming
 
-- [x] Add unit tests
-- [ ] Add config file to customize benchmarks
-- [ ] Model registry
-- [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation)
+- [ ] Add very simple mode to very easily benchmark (only 1 simple model, default parameters etc.)
+- [ ] Add config management with yaml file or python files to customize benchmarks more easily
+- [ ] Expand testing suite
+- [ ] Refactor README and give more detailed installation procedures
+- [ ] Refactor code structure with more object orientation and interfaces
+- [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation) and model registry
 - [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
 - [ ] Implement interfaces for TensorRT and ONNXRuntime
-- [ ] ROCm support
-- [ ] Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
-- [ ] Add plotting
+- [ ] Test ROCm support
+- [ ] Test Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
+- [ ] Add plotting of results
 - [ ] Add option to install package and put on pypi.org
 - [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
+- [x] Add test pipeline
 - [x] Refactor code into improved and refined structure
 - [x] Remove dependencies on tf_addons and tf_datasets
 - [x] Add warmup function
