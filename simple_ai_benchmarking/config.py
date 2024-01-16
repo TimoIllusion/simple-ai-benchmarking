@@ -1,10 +1,13 @@
+# Note: This module defines the default configurations for the benchmark for tensorflow and pytorch. By design, this is hardcoded and NOT easily customizable by the user,
+# so that the user does not have to worry about the benchmark configuration. However, this may change in the future, since it is not very good programming style.
+
 from typing import List
 from copy import copy
 
-from simple_ai_benchmarking.definitions import *
-from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
+from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBaseConfig
+from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
-def build_default_pt_workloads() -> List[AIWorkloadBase]:
+def build_default_pt_workloads() -> List[AIWorkload]:
     
     import torch
     import torchvision
@@ -32,8 +35,8 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     common_cfg_fp16_mixed = copy(common_cfg_default)
     common_cfg_fp16_mixed.data_type = NumericalPrecision.MIXED_FP16
     
-    common_cfg_fp32_explicit = copy(common_cfg_default)
-    common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
+    # common_cfg_fp32_explicit = copy(common_cfg_default)
+    # common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
     
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
@@ -55,7 +58,7 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     
     return workloads
     
-def build_default_tf_workloads() -> List[AIWorkloadBase]:
+def build_default_tf_workloads() -> List[AIWorkload]:
     
     import tensorflow as tf
     
@@ -79,8 +82,8 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
     common_cfg_fp16_mixed = copy(common_cfg_default)
     common_cfg_fp16_mixed.data_type = NumericalPrecision.MIXED_FP16
     
-    common_cfg_fp32_explicit = copy(common_cfg_default)
-    common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
+    # common_cfg_fp32_explicit = copy(common_cfg_default)
+    # common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
     
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
@@ -95,10 +98,10 @@ def build_default_tf_workloads() -> List[AIWorkloadBase]:
             TFSimpleClassificationCNN(100, model_shape), 
             common_cfg_fp16_mixed
             ), # <1 GB
-        TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN(100, model_shape), 
-            common_cfg_fp32_explicit
-            ), # <1 GB
+        # TensorFlowKerasWorkload(
+        #     TFSimpleClassificationCNN(100, model_shape), 
+        #     common_cfg_fp32_explicit
+        #     ), # <1 GB
         TensorFlowKerasWorkload(
             tf.keras.applications.ResNet50(weights=None),
             common_cfg_bs1_default

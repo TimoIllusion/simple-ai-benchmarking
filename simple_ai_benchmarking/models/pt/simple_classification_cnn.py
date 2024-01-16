@@ -5,6 +5,7 @@ import numpy as np
 class PTSimpleClassificationCNN(nn.Module):
     
     def __init__(self, num_classes, input_shape):
+        
         super(PTSimpleClassificationCNN, self).__init__()
         
         self.model_conv_part = nn.Sequential(
@@ -36,8 +37,10 @@ class PTSimpleClassificationCNN(nn.Module):
         )
     
     def find_flatten_dim(self, input_shape):
+        
         dummy_input = torch.randn(1, *input_shape)
         output_feat = self.model_conv_part(dummy_input)
+        
         return int(np.prod(output_feat.size()))
     
     def forward(self, x):

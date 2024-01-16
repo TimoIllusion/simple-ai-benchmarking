@@ -1,17 +1,19 @@
 import platform
 
 from loguru import logger
+
 import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from simple_ai_benchmarking.log import *
-from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
+from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.definitions import NumericalPrecision
 
-class PyTorchWorkload(AIWorkloadBase):
+class PyTorchWorkload(AIWorkload):
 
-    def setup(self):
+    def setup(self) -> None:
+        
         print(self.model)
         print("Number of model parameters:", self.count_model_parameters())
 
@@ -37,15 +39,16 @@ class PyTorchWorkload(AIWorkloadBase):
         self._assign_numerical_precision()
         self._assign_autocast_device_type()
         
+    def _compile_model_if_supported(self) -> None:
         
-    def _compile_model_if_supported(self):
         version_str = torch.__version__
         major_version = int(version_str.split('.')[0])
 
         if major_version >= 2 and platform.system() != 'Windows':
             torch.compile(self.model) 
 
-    def _assign_numerical_precision(self):
+    def _assign_numerical_precision(self) -> None:
+        
         if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
             self.numerical_precision = torch.float16
         elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
@@ -55,20 +58,22 @@ class PyTorchWorkload(AIWorkloadBase):
         else:
             raise NotImplementedError(f"Data type not implemented: {self.cfg.data_type}")
 
-    def _assign_autocast_device_type(self):
+    def _assign_autocast_device_type(self) -> None:
         self.autocast_device_type =  "cuda" if "cuda" in self.cfg.device_name else "cpu"
 
-    def count_model_parameters(self):
+    def count_model_parameters(self) -> int:
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
-    def train(self):
+    def train(self) -> None:
+        
         if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             self._training_loop()
         else:
             with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
                 self._training_loop()
                          
-    def _training_loop(self):
+    def _training_loop(self) -> None:
+        
         self.model.train()
 
         for epoch in tqdm.tqdm(range(self.cfg.epochs)):
@@ -82,17 +87,19 @@ class PyTorchWorkload(AIWorkloadBase):
                 loss.backward()
                 self.optimizer.step()
 
-    def eval(self):
+    def eval(self) -> None:
         raise NotImplementedError("Eval not implemented yet")
 
-    def infer(self):
+    def infer(self) -> None:
+        
         if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             self._infer_loop()
         else:
             with torch.autocast(device_type=self.autocast_device_type, dtype=self.numerical_precision):
                 self._infer_loop()
                 
-    def _infer_loop(self):
+    def _infer_loop(self) -> None:
+        
         self.model.eval()
         
         for inputs, labels in tqdm.tqdm(self.dataloader):

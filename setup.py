@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="simple-ai-benchmarking",
-    version="0.3.1",
+    version="0.3.2",
     author="Timo Leitritz",
     author_email="placeholder@example.com",
     description="A package for benchmarking various AI models in a simple way.",

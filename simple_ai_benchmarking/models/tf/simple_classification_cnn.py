@@ -1,7 +1,9 @@
 import tensorflow as tf
 
 class TFSimpleClassificationCNN(tf.keras.Model):
+    
     def __init__(self, num_classes, input_shape):
+        
         super(TFSimpleClassificationCNN, self).__init__()
         
         self.conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', input_shape=input_shape)
@@ -19,6 +21,7 @@ class TFSimpleClassificationCNN(tf.keras.Model):
         self.build(in_shape_with_dyn_batch)
         
     def call(self, x):
+        
         x = self.conv1(x)
         x = self.maxpool1(x)
         x = self.conv2(x)
@@ -28,6 +31,7 @@ class TFSimpleClassificationCNN(tf.keras.Model):
         x = self.conv4(x)
         x = self.flatten(x)
         x = self.fc1(x)
+        
         return self.fc2(x)
     
 

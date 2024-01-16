@@ -1,13 +1,14 @@
 from loguru import logger
+
 import tensorflow as tf
 import numpy as np
 
 from simple_ai_benchmarking.definitions import NumericalPrecision
-from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
+from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
-class TensorFlowKerasWorkload(AIWorkloadBase):
+class TensorFlowKerasWorkload(AIWorkload):
 
-    def setup(self):
+    def setup(self) -> None:
         
         if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
             tf.keras.mixed_precision.set_global_policy('mixed_float16')
@@ -20,13 +21,13 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
     
         self.model.compile(
             optimizer='adam', 
-            loss='sparse_categorical_crossentropy', # to use target shape of (N, ) instead of (N, num_classes)
+            loss='sparse_categorical_crossentropy', # To use target shape of (N, ) instead of (N, num_classes)
             metrics=['accuracy'])
         self.model.summary()
         
         self.inputs, self.targets = self._generate_random_dataset_with_numpy()
         
-        # always generate dataset on system RAM, that is why CPU is forced here
+        # Always generate dataset on system RAM, that is why CPU is forced here
         with tf.device("/cpu:0"):
  
             self.inputs = tf.convert_to_tensor(self.inputs, dtype=tf.float32)
@@ -41,17 +42,17 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
             self.syn_dataset = self.syn_dataset.batch(self.cfg.batch_size)
             self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
             
-    
-    def train(self):
+    def train(self) -> None:
         _ = self.model.fit(self.syn_dataset, epochs=self.cfg.epochs, validation_data=None, verbose=1)
     
-    def eval(self):
+    def eval(self) -> None:
         raise NotImplementedError("Evaluation not implemented for TensorFlow Keras Workload")
         
-    def infer(self):
+    def infer(self) -> None:
         self.model.predict(self.syn_dataset, verbose=1)
   
     def _get_accelerator_info(self) -> str:
+        
         gpus = tf.config.list_physical_devices('GPU')
         if len(gpus) > 0:
 
@@ -70,8 +71,8 @@ class TensorFlowKerasWorkload(AIWorkloadBase):
         return tf.__version__
     
     @staticmethod
-    def get_model_memory_usage(batch_size, model):
-        # credits to https://stackoverflow.com/questions/43137288/how-to-determine-needed-memory-of-keras-model
+    def get_model_memory_usage(batch_size, model) -> float:
+        # Credits to https://stackoverflow.com/questions/43137288/how-to-determine-needed-memory-of-keras-model
         
         shapes_mem_count = 0
         internal_model_mem_count = 0
