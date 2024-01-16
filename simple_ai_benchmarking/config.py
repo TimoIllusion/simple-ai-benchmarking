@@ -35,8 +35,8 @@ def build_default_pt_workloads() -> List[AIWorkload]:
     common_cfg_fp16_mixed = copy(common_cfg_default)
     common_cfg_fp16_mixed.data_type = NumericalPrecision.MIXED_FP16
     
-    common_cfg_fp32_explicit = copy(common_cfg_default)
-    common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
+    # common_cfg_fp32_explicit = copy(common_cfg_default)
+    # common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
     
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
@@ -82,8 +82,8 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     common_cfg_fp16_mixed = copy(common_cfg_default)
     common_cfg_fp16_mixed.data_type = NumericalPrecision.MIXED_FP16
     
-    common_cfg_fp32_explicit = copy(common_cfg_default)
-    common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
+    # common_cfg_fp32_explicit = copy(common_cfg_default)
+    # common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
     
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
@@ -98,10 +98,10 @@ def build_default_tf_workloads() -> List[AIWorkload]:
             TFSimpleClassificationCNN(100, model_shape), 
             common_cfg_fp16_mixed
             ), # <1 GB
-        TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN(100, model_shape), 
-            common_cfg_fp32_explicit
-            ), # <1 GB
+        # TensorFlowKerasWorkload(
+        #     TFSimpleClassificationCNN(100, model_shape), 
+        #     common_cfg_fp32_explicit
+        #     ), # <1 GB
         TensorFlowKerasWorkload(
             tf.keras.applications.ResNet50(weights=None),
             common_cfg_bs1_default
