@@ -1,10 +1,13 @@
+# Note: This module defines the default configurations for the benchmark for tensorflow and pytorch. By design, this is hardcoded and NOT easily customizable by the user,
+# so that the user does not have to worry about the benchmark configuration. However, this may change in the future, since it is not very good programming style.
+
 from typing import List
 from copy import copy
 
-from simple_ai_benchmarking.definitions import *
-from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
+from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBaseConfig
+from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
-def build_default_pt_workloads() -> List[AIWorkloadBase]:
+def build_default_pt_workloads() -> List[AIWorkload]:
     
     import torch
     import torchvision
@@ -55,7 +58,7 @@ def build_default_pt_workloads() -> List[AIWorkloadBase]:
     
     return workloads
     
-def build_default_tf_workloads() -> List[AIWorkloadBase]:
+def build_default_tf_workloads() -> List[AIWorkload]:
     
     import tensorflow as tf
     

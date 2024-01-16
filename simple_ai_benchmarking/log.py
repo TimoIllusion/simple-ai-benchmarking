@@ -27,16 +27,17 @@ class PerformanceResult:
     finished_successfully: bool = True
     error_message: str = ""
     
+    def update_duration_and_calc_throughput(self, duration_s: float) -> None:
+        
+        self.update_duration(duration_s)
+        self.calc_throughput_and_update()
+    
     def update_duration(self, duration_s: float) -> float:   
         self.duration_s = duration_s 
         
-    def calc_throughput_and_update(self):
+    def calc_throughput_and_update(self) -> None:
         self.throughput = self.iterations / self.duration_s if self.duration_s > 0 else 0.0
         
-    def update_duration_and_calc_throughput(self, duration_s: float):
-        self.update_duration(duration_s)
-        self.calc_throughput_and_update()
-
 @dataclass
 class BenchInfo:
     workload_type: str
@@ -54,24 +55,24 @@ class BenchmarkResult:
     train_performance: PerformanceResult
     infer_performance: PerformanceResult
     
-    def update_train_performance_duration(self, duration_s: float):
+    def update_train_performance_duration(self, duration_s: float) -> None:
         self.train_performance.update_duration_and_calc_throughput(duration_s)
         
-    def update_infer_performance_duration(self, duration_s: float):
+    def update_infer_performance_duration(self, duration_s: float) -> None:
         self.infer_performance.update_duration_and_calc_throughput(duration_s)
 
 class BenchmarkLogger:
-    def __init__(self):
+    
+    def __init__(self) -> None:
         self.results: List[BenchmarkResult] = []
 
-    def add_result(self, result: BenchmarkResult):
-        self.results.append(result)
+    def add_repetitions_for_one_benchmark(self, repetition_results: List[BenchmarkResult]) -> None:
         
-    def add_repetitions_for_one_benchmark(self, repetition_results: List[BenchmarkResult]):
         averaged_benchmark_result = self._average_benchmark_results(repetition_results)
         self.add_result(averaged_benchmark_result)
-        
+
     def _average_benchmark_results(self, benchmark_results: List[BenchmarkResult]) -> BenchmarkResult:
+        
         assert benchmark_results, "Got empty list of benchmark results"
     
         infer_performances = [result.infer_performance for result in benchmark_results]
@@ -99,8 +100,12 @@ class BenchmarkLogger:
         avg_result.update_duration_and_calc_throughput(duration_s_sum)
         
         return avg_result
+    
+    def add_result(self, result: BenchmarkResult) -> None:
+        self.results.append(result)
 
     def to_dataframe(self) -> pd.DataFrame:
+        
         # Convert each BenchmarkResult to a nested dictionary
         nested_dicts = [asdict(result) for result in self.results]
         
@@ -118,7 +123,8 @@ class BenchmarkLogger:
         
         return pd.DataFrame(flat_dicts)
 
-    def pretty_print_summary(self):
+    def pretty_print_summary(self) -> None:
+        
         print("\n===== BENCHMARK SUMMARY =====\n")
         
         header = ["#RUN", "Lib", "Model", "Accelerator", "Precision", "BS", "it/s train", "it/s infer"]
@@ -140,10 +146,12 @@ class BenchmarkLogger:
 
         print(tabulate(table_data, headers=header, tablefmt="pretty"))
 
-    def export_to_csv(self, file_name: str):
+    def export_to_csv(self, file_name: str) -> None:
+        
         df = self.to_dataframe()
         df.to_csv(file_name, index=False)
         
-    def export_to_excel(self, file_name: str):
+    def export_to_excel(self, file_name: str) -> None:
+        
         df = self.to_dataframe()
         df.to_excel(file_name, index=False)

@@ -4,15 +4,16 @@ import multiprocessing
 from typing import Tuple
 
 from loguru import logger
+
 import numpy as np
 import psutil
 
-from simple_ai_benchmarking.log import *
+from simple_ai_benchmarking.log import SWInfo, HWInfo, BenchInfo, PerformanceResult, BenchmarkResult
 from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig
 
-class AIWorkloadBase(ABC):
+class AIWorkload(ABC):
     
-    def __init__(self, model, config: AIWorkloadBaseConfig):
+    def __init__(self, model, config: AIWorkloadBaseConfig) -> None:
         
         self.model = model
         self.cfg = config
@@ -21,6 +22,7 @@ class AIWorkloadBase(ABC):
         self.dataset_targets_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(self.cfg.target_shape_without_batch)
         
     def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
+        
         inputs = np.random.random(self.dataset_inputs_shape).astype(np.float32)
         targets = np.random.randint(low=0, high=2, size=self.dataset_targets_shape).astype(np.int64)
         
@@ -29,12 +31,12 @@ class AIWorkloadBase(ABC):
         
         return inputs, targets
         
-
     @abstractmethod
     def setup(self) -> None:
         pass    
     
     def warmup(self) -> None:
+        
         self.train()
         self.infer()
     

@@ -1,11 +1,12 @@
 import time
 import os
-import shutil
-import pandas
-import numpy as np
+
 import pytest
 
-from simple_ai_benchmarking.workloads.ai_workload_base import AIWorkloadBase
+import pandas
+import numpy as np
+
+from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision
 from simple_ai_benchmarking.log import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, proccess_workloads
@@ -13,22 +14,24 @@ from simple_ai_benchmarking.benchmark import benchmark, proccess_workloads
 _PER_FUNCTION_TIME_DELAY_S = 0.1
 
 @pytest.fixture(scope='session', autouse=True)
-def prepare():
+def prepare() -> None:
     _clean_up_prior_test_results()
 
-def _clean_up_prior_test_results(): 
+def _clean_up_prior_test_results() -> None: 
+    
     _safe_remove("benchmark_results_empty.csv")
     _safe_remove("benchmark_results_empty.xlsx")
     _safe_remove("benchmark_results_dummy.csv")
     _safe_remove("benchmark_results_dummy.xlsx")
 
-def _safe_remove(filename):
+def _safe_remove(filename) -> None:
     try:
         os.remove(filename)
     except FileNotFoundError:
         pass
 
-class DummyWorkload(AIWorkloadBase):
+class DummyWorkload(AIWorkload):
+    
     def setup(self) -> None:
         pass    
     
@@ -55,6 +58,7 @@ class DummyWorkload(AIWorkloadBase):
         return "dummy_accelerator"
     
 def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
+    
     cfg = AIWorkloadBaseConfig(
         epochs=1,
         batch_size=1,
@@ -64,9 +68,10 @@ def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
         input_shape_without_batch=[10, 10, 10],
         target_shape_without_batch=[10, 10, 10],
     )
+    
     return cfg
 
-def test_benchmark_result_type():
+def test_benchmark_result_type() -> None:
     
     cfg = _prepare_benchmark_dummy_cfg()
     
@@ -75,7 +80,7 @@ def test_benchmark_result_type():
     
     assert isinstance(result, BenchmarkResult), f"Wrong type of benchmark result: {type(result)}"
 
-def test_benchmark_timing():
+def test_benchmark_timing() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
     
@@ -92,7 +97,7 @@ def test_benchmark_timing():
 
     assert np.fabs(duration_s - target_duration_s) <= tolerance_s, f"Benchmark duration differs from target duration. Target is {target_duration_s} but was {duration_s}."
 
-def test_process_workloads_correct_num_workloads_output():
+def test_process_workloads_correct_num_workloads_output() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
     
@@ -104,10 +109,9 @@ def test_process_workloads_correct_num_workloads_output():
     df = pandas.read_csv("benchmark_results_dummy.csv")
     assert len(df) == len(workloads), f"Results csv has wrong number of results, has {len(df)} but should have {len(workloads)}"
 
-def test_process_workloads_empty_workloads():
+def test_process_workloads_empty_workloads() -> None:
 
     workloads = []
     proccess_workloads(workloads, "benchmark_results_empty")
 
     assert not os.path.exists("benchmark_results_empty.csv"), "Result file does exist, although workloads were empty."
-
