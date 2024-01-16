@@ -64,7 +64,7 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
-## Example results [v0.3.1 - LATEST]
+## Example results [v0.3.2 - LATEST]
 
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.1.2+cu121, Python 3.10.13:
 
