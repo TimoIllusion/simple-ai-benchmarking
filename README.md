@@ -74,6 +74,14 @@ Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 
 |  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  2924.48   |  6416.01   |
 |  2   | torch |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   62.87    |   152.81   |
 
+Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 1.12.0+cu116, Python 3.9.18:
+
+| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  1819.13   |  3423.22   |
+|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  1445.27   |  2969.95   |
+|  2   | torch |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   34.52    |   115.38   |
+
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, TensorFlow 2.10 with CUDA 11.2 and CUDNN 8.8, Python 3.10.13:
 
 | #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
