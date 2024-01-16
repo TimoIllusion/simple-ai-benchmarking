@@ -1,6 +1,6 @@
 # simple-ai-benchmarking (SAIB)
 
-A simple application to quickly run tests on a variety of hardware and software for AI workloads, to get an intuition on the performance. For more sophisticated and complex benchmarking, I recommend to use [MLPerf Benchmarks](https://mlcommons.org/benchmarks/). 
+A simple application to quickly run tests on a variety of hardware and software for AI workloads, to get an intuition on the performance. No downloading of big datasets and only a few dependencies. For more sophisticated and complex benchmarking, I recommend to use [MLPerf Benchmarks](https://mlcommons.org/benchmarks/). 
 
 I develop this application in my free time as a hobby.
 
@@ -64,15 +64,29 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
-## Example results [LATEST]
+## Example results [v0.3.1 - LATEST]
 
-Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.0.1+cu118, Python 3.9.18:
+Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.1.2+cu121, Python 3.10.13:
 
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
 | #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
 |------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  2702.73   |  4210.51   |
-|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  2492.21   |  3352.16   |
-|  2   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |   EXPLICIT_FP32   | 8  |  2628.62   |  3478.48   |
+|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  3022.56   |  6243.25   |
+|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  2924.48   |  6416.01   |
+|  2   | torch |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   62.87    |   152.81   |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+
+Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, TensorFlow 2.10 with CUDA 11.2 and CUDNN 8.8, Python 3.10.13:
+
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+|  0   | tensorflow | TFSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  1633.47   |  3926.38   |
+|  1   | tensorflow | TFSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  1505.08   |  4003.79   |
+|  2   | tensorflow |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   53.57    |   194.31   |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+
+Note: In these results, TensorFlow Benchmarks are using a much older version for TF and CUDA in comparison to PyTorch Benchmarks (due to missing support for native Windows). In the future, experiments will be conducted in WSL2, to use more similar versions.
 
 ## Example results [LEGACY]
 
