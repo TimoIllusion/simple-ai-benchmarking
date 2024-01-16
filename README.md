@@ -12,7 +12,7 @@ Assuming tensorflow or pytorch is already installed in your environment:
 
 2. Run benchmark with command `saib-tf` or `saib-pt` using tensorflow or pytorch respectively. 
 
-NOTE: The results are not comparable, since different model architectures are used per default.
+NOTE: The results **are** comparable, since the same model architectures are used per default.
 
 To install tensorflow and pytorch when installing SAIB, you can also install using the following commands: 
 
