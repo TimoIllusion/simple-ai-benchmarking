@@ -9,7 +9,7 @@ import numpy as np
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision
 from simple_ai_benchmarking.log import BenchmarkResult
-from simple_ai_benchmarking.benchmark import benchmark, proccess_workloads
+from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
 _PER_FUNCTION_TIME_DELAY_S = 0.1
 
@@ -118,7 +118,7 @@ def test_process_workloads_correct_num_workloads_output() -> None:
         DummyWorkload(None, cfg),
         DummyWorkload(None, cfg),
     ]
-    proccess_workloads(workloads, "benchmark_results_dummy")
+    process_workloads(workloads, "benchmark_results_dummy")
 
     assert os.path.exists("benchmark_results_dummy.csv"), "Result file does not exist"
 
@@ -131,7 +131,7 @@ def test_process_workloads_correct_num_workloads_output() -> None:
 def test_process_workloads_empty_workloads() -> None:
 
     workloads = []
-    proccess_workloads(workloads, "benchmark_results_empty")
+    process_workloads(workloads, "benchmark_results_empty")
 
     assert not os.path.exists(
         "benchmark_results_empty.csv"

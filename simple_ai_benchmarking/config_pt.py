@@ -19,7 +19,7 @@ from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
 # TODO: use workload factory to create workloads
 def build_default_pt_workloads() -> List[AIWorkload]:
 
-    device_name = get_decive_name()
+    device_name = get_device_name()
 
     model_shape = [3, 224, 224]
 
@@ -57,7 +57,7 @@ def build_default_pt_workloads() -> List[AIWorkload]:
     return workloads
 
 
-def get_decive_name() -> str:
+def get_device_name() -> str:
 
     if platform == "linux" or platform == "linux2" or platform == "win32":
 

@@ -7,7 +7,7 @@ from simple_ai_benchmarking.log import BenchmarkLogger, BenchmarkResult
 from simple_ai_benchmarking.timer import Timer
 
 
-def proccess_workloads(
+def process_workloads(
     workloads: List[AIWorkload], out_file_base="benchmark_results", repetitions=3
 ) -> None:
 
