@@ -1,4 +1,4 @@
-# Note: This module defines the default configurations for the benchmark for tensorflow and pytorch. By design, this is hardcoded and NOT easily customizable by the user,
+# Note: This module defines the default configurations for the tensorflow benchmark. By design, this is hardcoded and NOT easily customizable by the user,
 # so that the user does not have to worry about the benchmark configuration. However, this may change in the future, since it is not very good programming style.
 
 from typing import List
