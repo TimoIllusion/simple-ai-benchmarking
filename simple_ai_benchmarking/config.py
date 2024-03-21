@@ -3,10 +3,16 @@
 
 from typing import List
 from copy import copy
+from sys import platform
 
 from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBaseConfig
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
+
+
+  
+
+# TODO: use workload factory to create workloads
 def build_default_pt_workloads() -> List[AIWorkload]:
     
     import torch
@@ -14,11 +20,25 @@ def build_default_pt_workloads() -> List[AIWorkload]:
 
     from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchWorkload
     from simple_ai_benchmarking.models.pt.simple_classification_cnn import PTSimpleClassificationCNN
-    
-    if torch.cuda.is_available():
-        device = "cuda:0"
+        
+    if platform == "linux" or platform == "linux2" or platform == "win32":
+            
+        if torch.cuda.is_available():
+            device_name = "cuda"
+        else:
+            device_name = "cpu"
+            
+    elif platform == "darwin":
+        
+        if torch.backends.mps.is_available() and torch.backends.mps.is_built():
+            device_name = "mps"
+        else:
+            device_name = "cpu"
+
     else:
-        device = "cpu"
+        device_name = "cpu"
+        
+        return device_name
     
     model_shape = [3,224,224]
     
@@ -28,7 +48,7 @@ def build_default_pt_workloads() -> List[AIWorkload]:
         epochs=10,
         input_shape_without_batch=model_shape,
         target_shape_without_batch=[],
-        device_name=device,
+        device_name=device_name,
         data_type=NumericalPrecision.DEFAULT_PRECISION,
         )
     
@@ -65,7 +85,7 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
     from simple_ai_benchmarking.models.tf.simple_classification_cnn import TFSimpleClassificationCNN
     
-    device = "/gpu:0"
+    device_name = "/gpu:0"
     
     model_shape = [224,224,3]
     
@@ -75,7 +95,7 @@ def build_default_tf_workloads() -> List[AIWorkload]:
         epochs=10,
         input_shape_without_batch=model_shape,
         target_shape_without_batch=[],
-        device_name=device,
+        device_name=device_name,
         data_type=NumericalPrecision.DEFAULT_PRECISION,
         )
     
