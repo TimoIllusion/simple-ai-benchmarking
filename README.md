@@ -90,6 +90,14 @@ Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, TensorFl
 |  1   | tensorflow | TFSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  1505.08   |  4003.79   |
 |  2   | tensorflow |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   53.57    |   194.31   |
 
+Results on M1 Max 10C/24GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
+
+| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+|  0   | torch | PTSimpleClassificationCNN |      M1 MAX      | DEFAULT_PRECISION | 8  |   728.66   |  2443.32   |
+|  1   | torch | PTSimpleClassificationCNN |      M1 MAX       |    MIXED_FP16     | 8  |   692.36   |  2338.85   |
+|  2   | torch |          ResNet           |      M1 MAX        | DEFAULT_PRECISION | 1  |   22.28    |   93.61    |
+
 Note: In these results, TensorFlow Benchmarks are using a much older version for TF and CUDA in comparison to PyTorch Benchmarks (due to missing support for native Windows). In the future, experiments will be conducted in WSL2, to use more similar versions.
 
 ## Example results [LEGACY]
