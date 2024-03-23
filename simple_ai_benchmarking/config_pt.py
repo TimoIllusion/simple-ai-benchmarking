@@ -7,6 +7,7 @@ from sys import platform
 
 import torch
 import torchvision
+from loguru import logger
 
 from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBaseConfig
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
@@ -20,6 +21,8 @@ from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
 def build_default_pt_workloads() -> List[AIWorkload]:
 
     device_name = get_device_name()
+    
+    logger.info(f"Device name: {device_name}")
 
     model_shape = [3, 224, 224]
 
@@ -76,4 +79,4 @@ def get_device_name() -> str:
     else:
         device_name = "cpu"
 
-        return device_name
+    return device_name
