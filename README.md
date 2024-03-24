@@ -90,6 +90,14 @@ Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, TensorFl
 |  1   | tensorflow | TFSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  1505.08   |  4003.79   |
 |  2   | tensorflow |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   53.57    |   194.31   |
 
+Results on AMD Radeon 7900 GRE with Intel i5 12600K, Ubuntu 22.04 + Docker(Ubuntu 20.04) + Kernel 6.5.0, PyTorch 2.2.0, ROCm 6.02, Python 3.9.18:
+
+| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+|  0   | torch | PTSimpleClassificationCNN |      Radeon RX 7900 GRE      | DEFAULT_PRECISION | 8  |   866.3   |  2736.78   |
+|  1   | torch | PTSimpleClassificationCNN |      Radeon RX 7900 GRE       |    MIXED_FP16     | 8  |   1280.49   |  5617.77   |
+|  2   | torch |          ResNet           |      Radeon RX 7900 GRE        | DEFAULT_PRECISION | 1  |   80.11    |   291.11    |
+
 Results on M1 Max 10C/24GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
 
 | #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
