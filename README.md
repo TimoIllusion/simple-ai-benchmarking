@@ -70,8 +70,8 @@ Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 
 
 | #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
 |------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  3022.56   |  6243.25   |
-|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  2924.48   |  6416.01   |
+|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  **3022.56**   |  **6243.25**   |
+|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  **2924.48**   |  **6416.01**   |
 |  2   | torch |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   62.87    |   152.81   |
 
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 1.12.0+cu116, Python 3.9.18:
@@ -96,7 +96,7 @@ Results on AMD Radeon 7900 GRE with Intel i5 12600K, Ubuntu 22.04 + Docker(Ubunt
 |------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
 |  0   | torch | PTSimpleClassificationCNN |      Radeon RX 7900 GRE      | DEFAULT_PRECISION | 8  |   866.3   |  2736.78   |
 |  1   | torch | PTSimpleClassificationCNN |      Radeon RX 7900 GRE       |    MIXED_FP16     | 8  |   1280.49   |  5617.77   |
-|  2   | torch |          ResNet           |      Radeon RX 7900 GRE        | DEFAULT_PRECISION | 1  |   80.11    |   291.11    |
+|  2   | torch |          ResNet           |      Radeon RX 7900 GRE        | DEFAULT_PRECISION | 1  |   **80.11**    |   **291.11**   |
 
 Results on M1 Max 10C/24GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
 
