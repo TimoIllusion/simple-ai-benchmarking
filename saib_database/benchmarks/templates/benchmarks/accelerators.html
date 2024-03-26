@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Accelerators</title>
+</head>
+<body>
+    <h1>AI Accelerators</h1>
+    <div>
+        {% for accelerator in ai_accelerators %}
+        <h2>{{ accelerator.name }}</h2>
+        <p>Manufacturer: {{ accelerator.manufacturer }}</p>
+        <p>Architecture: {{ accelerator.architecture }}</p>
+        <h3>Benchmarks:</h3>
+        <ul>
+            {% for result in benchmark_results %}
+            {% if result.accelerator_id == accelerator.id %}
+            <li>{{ result.benchmark_name }}: {{ result.score }}</li>
+            {% endif %}
+            {% endfor %}
+        </ul>
+        {% endfor %}
+    </div>
+    <a href="/benchmarks/">Back to Home</a>
+</body>
+</html>
