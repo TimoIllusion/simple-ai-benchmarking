@@ -106,6 +106,14 @@ Results on M1 Max 10C/24GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
 |  1   | torch | PTSimpleClassificationCNN |      M1 MAX       |    MIXED_FP16     | 8  |   692.36   |  2338.85   |
 |  2   | torch |          ResNet           |      M1 MAX        | DEFAULT_PRECISION | 1  |   22.28    |   93.61    |
 
+Results on M2 Pro 10C/16GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
+
+| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
+|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
+|  0   | torch | PTSimpleClassificationCNN |      M2 Pro        | DEFAULT_PRECISION | 8  |   616.74   |   2053.7   |
+|  1   | torch | PTSimpleClassificationCNN |       M2 Pro      |    MIXED_FP16     | 8  |   604.78   |   2017.8   |
+|  2   | torch |          ResNet           |       M2 Pro      | DEFAULT_PRECISION | 1  |   28.74    |   119.23   |
+
 Note: In these results, TensorFlow Benchmarks are using a much older version for TF and CUDA in comparison to PyTorch Benchmarks (due to missing support for native Windows). In the future, experiments will be conducted in WSL2, to use more similar versions.
 
 ## Example results [LEGACY]
