@@ -2,7 +2,7 @@
 
 A simple application to quickly run tests on a variety of hardware and software for AI workloads, to get an intuition on the performance. No downloading of big datasets and only a few dependencies. For more sophisticated and complex benchmarking, I recommend to use [MLPerf Benchmarks](https://mlcommons.org/benchmarks/). 
 
-Visit [timoillusion.pythonanywhere.com/benchmarks](timoillusion.pythonanywhere.com/benchmarks) to see current benchmark database.
+Visit [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) to see current benchmark database.
 
 I develop this application in my free time as a hobby.
 
@@ -83,7 +83,7 @@ export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN
 python publish.py benchmark_results_tf.csv --non-interactive
 ```
 
-Check [timoillusion.pythonanywhere.com/benchmarks](timoillusion.pythonanywhere.com/benchmarks) for the results.
+Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
 
 ## Example results [v0.3.2 - LATEST]
 
