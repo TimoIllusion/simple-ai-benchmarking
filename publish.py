@@ -152,8 +152,8 @@ def prompt_for_updates(benchmark_data: BenchmarkData) -> BenchmarkData:
     return benchmark_data
 
 
+# TODO: fix automatic generation of benchmark data and meta infos, so that no manual input is needed
 def read_csv_and_submit(csv_file_path: str, submit_url: str, api_token: str):
-    """Read CSV file and submit each row as a benchmark result."""
 
     benchmark_datasets = []
     with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
@@ -184,7 +184,7 @@ def read_csv_and_submit(csv_file_path: str, submit_url: str, api_token: str):
     print(f"Loaded {len(benchmark_datasets)} benchmark results from {csv_file_path}.")
 
     # write to json
-    json_file_path = 'benchmark_dataset.json'
+    json_file_path = "benchmark_dataset.json"
     with open(json_file_path, "w") as f:
         data = [x.to_dict() for x in benchmark_datasets]
         json.dump(data, f, indent=4)
