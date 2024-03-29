@@ -1,10 +1,17 @@
 from dataclasses import dataclass, field, asdict
 from typing import List
+import sys
 
 from loguru import logger
 
 import pandas as pd
 from tabulate import tabulate
+
+
+def initialize_logger(log_file: str) -> None:
+    logger.remove()
+    logger.add(log_file, rotation="10 MB", backtrace=True)
+    logger.add(sys.stdout, colorize=True, backtrace=True, level="INFO")
 
 
 @dataclass

@@ -80,7 +80,7 @@ class TensorFlowKerasWorkload(AIWorkload):
             device_infos = tf.config.experimental.get_device_details(gpus[gpu_id])
             details = self.cfg.device_name + " - " + device_infos["device_name"]
         else:
-            details = ""
+            details = "CPU"
 
         return details
 

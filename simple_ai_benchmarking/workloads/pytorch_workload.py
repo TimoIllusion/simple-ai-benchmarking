@@ -17,7 +17,7 @@ class PyTorchWorkload(AIWorkload):
     def setup(self) -> None:
 
         # print(self.model)
-        print("Number of model parameters:", self.count_model_parameters())
+        logger.trace("Number of model parameters: {}", self.count_model_parameters())
 
         self.device = torch.device(self.cfg.device_name)
 
@@ -26,12 +26,12 @@ class PyTorchWorkload(AIWorkload):
         self.inputs = torch.Tensor(self.inputs).to(torch.float32)
         self.targets = torch.Tensor(self.targets).to(torch.int64)
 
-        logger.debug(
+        logger.trace(
             "Synthetic Dataset PyTorch Inputs Shape: {} {}",
             self.inputs.shape,
             self.inputs.dtype,
         )
-        logger.debug(
+        logger.trace(
             "Synthetic Dataset PyTorch Targets Shape: {} {}",
             self.targets.shape,
             self.targets.dtype,
@@ -130,7 +130,7 @@ class PyTorchWorkload(AIWorkload):
         if torch.cuda.is_available():
             device_info = str(torch.cuda.get_device_name(None))
         else:
-            device_info = ""
+            device_info = "CPU"
 
         return device_info
 

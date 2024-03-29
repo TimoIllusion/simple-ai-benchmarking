@@ -131,3 +131,6 @@ class AIWorkload(ABC):
         )
 
         return benchmark_result
+    
+    def __str__(self) -> str:
+        return str(self.model) + " on " + str(self._get_accelerator_info())
