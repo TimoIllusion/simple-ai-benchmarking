@@ -80,8 +80,17 @@ To publish results to [timoillusion.pythonanywhere.com/benchmarks](timoillusion.
 
 ```bash
 export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN  
-python publish.py benchmark_results_tf.csv --non-interactive
+python publish.py benchmark_results_pt.csv
 ```
+
+OR  
+    
+```bash
+export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN  
+saib-pub benchmark_results_pt.csv
+```
+
+Note: The arg --token can be used to pass the token directly to the script.
 
 Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
 

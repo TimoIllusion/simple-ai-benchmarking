@@ -3,7 +3,7 @@ from simple_ai_benchmarking.log import initialize_logger
 
 
 def run_tf_benchmarks() -> None:
-    
+
     initialize_logger("benchmark_tf.log")
 
     from simple_ai_benchmarking.config_tf import build_default_tf_workloads
@@ -13,10 +13,16 @@ def run_tf_benchmarks() -> None:
 
 
 def run_pt_benchmarks() -> None:
-    
+
     initialize_logger("benchmark_pt.log")
 
     from simple_ai_benchmarking.config_pt import build_default_pt_workloads
 
     workloads = build_default_pt_workloads()
     process_workloads(workloads, "benchmark_results_pt")
+
+
+def publish() -> None:
+    from simple_ai_benchmarking.database import main
+
+    main()

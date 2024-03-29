@@ -142,7 +142,7 @@ class PyTorchWorkload(AIWorkload):
         return torch.__version__.split("+")[0]
 
     def _get_ai_framework_extra_info(self) -> str:
-        extra_info = ""
+        extra_info = "N/A"
         if "AI_FRAMEWORK_EXTRA_INFO_PT" in os.environ:
             extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_PT"]
         else:
