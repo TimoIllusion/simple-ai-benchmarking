@@ -29,7 +29,7 @@ class TensorFlowKerasWorkload(AIWorkload):
             loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
             metrics=["accuracy"],
         )
-        self.model.summary()
+        # self.model.summary()
 
         self.inputs, self.targets = self._generate_random_dataset_with_numpy()
 

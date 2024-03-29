@@ -16,7 +16,7 @@ class PyTorchWorkload(AIWorkload):
 
     def setup(self) -> None:
 
-        print(self.model)
+        # print(self.model)
         print("Number of model parameters:", self.count_model_parameters())
 
         self.device = torch.device(self.cfg.device_name)
