@@ -4,10 +4,9 @@ import os
 import pytest
 
 import pandas
-import numpy as np
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision
+from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision, AIModelWrapper
 from simple_ai_benchmarking.log import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
@@ -83,8 +82,10 @@ def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
 def test_benchmark_result_type() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
+    
+    dummy = AIModelWrapper("dummy", None)
 
-    workload = DummyWorkload(None, cfg)
+    workload = DummyWorkload(dummy, cfg)
     result = benchmark(workload)
 
     assert isinstance(
@@ -96,10 +97,11 @@ def test_process_workloads_correct_num_workloads_output() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
 
+    dummy = AIModelWrapper("dummy", None)
     workloads = [
-        DummyWorkload(None, cfg),
-        DummyWorkload(None, cfg),
-        DummyWorkload(None, cfg),
+        DummyWorkload(dummy, cfg),
+        DummyWorkload(dummy, cfg),
+        DummyWorkload(dummy, cfg),
     ]
     process_workloads(workloads, "benchmark_results_dummy")
 

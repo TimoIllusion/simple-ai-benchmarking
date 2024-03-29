@@ -9,6 +9,11 @@ class NumericalPrecision(Enum):
 
 
 @dataclass
+class AIModelWrapper:
+    name: str
+    model: object
+
+@dataclass
 class AIWorkloadBaseConfig:
     epochs: int
     num_batches: int

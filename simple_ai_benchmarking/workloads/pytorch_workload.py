@@ -138,10 +138,16 @@ class PyTorchWorkload(AIWorkload):
         return "torch"
 
     def _get_ai_framework_version(self) -> str:
-        return torch.__version__
+        # remove the second part of version, e.g. 1.8.0+cu111 -> 1.8.0
+        return torch.__version__.split("+")[0]
 
     def _get_ai_framework_extra_info(self) -> str:
         extra_info = ""
         if "AI_FRAMEWORK_EXTRA_INFO_PT" in os.environ:
             extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_PT"]
+        else:
+            # get the cuda version if available
+            version_split = torch.__version__.split("+")
+            if len(version_split) > 1:
+                extra_info = version_split[1]
         return extra_info

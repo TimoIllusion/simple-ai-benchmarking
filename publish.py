@@ -162,7 +162,7 @@ def read_csv_and_submit(csv_file_path: str, submit_url: str, api_token: str):
         for row in reader:
 
             benchmark_data = BenchmarkData(
-                ai_framework=f"{row['sw_info_ai_framework_name']}{row['sw_info_ai_framework_version']}+{row['sw_info_ai_framework_extra_info']}",
+                ai_framework=f"{row['sw_info_ai_framework_name']}{row['sw_info_ai_framework_version']}, {row['sw_info_ai_framework_extra_info']}",
                 python_version=row["sw_info_python_version"],
                 cpu_name=row["hw_info_cpu"],
                 accelerator=row["hw_info_accelerator"],

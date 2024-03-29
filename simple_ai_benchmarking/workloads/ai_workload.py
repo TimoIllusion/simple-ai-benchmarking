@@ -17,14 +17,16 @@ from simple_ai_benchmarking.log import (
     PerformanceResult,
     BenchmarkResult,
 )
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig
+from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, AIModelWrapper
 
 
 class AIWorkload(ABC):
 
-    def __init__(self, model, config: AIWorkloadBaseConfig) -> None:
+    def __init__(self, ai_model: AIModelWrapper, config: AIWorkloadBaseConfig) -> None:
 
-        self.model = model
+        self.model_name = ai_model.name
+        self.model = ai_model.model
+        
         self.cfg = config
 
         self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
@@ -106,7 +108,7 @@ class AIWorkload(ABC):
 
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
-            model=self.model.__class__.__name__,
+            model=self.model_name,
             compute_precision=self.cfg.data_type.name,
             batch_size_training=self.cfg.batch_size,
             batch_size_inference=self.cfg.batch_size,
@@ -133,4 +135,4 @@ class AIWorkload(ABC):
         return benchmark_result
     
     def __str__(self) -> str:
-        return str(self.model) + " on " + str(self._get_accelerator_info())
+        return str(self.model_name) + " on " + str(self._get_accelerator_info())

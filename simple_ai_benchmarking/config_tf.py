@@ -2,11 +2,15 @@
 # so that the user does not have to worry about the benchmark configuration. However, this may change in the future, since it is not very good programming style.
 
 from typing import List
-from copy import copy
+from copy import copy, deepcopy
 
 import tensorflow as tf
 
-from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBaseConfig
+from simple_ai_benchmarking.definitions import (
+    NumericalPrecision,
+    AIWorkloadBaseConfig,
+    AIModelWrapper,
+)
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
 from simple_ai_benchmarking.models.tf.simple_classification_cnn import (
@@ -39,43 +43,20 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
 
+    simple_classification_cnn = AIModelWrapper(
+        "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
+    )
+    resnet50 = AIModelWrapper("ResNet50", tf.keras.applications.ResNet50(weights=None))
+    # tf.keras.applications.EfficientNetB5()
+    # tf.keras.applications.EfficientNetB0(),
+
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
+        TensorFlowKerasWorkload(simple_classification_cnn, common_cfg_default),
         TensorFlowKerasWorkload(
-            SimpleClassificationCNN(100, model_shape), common_cfg_default
-        ),  # <1 GB
-        TensorFlowKerasWorkload(
-            SimpleClassificationCNN(100, model_shape), common_cfg_fp16_mixed
-        ),  # <1 GB
-        # TensorFlowKerasWorkload(
-        #     SimpleClassificationCNN(100, model_shape),
-        #     common_cfg_fp32_explicit
-        #     ), # <1 GB
-        TensorFlowKerasWorkload(
-            tf.keras.applications.ResNet50(weights=None), common_cfg_bs1_default
+            deepcopy(simple_classification_cnn), common_cfg_fp16_mixed
         ),
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.ResNet50(weights=None),
-        #     10,
-        #     10,
-        #     8,
-        #     device,
-        #     NumericalPrecision.DEFAULT_FP32,
-        #     ),
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.EfficientNetB5(),
-        #     10,
-        #     10,
-        #     8,
-        #     device,
-        #     ), # ~11 GB
-        # TensorFlowKerasWorkload(
-        #     tf.keras.applications.EfficientNetB0(),
-        #     10,
-        #     10,
-        #     8,
-        #     device,
-        #     ), # ~1 GB
+        TensorFlowKerasWorkload(resnet50, common_cfg_bs1_default),
     ]
 
     return workloads
