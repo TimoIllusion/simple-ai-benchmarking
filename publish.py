@@ -5,6 +5,7 @@ import subprocess
 import argparse
 import pprint
 import json
+from copy import deepcopy
 
 import dataclasses
 from dataclasses import dataclass
@@ -15,7 +16,6 @@ class BenchmarkData:
     ai_framework: str
     python_version: str
     cpu_name: str
-    accelerator_name: str
     accelerator: str
     model: str
     benchmark_type: str
@@ -92,6 +92,7 @@ def submit_benchmark_result(data: BenchmarkData, submit_url: str, api_token: str
 
 
 def prompt_for_updates(benchmark_data: BenchmarkData) -> BenchmarkData:
+    
     while True:
         print("Current result data overview:")
         pprint.pprint(benchmark_data.to_dict())
@@ -164,7 +165,6 @@ def read_csv_and_submit(csv_file_path: str, submit_url: str, api_token: str):
                 ai_framework=f"{row['sw_info_ai_framework_name']}{row['sw_info_ai_framework_version']}+{row['sw_info_ai_framework_extra_info']}",
                 python_version=row["sw_info_python_version"],
                 cpu_name=row["hw_info_cpu"],
-                accelerator_name=row["hw_info_accelerator"],
                 accelerator=row["hw_info_accelerator"],
                 model=row["bench_info_model"],
                 benchmark_type="inference",
@@ -180,39 +180,19 @@ def read_csv_and_submit(csv_file_path: str, submit_url: str, api_token: str):
             )
 
             benchmark_datasets.append(benchmark_data)
+            
+            benchmark_data = deepcopy(benchmark_data)
+            benchmark_data.benchmark_type = "training"
+            benchmark_data.score_iterations_per_second = float(
+                row["train_performance_throughput"]
+            )
+            benchmark_data.batch_size = int(row["bench_info_batch_size_training"])
+            
+            benchmark_datasets.append(benchmark_data)
 
     print(f"Loaded {len(benchmark_datasets)} benchmark results from {csv_file_path}.")
-
-    # write to json
-    json_file_path = "benchmark_dataset.json"
-    with open(json_file_path, "w") as f:
-        data = [x.to_dict() for x in benchmark_datasets]
-        json.dump(data, f, indent=4)
-
-    # wait for user input
-    input(
-        f"You may now edit the file {json_file_path} to change values. Press Enter to continue..."
-    )
-    # reload json
-    with open(json_file_path, "r") as f:
-        benchmark_datasets = [BenchmarkData(**x) for x in json.load(f)]
-
-    for benchmark_data in benchmark_datasets:
-
-        benchmark_data = prompt_for_updates(benchmark_data)
-
-        print("Publishing...")
-        print(benchmark_data.to_dict())
-
-        submit_benchmark_result(benchmark_data, submit_url, api_token)
-
-        benchmark_data.benchmark_type = "training"
-        benchmark_data.score_iterations_per_second = float(
-            row["train_performance_throughput"]
-        )
-        benchmark_data.batch_size = int(row["bench_info_batch_size_training"])
-
-        submit_benchmark_result(benchmark_data, submit_url, api_token)
+    
+    return benchmark_datasets
 
 
 def main():
@@ -231,6 +211,13 @@ def main():
         default="http://localhost:8000",
         help="The URL of the AI Benchmark Database.",
     )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        default=False,
+        help="Whether to run the script in non-interactive mode.",
+    )
+
     args = parser.parse_args()
 
     submit_url_path = "/benchmarks/submit/"  # Change to your actual endpoint
@@ -243,7 +230,32 @@ def main():
             "API token not set. Please set the AI_BENCHMARK_DATABASE_TOKEN environment variable. Maybe also restart your IDE or terminal session. Also maybe restart your pc."
         )
 
-    read_csv_and_submit(args.results_csv_path, submit_url, api_token)
+    benchmark_datasets = read_csv_and_submit(args.results_csv_path, submit_url, api_token)
+    
+    # write to json
+    json_file_path = "benchmark_dataset.json"
+    with open(json_file_path, "w") as f:
+        data = [x.to_dict() for x in benchmark_datasets]
+        json.dump(data, f, indent=4)
+
+    if not args.non_interactive:
+        # wait for user input
+        input(
+            f"You may now edit the file {json_file_path} to change meta data. Press Enter to continue..."
+        )
+    
+    # reload json
+    with open(json_file_path, "r") as f:
+        benchmark_datasets = [BenchmarkData(**x) for x in json.load(f)]
+
+    for benchmark_data in benchmark_datasets:
+        
+        if not args.non_interactive:
+            benchmark_data = prompt_for_updates(benchmark_data)
+
+        print("Publishing...")
+
+        submit_benchmark_result(benchmark_data, submit_url, api_token)
 
 
 if __name__ == "__main__":
