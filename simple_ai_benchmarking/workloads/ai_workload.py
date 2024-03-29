@@ -2,11 +2,13 @@ from abc import abstractmethod, ABC
 import platform
 import multiprocessing
 from typing import Tuple
+import datetime
 
 from loguru import logger
 
 import numpy as np
 import psutil
+import cpuinfo
 
 from simple_ai_benchmarking.log import (
     SWInfo,
@@ -76,6 +78,10 @@ class AIWorkload(ABC):
     @abstractmethod
     def _get_ai_framework_name(self) -> str:
         pass
+    
+    @abstractmethod
+    def _get_ai_framework_extra_info(self) -> str:
+        pass
 
     @abstractmethod
     def _get_accelerator_info(self) -> str:
@@ -84,13 +90,15 @@ class AIWorkload(ABC):
     def build_result_log(self) -> BenchmarkResult:
 
         sw_info = SWInfo(
-            ai_framework=self._get_ai_framework_name(),
+            ai_framework_name=self._get_ai_framework_name(),
             ai_framework_version=self._get_ai_framework_version(),
+            ai_framework_extra_info=self._get_ai_framework_extra_info(),
             python_version=platform.python_version(),
+            os_version=platform.platform(aliased=False, terse=False),
         )
 
         hw_info = HWInfo(
-            cpu=str(platform.processor()) + str(platform.architecture()),
+            cpu=cpuinfo.get_cpu_info()["brand_raw"],
             num_cores=multiprocessing.cpu_count(),
             ram_gb=psutil.virtual_memory().total / 1e9,
             accelerator=self._get_accelerator_info(),
@@ -103,6 +111,7 @@ class AIWorkload(ABC):
             batch_size_training=self.cfg.batch_size,
             batch_size_inference=self.cfg.batch_size,
             sample_shape=None,
+            date=datetime.datetime.now().isoformat(),
         )
 
         train_performance = PerformanceResult(

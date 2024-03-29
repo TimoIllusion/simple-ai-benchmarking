@@ -1,3 +1,5 @@
+import os
+
 from loguru import logger
 
 import tensorflow as tf
@@ -87,6 +89,12 @@ class TensorFlowKerasWorkload(AIWorkload):
 
     def _get_ai_framework_version(self) -> str:
         return tf.__version__
+
+    def _get_ai_framework_extra_info(self) -> str:
+        extra_info = ""
+        if "AI_FRAMEWORK_EXTRA_INFO_TF" in os.environ:
+            extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_TF"]
+        return extra_info
 
     @staticmethod
     def get_model_memory_usage(batch_size, model) -> float:

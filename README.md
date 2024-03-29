@@ -64,6 +64,12 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
+## Adding Extra System Information to Results
+
+If env variable `AI_FRAMEWORK_EXTRA_INFO_TF` or `AI_FRAMEWORK_EXTRA_INFO_PT` is set, it is possible to extend the information on backend etc., e.g. the CUDA version that was used.
+
+```export AI_FRAMEWORK_EXTRA_INFO_PT="cuda10.2-cudnn8.6-..."```
+
 ## Example results [v0.3.2 - LATEST]
 
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.1.2+cu121, Python 3.10.13:

@@ -1,4 +1,5 @@
 import platform
+import os
 
 from loguru import logger
 
@@ -138,3 +139,9 @@ class PyTorchWorkload(AIWorkload):
 
     def _get_ai_framework_version(self) -> str:
         return torch.__version__
+
+    def _get_ai_framework_extra_info(self) -> str:
+        extra_info = ""
+        if "AI_FRAMEWORK_EXTRA_INFO_PT" in os.environ:
+            extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_PT"]
+        return extra_info

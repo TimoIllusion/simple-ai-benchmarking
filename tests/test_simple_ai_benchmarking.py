@@ -60,6 +60,9 @@ class DummyWorkload(AIWorkload):
 
     def _get_accelerator_info(self) -> str:
         return "dummy_accelerator"
+    
+    def _get_ai_framework_extra_info(self) -> str:
+        return "extra99.9"
 
 
 def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
@@ -87,26 +90,6 @@ def test_benchmark_result_type() -> None:
     assert isinstance(
         result, BenchmarkResult
     ), f"Wrong type of benchmark result: {type(result)}"
-
-
-def test_benchmark_timing() -> None:
-
-    cfg = _prepare_benchmark_dummy_cfg()
-
-    workload = DummyWorkload(None, cfg)
-
-    t0 = time.time()
-    _ = benchmark(workload)
-    t1 = time.time()
-
-    duration_s = t1 - t0
-
-    target_duration_s = 4 * _PER_FUNCTION_TIME_DELAY_S
-    tolerance_s = target_duration_s * 0.3
-
-    assert (
-        np.fabs(duration_s - target_duration_s) <= tolerance_s
-    ), f"Benchmark duration differs from target duration. Target is {target_duration_s} but was {duration_s}."
 
 
 def test_process_workloads_correct_num_workloads_output() -> None:

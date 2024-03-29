@@ -9,9 +9,11 @@ from tabulate import tabulate
 
 @dataclass
 class SWInfo:
-    ai_framework: str
+    ai_framework_name: str
     ai_framework_version: str
+    ai_framework_extra_info: str
     python_version: str
+    os_version: str
 
 
 @dataclass
@@ -51,6 +53,7 @@ class BenchInfo:
     compute_precision: str
     batch_size_training: int
     batch_size_inference: int
+    date: str
     sample_shape: List[int]
 
 
@@ -158,7 +161,7 @@ class BenchmarkLogger:
         table_data = []
 
         for i, result in enumerate(self.results):
-            sw_framework = result.sw_info.ai_framework
+            sw_framework = result.sw_info.ai_framework_name
             model = result.bench_info.model
             accelerator = result.hw_info.accelerator
             precision = result.bench_info.compute_precision

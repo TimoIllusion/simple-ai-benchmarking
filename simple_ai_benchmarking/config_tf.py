@@ -10,7 +10,7 @@ from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBas
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
 from simple_ai_benchmarking.models.tf.simple_classification_cnn import (
-    TFSimpleClassificationCNN,
+    SimpleClassificationCNN,
 )
 
 
@@ -42,13 +42,13 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
         TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN(100, model_shape), common_cfg_default
+            SimpleClassificationCNN(100, model_shape), common_cfg_default
         ),  # <1 GB
         TensorFlowKerasWorkload(
-            TFSimpleClassificationCNN(100, model_shape), common_cfg_fp16_mixed
+            SimpleClassificationCNN(100, model_shape), common_cfg_fp16_mixed
         ),  # <1 GB
         # TensorFlowKerasWorkload(
-        #     TFSimpleClassificationCNN(100, model_shape),
+        #     SimpleClassificationCNN(100, model_shape),
         #     common_cfg_fp32_explicit
         #     ), # <1 GB
         TensorFlowKerasWorkload(

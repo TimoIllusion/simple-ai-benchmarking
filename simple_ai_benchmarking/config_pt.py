@@ -13,7 +13,7 @@ from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBas
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchWorkload
 from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
-    PTSimpleClassificationCNN,
+    SimpleClassificationCNN,
 )
 
 
@@ -47,10 +47,10 @@ def build_default_pt_workloads() -> List[AIWorkload]:
 
     workloads = [
         PyTorchWorkload(
-            PTSimpleClassificationCNN(100, model_shape), common_cfg_default
+            SimpleClassificationCNN(100, model_shape), common_cfg_default
         ),
         PyTorchWorkload(
-            PTSimpleClassificationCNN(100, model_shape), common_cfg_fp16_mixed
+            SimpleClassificationCNN(100, model_shape), common_cfg_fp16_mixed
         ),
         PyTorchWorkload(
             torchvision.models.resnet50(num_classes=1000), common_cfg_bs1_default
