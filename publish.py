@@ -13,7 +13,9 @@ from dataclasses import dataclass
 
 @dataclass
 class BenchmarkData:
-    ai_framework: str
+    ai_framework_name: str
+    ai_framework_version: str
+    ai_framework_extra_info: str
     python_version: str
     cpu_name: str
     accelerator: str
@@ -162,7 +164,9 @@ def read_csv_and_submit(csv_file_path: str, submit_url: str, api_token: str):
         for row in reader:
 
             benchmark_data = BenchmarkData(
-                ai_framework=f"{row['sw_info_ai_framework_name']}{row['sw_info_ai_framework_version']}, {row['sw_info_ai_framework_extra_info']}",
+                ai_framework_name=f"{row['sw_info_ai_framework_name']}",
+                ai_framework_version=row["sw_info_ai_framework_version"],
+                ai_framework_extra_info=row["sw_info_ai_framework_extra_info"],
                 python_version=row["sw_info_python_version"],
                 cpu_name=row["hw_info_cpu"],
                 accelerator=row["hw_info_accelerator"],

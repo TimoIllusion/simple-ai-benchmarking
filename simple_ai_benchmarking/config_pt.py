@@ -50,14 +50,17 @@ def build_default_pt_workloads() -> List[AIWorkload]:
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
 
-    resnet50 = AIModelWrapper("ResNet50", torchvision.models.resnet50(num_classes=1000))
     simple_classification_cnn = AIModelWrapper(
         "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
     )
+    simple_classification_cnn2 = AIModelWrapper(
+        "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
+    )
+    resnet50 = AIModelWrapper("ResNet50", torchvision.models.resnet50(num_classes=1000))
 
     workloads = [
         PyTorchWorkload(simple_classification_cnn, common_cfg_default),
-        PyTorchWorkload(deepcopy(simple_classification_cnn), common_cfg_fp16_mixed),
+        PyTorchWorkload(simple_classification_cnn2, common_cfg_fp16_mixed),
         PyTorchWorkload(resnet50, common_cfg_bs1_default),
     ]
 

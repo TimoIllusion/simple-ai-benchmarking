@@ -46,6 +46,9 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     simple_classification_cnn = AIModelWrapper(
         "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
     )
+    simple_classification_cnn2 = AIModelWrapper(
+        "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
+    )
     resnet50 = AIModelWrapper("ResNet50", tf.keras.applications.ResNet50(weights=None))
     # tf.keras.applications.EfficientNetB5()
     # tf.keras.applications.EfficientNetB0(),
@@ -54,7 +57,7 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     workloads = [
         TensorFlowKerasWorkload(simple_classification_cnn, common_cfg_default),
         TensorFlowKerasWorkload(
-            deepcopy(simple_classification_cnn), common_cfg_fp16_mixed
+            simple_classification_cnn2, common_cfg_fp16_mixed
         ),
         TensorFlowKerasWorkload(resnet50, common_cfg_bs1_default),
     ]
