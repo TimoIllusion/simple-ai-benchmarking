@@ -1,5 +1,6 @@
 import csv
 import requests
+from requests.auth import HTTPBasicAuth
 import os
 import subprocess
 import argparse
@@ -72,7 +73,27 @@ def get_git_repository_url():
         return "N/A"
 
 
-def submit_benchmark_result(
+def submit_benchmark_result_user_pw_auth(
+    data: BenchmarkData, submit_url: str, user: str, pw: str
+) -> bool:
+    """Submit a single benchmark result to the API."""
+
+    response = requests.post(
+        submit_url, json=data.to_dict(), auth=HTTPBasicAuth(user, pw)
+    )
+
+    if response.status_code == 201:
+        print("Successfully added:")
+        print(data.to_dict())
+        return True
+    else:
+        print("Failed to add:")
+        print(data.to_dict())
+        print("Response:", response.text)
+        return False
+
+
+def submit_benchmark_result_token_auth(
     data: BenchmarkData, submit_url: str, api_token: str
 ) -> bool:
     """Submit a single benchmark result to the API."""
@@ -80,8 +101,8 @@ def submit_benchmark_result(
         "Authorization": f"Token {api_token}",
         "Content-Type": "application/json",
     }
-
     response = requests.post(submit_url, json=data.to_dict(), headers=headers)
+
     if response.status_code == 201:
         print("Successfully added:")
         print(data.to_dict())
@@ -217,6 +238,21 @@ def main():
         default=None,
         help="The API token to authenticate with the database.",
     )
+    parser.add_argument(
+        "-p",
+        "--password",
+        type=str,
+        default=None,
+        help="The password to authenticate with the database.",
+    )
+
+    parser.add_argument(
+        "-u",
+        "--user",
+        type=str,
+        default=None,
+        help="The user to authenticate with the database.",
+    )
 
     args = parser.parse_args()
 
@@ -228,12 +264,18 @@ def main():
     else:
         api_token = os.environ.get("AI_BENCHMARK_DATABASE_TOKEN")
 
-    print("Token:", api_token)
-
     if not api_token:
-        raise ValueError(
-            "API token not set. Please set the AI_BENCHMARK_DATABASE_TOKEN environment variable OR use the --token arg. Maybe also restart your IDE or terminal session. Also maybe restart your pc."
-        )
+
+        if args.user and args.password:
+            print("User:", args.user)
+            print("Password:", "*" * len(args.password))
+        else:
+            print("User and/or password not provided.")
+        
+        raise ValueError("No suitable authentication provided. Please provide a token or user and password. Check README.md for details.")
+
+    else:
+        print("API Token:", "*" * (len(api_token) - 3) + api_token[-3:])
 
     benchmark_datasets = read_csv_and_create_benchmark_dataset(args.results_csv_path)
 
@@ -258,9 +300,12 @@ def main():
     for benchmark_data in benchmark_datasets:
 
         print("Publishing...")
-
-        success = submit_benchmark_result(benchmark_data, submit_url, api_token)
-
+        
+        if api_token is not None:
+            success = submit_benchmark_result_token_auth(benchmark_data, submit_url, api_token)
+        else:
+            success = submit_benchmark_result_user_pw_auth(benchmark_data, submit_url, args.user, args.password)
+            
         if not success:
             print("Submission failed. Exiting...")
             break
