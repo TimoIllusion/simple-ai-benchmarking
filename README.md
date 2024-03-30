@@ -177,6 +177,7 @@ Note: In these results, TensorFlow Benchmarks are using a much older version for
 - [ ] Add plotting of results
 - [ ] Add option to install package and put on pypi.org
 - [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
+- [ ] Add user dialogue for device selection and/or optimize automatic device deduction
 - [x] Add test pipeline
 - [x] Refactor code into improved and refined structure
 - [x] Remove dependencies on tf_addons and tf_datasets
