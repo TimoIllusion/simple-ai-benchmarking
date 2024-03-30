@@ -275,11 +275,9 @@ def main():
             print("User:", args.user)
             print("Password:", "*" * len(args.password))
         else:
-            print("User and/or password not provided.")
-
-        raise ValueError(
-            "No suitable authentication provided. Please provide a token or user and password. Check README.md for details."
-        )
+            raise ValueError(
+                "No suitable authentication provided. Please provide a token or user and password. Check README.md for details."
+            )
 
     else:
         print("API Token:", "*" * (len(api_token) - 3) + api_token[-3:])
