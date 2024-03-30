@@ -28,7 +28,7 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 ## Setup & Usage
 
-1. Create a conda environment via `conda create -n saib python=3.9 -y` and activate it `conda activate saib`.
+1. Create a conda environment via `conda create -n saib python=3.10 -y` and activate it `conda activate saib`.
 
 2. [OPTIONAL] Install your prefered pytorch or tensorflow version and respective CUDA version.
 
@@ -90,11 +90,17 @@ export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN
 saib-pub benchmark_results_pt.csv
 ```
 
+OR
+
+```bash
+saib-pub benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
+```
+
 Note: The arg --token can be used to pass the token directly to the script.
 
 Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
 
-## Example results [v0.3.2 - LATEST]
+## Example results [v0.3.2]
 
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.1.2+cu121, Python 3.10.13:
 
