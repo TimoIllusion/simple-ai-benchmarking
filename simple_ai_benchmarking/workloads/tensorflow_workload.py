@@ -91,10 +91,7 @@ class TensorFlowKerasWorkload(AIWorkload):
         return tf.__version__
 
     def _get_ai_framework_extra_info(self) -> str:
-        extra_info = "N/A"
-        if "AI_FRAMEWORK_EXTRA_INFO_TF" in os.environ:
-            extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_TF"]
-        return extra_info
+        return "N/A"
 
     @staticmethod
     def get_model_memory_usage(batch_size, model) -> float:

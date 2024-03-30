@@ -1,5 +1,6 @@
 import platform
 import os
+import re
 
 from loguru import logger
 
@@ -139,15 +140,19 @@ class PyTorchWorkload(AIWorkload):
 
     def _get_ai_framework_version(self) -> str:
         # remove the second part of version, e.g. 1.8.0+cu111 -> 1.8.0
-        return torch.__version__.split("+")[0]
+        
+        version = torch.__version__
+        
+        if "cu" in version and "git" not in version:
+            return version.split("+")[0]
+        else:
+            return version
 
     def _get_ai_framework_extra_info(self) -> str:
-        extra_info = "N/A"
-        if "AI_FRAMEWORK_EXTRA_INFO_PT" in os.environ:
-            extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_PT"]
+        version = torch.__version__
+        
+        if "cu" in version and "git" not in version:
+            cuda_short_str = version.split("+")[1]
+            return cuda_short_str
         else:
-            # get the cuda version if available
-            version_split = torch.__version__.split("+")
-            if len(version_split) > 1:
-                extra_info = version_split[1]
-        return extra_info
+            return "N/A"

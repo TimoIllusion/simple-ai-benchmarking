@@ -66,12 +66,6 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
-## Adding Extra System Information to Results
-
-If env variable `AI_FRAMEWORK_EXTRA_INFO_TF` or `AI_FRAMEWORK_EXTRA_INFO_PT` is set, it is possible to extend the information on backend etc., e.g. the CUDA version that was used.
-
-```export AI_FRAMEWORK_EXTRA_INFO_PT="cuda10.2-cudnn8.6-..."```
-
 ## Publish to AI Benchmark Database
 
 Currently results can only published by authenticated users, but user creation is not possible currently. 

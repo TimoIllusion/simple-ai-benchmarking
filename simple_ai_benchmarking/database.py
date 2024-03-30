@@ -116,7 +116,12 @@ def submit_benchmark_result_token_auth(
 
 def prompt_for_updates(
     benchmark_data_list,
-    keys_to_update=["accelerator", "cpu_name", "ai_framework_extra_info"],
+    keys_to_update=[
+        "accelerator",
+        "cpu_name",
+        "ai_framework_version",
+        "ai_framework_extra_info",
+    ],
 ):
 
     # Collect unique values for specified keys across all items
@@ -271,8 +276,10 @@ def main():
             print("Password:", "*" * len(args.password))
         else:
             print("User and/or password not provided.")
-        
-        raise ValueError("No suitable authentication provided. Please provide a token or user and password. Check README.md for details.")
+
+        raise ValueError(
+            "No suitable authentication provided. Please provide a token or user and password. Check README.md for details."
+        )
 
     else:
         print("API Token:", "*" * (len(api_token) - 3) + api_token[-3:])
@@ -300,12 +307,16 @@ def main():
     for benchmark_data in benchmark_datasets:
 
         print("Publishing...")
-        
+
         if api_token is not None:
-            success = submit_benchmark_result_token_auth(benchmark_data, submit_url, api_token)
+            success = submit_benchmark_result_token_auth(
+                benchmark_data, submit_url, api_token
+            )
         else:
-            success = submit_benchmark_result_user_pw_auth(benchmark_data, submit_url, args.user, args.password)
-            
+            success = submit_benchmark_result_user_pw_auth(
+                benchmark_data, submit_url, args.user, args.password
+            )
+
         if not success:
             print("Submission failed. Exiting...")
             break
