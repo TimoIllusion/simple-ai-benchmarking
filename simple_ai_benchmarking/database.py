@@ -233,6 +233,7 @@ def main():
         help="Whether to run the script in non-interactive mode.",
     )
     parser.add_argument(
+        "-t",
         "--token",
         type=str,
         default=None,
@@ -245,7 +246,6 @@ def main():
         default=None,
         help="The password to authenticate with the database.",
     )
-
     parser.add_argument(
         "-u",
         "--user",
