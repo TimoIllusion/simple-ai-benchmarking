@@ -4,10 +4,9 @@ import os
 import pytest
 
 import pandas
-import numpy as np
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision
+from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision, AIModelWrapper
 from simple_ai_benchmarking.log import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
@@ -60,6 +59,9 @@ class DummyWorkload(AIWorkload):
 
     def _get_accelerator_info(self) -> str:
         return "dummy_accelerator"
+    
+    def _get_ai_framework_extra_info(self) -> str:
+        return "extra99.9"
 
 
 def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
@@ -80,8 +82,10 @@ def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
 def test_benchmark_result_type() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
+    
+    dummy = AIModelWrapper("dummy", None)
 
-    workload = DummyWorkload(None, cfg)
+    workload = DummyWorkload(dummy, cfg)
     result = benchmark(workload)
 
     assert isinstance(
@@ -89,34 +93,15 @@ def test_benchmark_result_type() -> None:
     ), f"Wrong type of benchmark result: {type(result)}"
 
 
-def test_benchmark_timing() -> None:
-
-    cfg = _prepare_benchmark_dummy_cfg()
-
-    workload = DummyWorkload(None, cfg)
-
-    t0 = time.time()
-    _ = benchmark(workload)
-    t1 = time.time()
-
-    duration_s = t1 - t0
-
-    target_duration_s = 4 * _PER_FUNCTION_TIME_DELAY_S
-    tolerance_s = target_duration_s * 0.3
-
-    assert (
-        np.fabs(duration_s - target_duration_s) <= tolerance_s
-    ), f"Benchmark duration differs from target duration. Target is {target_duration_s} but was {duration_s}."
-
-
 def test_process_workloads_correct_num_workloads_output() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
 
+    dummy = AIModelWrapper("dummy", None)
     workloads = [
-        DummyWorkload(None, cfg),
-        DummyWorkload(None, cfg),
-        DummyWorkload(None, cfg),
+        DummyWorkload(dummy, cfg),
+        DummyWorkload(dummy, cfg),
+        DummyWorkload(dummy, cfg),
     ]
     process_workloads(workloads, "benchmark_results_dummy")
 

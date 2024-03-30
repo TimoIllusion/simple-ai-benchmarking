@@ -20,6 +20,7 @@ def process_workloads(
     result_logger = BenchmarkLogger()
 
     for workload in workloads:
+        logger.info(f"Running benchmark: {workload}")
         benchmark_repetition_results = _repeat_benchmark_n_times(workload, repetitions)
         result_logger.add_repetitions_for_one_benchmark(benchmark_repetition_results)
 

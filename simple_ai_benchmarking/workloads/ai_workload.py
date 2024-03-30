@@ -2,11 +2,13 @@ from abc import abstractmethod, ABC
 import platform
 import multiprocessing
 from typing import Tuple
+import datetime
 
 from loguru import logger
 
 import numpy as np
 import psutil
+import cpuinfo
 
 from simple_ai_benchmarking.log import (
     SWInfo,
@@ -15,14 +17,16 @@ from simple_ai_benchmarking.log import (
     PerformanceResult,
     BenchmarkResult,
 )
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig
+from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, AIModelWrapper
 
 
 class AIWorkload(ABC):
 
-    def __init__(self, model, config: AIWorkloadBaseConfig) -> None:
+    def __init__(self, ai_model: AIModelWrapper, config: AIWorkloadBaseConfig) -> None:
 
-        self.model = model
+        self.model_name = ai_model.name
+        self.model = ai_model.model
+        
         self.cfg = config
 
         self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
@@ -76,6 +80,10 @@ class AIWorkload(ABC):
     @abstractmethod
     def _get_ai_framework_name(self) -> str:
         pass
+    
+    @abstractmethod
+    def _get_ai_framework_extra_info(self) -> str:
+        pass
 
     @abstractmethod
     def _get_accelerator_info(self) -> str:
@@ -84,13 +92,15 @@ class AIWorkload(ABC):
     def build_result_log(self) -> BenchmarkResult:
 
         sw_info = SWInfo(
-            ai_framework=self._get_ai_framework_name(),
+            ai_framework_name=self._get_ai_framework_name(),
             ai_framework_version=self._get_ai_framework_version(),
+            ai_framework_extra_info=self._get_ai_framework_extra_info(),
             python_version=platform.python_version(),
+            os_version=platform.platform(aliased=False, terse=False),
         )
 
         hw_info = HWInfo(
-            cpu=str(platform.processor()) + str(platform.architecture()),
+            cpu=cpuinfo.get_cpu_info()["brand_raw"],
             num_cores=multiprocessing.cpu_count(),
             ram_gb=psutil.virtual_memory().total / 1e9,
             accelerator=self._get_accelerator_info(),
@@ -98,11 +108,12 @@ class AIWorkload(ABC):
 
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
-            model=self.model.__class__.__name__,
+            model=self.model_name,
             compute_precision=self.cfg.data_type.name,
             batch_size_training=self.cfg.batch_size,
             batch_size_inference=self.cfg.batch_size,
             sample_shape=None,
+            date=datetime.datetime.now().isoformat(),
         )
 
         train_performance = PerformanceResult(
@@ -122,3 +133,6 @@ class AIWorkload(ABC):
         )
 
         return benchmark_result
+    
+    def __str__(self) -> str:
+        return str(self.model_name) + " on " + str(self._get_accelerator_info())

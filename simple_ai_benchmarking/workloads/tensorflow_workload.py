@@ -1,3 +1,5 @@
+import os
+
 from loguru import logger
 
 import tensorflow as tf
@@ -27,7 +29,7 @@ class TensorFlowKerasWorkload(AIWorkload):
             loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
             metrics=["accuracy"],
         )
-        self.model.summary()
+        # self.model.summary()
 
         self.inputs, self.targets = self._generate_random_dataset_with_numpy()
 
@@ -76,9 +78,9 @@ class TensorFlowKerasWorkload(AIWorkload):
 
             gpu_id = int(self.cfg.device_name.split(":")[1])
             device_infos = tf.config.experimental.get_device_details(gpus[gpu_id])
-            details = self.cfg.device_name + " - " + device_infos["device_name"]
+            details = device_infos["device_name"]
         else:
-            details = ""
+            details = "CPU"
 
         return details
 
@@ -87,6 +89,12 @@ class TensorFlowKerasWorkload(AIWorkload):
 
     def _get_ai_framework_version(self) -> str:
         return tf.__version__
+
+    def _get_ai_framework_extra_info(self) -> str:
+        extra_info = "N/A"
+        if "AI_FRAMEWORK_EXTRA_INFO_TF" in os.environ:
+            extra_info = os.environ["AI_FRAMEWORK_EXTRA_INFO_TF"]
+        return extra_info
 
     @staticmethod
     def get_model_memory_usage(batch_size, model) -> float:

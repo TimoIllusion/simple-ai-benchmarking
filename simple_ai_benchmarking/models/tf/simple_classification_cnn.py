@@ -1,11 +1,11 @@
 import tensorflow as tf
 
 
-class TFSimpleClassificationCNN(tf.keras.Model):
+class SimpleClassificationCNN(tf.keras.Model):
 
     def __init__(self, num_classes, input_shape):
 
-        super(TFSimpleClassificationCNN, self).__init__()
+        super(SimpleClassificationCNN, self).__init__()
 
         self.conv1 = tf.keras.layers.Conv2D(
             32, (3, 3), activation="relu", input_shape=input_shape
@@ -36,3 +36,4 @@ class TFSimpleClassificationCNN(tf.keras.Model):
         x = self.fc1(x)
 
         return self.fc2(x)
+

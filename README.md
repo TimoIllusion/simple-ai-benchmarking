@@ -2,6 +2,8 @@
 
 A simple application to quickly run tests on a variety of hardware and software for AI workloads, to get an intuition on the performance. No downloading of big datasets and only a few dependencies. For more sophisticated and complex benchmarking, I recommend to use [MLPerf Benchmarks](https://mlcommons.org/benchmarks/). 
 
+Visit [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) to see current benchmark database.
+
 I develop this application in my free time as a hobby.
 
 ## Quickstart
@@ -26,7 +28,7 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 ## Setup & Usage
 
-1. Create a conda environment via `conda create -n saib python=3.9 -y` and activate it `conda activate saib`.
+1. Create a conda environment via `conda create -n saib python=3.10 -y` and activate it `conda activate saib`.
 
 2. [OPTIONAL] Install your prefered pytorch or tensorflow version and respective CUDA version.
 
@@ -64,7 +66,41 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
-## Example results [v0.3.2 - LATEST]
+## Adding Extra System Information to Results
+
+If env variable `AI_FRAMEWORK_EXTRA_INFO_TF` or `AI_FRAMEWORK_EXTRA_INFO_PT` is set, it is possible to extend the information on backend etc., e.g. the CUDA version that was used.
+
+```export AI_FRAMEWORK_EXTRA_INFO_PT="cuda10.2-cudnn8.6-..."```
+
+## Publish to AI Benchmark Database
+
+Currently results can only published by authenticated users, but user creation is not possible currently. 
+
+To publish results to [timoillusion.pythonanywhere.com/benchmarks](timoillusion.pythonanywhere.com/benchmarks), execute these commands:
+
+```bash
+export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN  
+python publish.py benchmark_results_pt.csv
+```
+
+OR  
+    
+```bash
+export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN  
+saib-pub benchmark_results_pt.csv
+```
+
+OR
+
+```bash
+saib-pub benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
+```
+
+Note: The arg --token can be used to pass the token directly to the script.
+
+Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
+
+## Example results [v0.3.2]
 
 Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.1.2+cu121, Python 3.10.13:
 

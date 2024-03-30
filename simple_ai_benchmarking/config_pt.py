@@ -4,16 +4,21 @@
 from typing import List
 from copy import copy
 from sys import platform
+from copy import deepcopy
 
 import torch
 import torchvision
 from loguru import logger
 
-from simple_ai_benchmarking.definitions import NumericalPrecision, AIWorkloadBaseConfig
+from simple_ai_benchmarking.definitions import (
+    NumericalPrecision,
+    AIWorkloadBaseConfig,
+    AIModelWrapper,
+)
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchWorkload
 from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
-    PTSimpleClassificationCNN,
+    SimpleClassificationCNN,
 )
 
 
@@ -21,8 +26,8 @@ from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
 def build_default_pt_workloads() -> List[AIWorkload]:
 
     device_name = get_device_name()
-    
-    logger.info(f"Device name: {device_name}")
+
+    logger.trace("Device Name: {}", device_name)
 
     model_shape = [3, 224, 224]
 
@@ -45,16 +50,18 @@ def build_default_pt_workloads() -> List[AIWorkload]:
     common_cfg_bs1_default = copy(common_cfg_default)
     common_cfg_bs1_default.batch_size = 1
 
+    simple_classification_cnn = AIModelWrapper(
+        "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
+    )
+    simple_classification_cnn2 = AIModelWrapper(
+        "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
+    )
+    resnet50 = AIModelWrapper("ResNet50", torchvision.models.resnet50(num_classes=1000))
+
     workloads = [
-        PyTorchWorkload(
-            PTSimpleClassificationCNN(100, model_shape), common_cfg_default
-        ),
-        PyTorchWorkload(
-            PTSimpleClassificationCNN(100, model_shape), common_cfg_fp16_mixed
-        ),
-        PyTorchWorkload(
-            torchvision.models.resnet50(num_classes=1000), common_cfg_bs1_default
-        ),
+        PyTorchWorkload(simple_classification_cnn, common_cfg_default),
+        PyTorchWorkload(simple_classification_cnn2, common_cfg_fp16_mixed),
+        PyTorchWorkload(resnet50, common_cfg_bs1_default),
     ]
 
     return workloads
