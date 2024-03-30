@@ -7,7 +7,6 @@ import pprint
 import json
 from copy import deepcopy
 
-import dataclasses
 from dataclasses import dataclass
 
 
@@ -43,7 +42,6 @@ def read_version():
 
 def get_git_commit_hash():
     try:
-        # Run the git command to get the current commit ID
         commit_hash = (
             subprocess.check_output(["git", "rev-parse", "HEAD"])
             .decode("ascii")
@@ -51,18 +49,15 @@ def get_git_commit_hash():
         )
         return commit_hash
     except subprocess.CalledProcessError:
-        # Handle cases where the git command fails
         print("An error occurred while trying to fetch the commit ID.")
         return "N/A"
     except FileNotFoundError:
-        # Handle the case where git is not installed or not found in the system's PATH
         print("Git is not installed or not found in PATH.")
         return "N/A"
 
 
 def get_git_repository_url():
     try:
-        # Run the git command to get the remote origin URL
         repo_url = (
             subprocess.check_output(["git", "config", "--get", "remote.origin.url"])
             .decode("ascii")
@@ -70,11 +65,9 @@ def get_git_repository_url():
         )
         return repo_url
     except subprocess.CalledProcessError:
-        # Handle cases where the git command fails
         print("An error occurred while trying to fetch the repository URL.")
         return "N/A"
     except FileNotFoundError:
-        # Handle the case where git is not installed or not found in the system's PATH
         print("Git is not installed or not found in PATH.")
         return "N/A"
 
@@ -84,26 +77,26 @@ def submit_benchmark_result(
 ) -> bool:
     """Submit a single benchmark result to the API."""
     headers = {
-        "Authorization": f"Token {api_token}",  # Include the token in the header
+        "Authorization": f"Token {api_token}",
         "Content-Type": "application/json",
     }
 
     response = requests.post(submit_url, json=data.to_dict(), headers=headers)
     if response.status_code == 201:
-        print("Successfully added:", data)
+        print("Successfully added:")
+        print(data.to_dict())
         return True
     else:
-        print("Failed to add:", data, "Response:", response.text)
+        print("Failed to add:")
+        print(data.to_dict())
+        print("Response:", response.text)
         return False
 
 
-
-def prompt_for_updates(benchmark_data_list, keys_to_update=['accelerator', 'cpu_name']):
-    """
-    Allows user to update specific fields across all benchmark data items.
-    :param benchmark_data_list: List of BenchmarkData instances.
-    :param keys_to_update: List of keys to potentially update.
-    """
+def prompt_for_updates(
+    benchmark_data_list,
+    keys_to_update=["accelerator", "cpu_name", "ai_framework_extra_info"],
+):
 
     # Collect unique values for specified keys across all items
     unique_values = {key: set() for key in keys_to_update}
@@ -116,7 +109,12 @@ def prompt_for_updates(benchmark_data_list, keys_to_update=['accelerator', 'cpu_
     # Show current unique values and prompt for changes
     for key, values in unique_values.items():
         print(f"\nCurrent unique values for {key}: {', '.join(values)}")
-        if input(f"Do you want to change all occurrences of '{key}'? (y/n): ").strip().lower() == 'y':
+        if (
+            input(f"Do you want to change all occurrences of '{key}'? (y/N): ")
+            .strip()
+            .lower()
+            == "y"
+        ):
             new_value = input(f"Enter new value for all {key}: ").strip()
             if new_value:
                 # Update all occurrences
@@ -124,13 +122,28 @@ def prompt_for_updates(benchmark_data_list, keys_to_update=['accelerator', 'cpu_
                     setattr(data, key, new_value)
 
     # Optionally, review changes for one or more items
-    if input("\nWould you like to review changes to any item? (y/n): ").strip().lower() == 'y':
+    if (
+        input("\nWould you like to review changes to any item? (y/N): ").strip().lower()
+        == "y"
+    ):
         for data in benchmark_data_list:
+
             pprint.pprint(data.to_dict())
-            if input("\nContinue reviewing? (y/n): ").strip().lower() != 'y':
+
+            if input("\nContinue reviewing? (y/N): ").strip().lower() != "y":
                 break
 
-    return benchmark_data_list
+    # Finally ask to publish or not
+    if (
+        input("\nWould you like to publish the benchmark results? (y/N): ")
+        .strip()
+        .lower()
+        == "y"
+    ):
+        return benchmark_data_list
+    else:
+        print("Exiting without publishing.")
+        exit(1)
 
 
 def read_csv_and_create_benchmark_dataset(csv_file_path: str):
@@ -207,8 +220,8 @@ def main():
 
     args = parser.parse_args()
 
-    submit_url_path = "/benchmarks/submit/"  # Change to your actual endpoint
-    submit_url = args.database_url + submit_url_path
+    submit_endpoint = "/benchmarks/submit/"
+    submit_url = args.database_url + submit_endpoint
 
     if args.token:
         api_token = args.token
@@ -224,16 +237,15 @@ def main():
 
     benchmark_datasets = read_csv_and_create_benchmark_dataset(args.results_csv_path)
 
-    # write to json
+    # write data to json for review
     json_file_path = "benchmark_dataset.json"
     with open(json_file_path, "w") as f:
         data = [x.to_dict() for x in benchmark_datasets]
         json.dump(data, f, indent=4)
 
     if not args.non_interactive:
-        # wait for user input
         input(
-            f"You may now edit the file {json_file_path} to change meta data. Press Enter to continue..."
+            f"You may now edit the file {json_file_path} to change meta data. Press Enter to continue after reviewing the json ..."
         )
 
     # reload json
