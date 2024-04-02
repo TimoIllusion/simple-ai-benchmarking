@@ -48,10 +48,17 @@ I develop this application in my free time as a hobby.
    pip install .
    ```
 
-6. Run `saib-pt` or `saib-tf` in a console with activated environment for tensorflow or pytorch benchmark respectively.
+6. Run pt or tf benchmarks in a console with activated environment:
 
-   Note: Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
+   ```bash
+   saib-pt
+   ```
+   ```bash
+   saib-tf
+   ```
 
+   Note: Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.  
+   
 
 ## Publish to AI Benchmark Database
 
