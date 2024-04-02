@@ -8,32 +8,37 @@ I develop this application in my free time as a hobby.
 
 ## Quickstart
 
-Assuming tensorflow or pytorch is already installed in your environment:
+1. Install pytorch and/or tensorflow
 
-1. Install SAIB directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
+2. Install SAIB and run pt and/or tf benchmark:
 
-2. Run benchmark with command `saib-tf` or `saib-pt` using tensorflow or pytorch respectively.  
+   ```bash
+   pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
+   saib-pt
+   saib-tf
+   ```  
 
-
-NOTE: The results **are** comparable, since the same model architectures are used per default.
-
-NOTE: To publish the results to the [AI Benchmark Database](https://timoillusion.pythonanywhere.com/benchmarks), cloning of the repo is required, see [Setup & Usage](https://github.com/TimoIllusion/simple-ai-benchmarking/tree/main#setup--usage).
-
-NOTE: To install tensorflow and pytorch directly when installing SAIB, you can also install using the following commands: 
-
-`pip install simple-ai-benchmarking[tf]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs tensorflow)
-
-OR
-
-`pip install simple-ai-benchmarking[pt]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs torch)
-
-NOTE: Usually only CPU will be supported when installing with the two above options. It is recommended to setup pytorch or tensorflow prior.
+**Notes**:
+- The results **are** comparable, since the same model architectures are used per default.
+- To publish the results to the [AI Benchmark Database](https://timoillusion.pythonanywhere.com/benchmarks), cloning of the repo is required, see [Setup & Usage](https://github.com/TimoIllusion/simple-ai-benchmarking/tree/main#setup--usage).
+- To install tensorflow and pytorch directly when installing SAIB, you can also install using the following commands:
+  
+  `pip install simple-ai-benchmarking[tf]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs tensorflow)
+   
+  `pip install simple-ai-benchmarking[pt]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs torch)
+  
+  Usually only CPU will be supported when installing with the two above options. It is recommended to setup pytorch or tensorflow prior.  
 
 ## Setup & Usage
 
-1. Create a conda environment via `conda create -n saib python=3.10 -y` and activate it `conda activate saib`.
+1. Create a virtual python environment, e.g. with conda:  
 
-2. Install your prefered pytorch or tensorflow version and respective CUDA/ROCm/DML-Plugin/etc.
+   ```bash
+   conda create -n saib python=3.10 -y
+   conda activate saib
+   ```
+
+2. Install your prefered pytorch or tensorflow version and respective CUDA/ROCm/DML-Plugin/etc into the virtual environment.
 
 3. Clone this repository and install it:
 
@@ -43,41 +48,10 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
    pip install .
    ```
 
-5. Run `saib-pt` or `saib-tf` in a console with activated environment for tensorflow or pytorch benchmark respectively.
+6. Run `saib-pt` or `saib-tf` in a console with activated environment for tensorflow or pytorch benchmark respectively.
 
-   NOTE: Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
+   Note: Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
 
-## Hardware Acceleration for PyTorch and TensorFlow
-
-This section shows how to use GPUs for training and inference benchmarking.
-
-### Setup TensorFlow for NVIDIA GPUs
-
-1. Create and activate a virtual environment
-
-2. Run `pip install tensorflow` (`tensorflow<2.11` for windows native) and run `pip list` and check https://www.tensorflow.org/install/source#gpu for the relevant CUDA/cudnn version for your tensorflow version
-
-3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.11, CUDA 11.2 and CUDNN 8.1 is needed)
-
-4. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
-   
-### Setup TensorFlow for AMD and Intel GPUs
-
-For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
-
-To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the directml requirements with:
-
-`pip install tensorflow-cpu==2.10.0 tensorflow-directml-plugin`
-
-See https://github.com/microsoft/tensorflow-directml-plugin for more information.
-
-Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
-
-### Setup PyTorch for NVIDIA GPUs
-
-1. Run `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
-
-2. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
 ## Publish to AI Benchmark Database
 
@@ -106,6 +80,39 @@ saib-pub benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
 Note: The arg --token can be used to pass the token directly to the script.
 
 Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
+
+## Hardware Acceleration for PyTorch and TensorFlow
+
+This section shows how to use various GPUs for training and inference benchmarking.
+
+**PyTorch for NVIDIA GPUs**
+
+1. Run `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
+
+2. Run `python -c "import torch;print(torch.cuda.is_available())"`
+
+**TensorFlow for NVIDIA GPUs**
+
+1. Create and activate a virtual environment
+
+2. Run `pip install tensorflow` (`tensorflow<2.11` for windows native) and run `pip list` and check https://www.tensorflow.org/install/source#gpu for the relevant CUDA/cudnn version for your tensorflow version
+
+3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.11, CUDA 11.2 and CUDNN 8.1 is needed)
+
+4. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
+   
+**TensorFlow for AMD and Intel GPUs**
+
+For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
+
+To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the directml requirements with:
+
+`pip install tensorflow-cpu==2.10.0 tensorflow-directml-plugin`
+
+See https://github.com/microsoft/tensorflow-directml-plugin for more information.
+
+Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
+
 
 ## Upcoming
 
