@@ -12,11 +12,14 @@ Assuming tensorflow or pytorch is already installed in your environment:
 
 1. Install SAIB directly using pip: `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git`
 
-2. Run benchmark with command `saib-tf` or `saib-pt` using tensorflow or pytorch respectively. 
+2. Run benchmark with command `saib-tf` or `saib-pt` using tensorflow or pytorch respectively.  
+
 
 NOTE: The results **are** comparable, since the same model architectures are used per default.
 
-To install tensorflow and pytorch when installing SAIB, you can also install using the following commands: 
+NOTE: To publish the results to the [AI Benchmark Database](https://timoillusion.pythonanywhere.com/benchmarks), cloning of the repo is required, see [Setup & Usage](https://github.com/TimoIllusion/simple-ai-benchmarking/tree/main#setup--usage).
+
+NOTE: To install tensorflow and pytorch directly when installing SAIB, you can also install using the following commands: 
 
 `pip install simple-ai-benchmarking[tf]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs tensorflow)
 
@@ -30,15 +33,24 @@ NOTE: Usually only CPU will be supported when installing with the two above opti
 
 1. Create a conda environment via `conda create -n saib python=3.10 -y` and activate it `conda activate saib`.
 
-2. [OPTIONAL] Install your prefered pytorch or tensorflow version and respective CUDA version.
+2. Install your prefered pytorch or tensorflow version and respective CUDA/ROCm/DML-Plugin/etc.
 
-3. Either clone this repo and run `pip install .` OR just run `pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (use extras [tf,pt,...] for direct install of cpu tensorflow, cpu pytorch or directml tensorflow)
+3. Clone this repository and install it:
 
-4. Run `saib-tf` or `saib-pt` in a console with activated environment for tensorflow or pytorch benchmark respectively. Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
+   ```bash
+   git clone https://github.com/TimoIllusion/simple-ai-benchmarking.git
+   cd simple-ai-benchmarking
+   pip install .
+   ```
+
+5. Run `saib-pt` or `saib-tf` in a console with activated environment for tensorflow or pytorch benchmark respectively.
+
+   NOTE: Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.
 
 ## Hardware Acceleration for PyTorch and TensorFlow
 
 This section shows how to use GPUs for training and inference benchmarking.
+
 ### Setup TensorFlow for NVIDIA GPUs
 
 1. Create and activate a virtual environment
@@ -48,6 +60,7 @@ This section shows how to use GPUs for training and inference benchmarking.
 3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.11, CUDA 11.2 and CUDNN 8.1 is needed)
 
 4. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
+   
 ### Setup TensorFlow for AMD and Intel GPUs
 
 For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
@@ -70,7 +83,7 @@ Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
 
 Currently results can only published by authenticated users, but user creation is not possible currently. 
 
-To publish results to [timoillusion.pythonanywhere.com/benchmarks](timoillusion.pythonanywhere.com/benchmarks), execute these commands:
+To publish results to [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks), execute these commands:
 
 ```bash
 export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN  
@@ -93,74 +106,6 @@ saib-pub benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
 Note: The arg --token can be used to pass the token directly to the script.
 
 Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
-
-## Example results [v0.3.2]
-
-Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 2.1.2+cu121, Python 3.10.13:
-
-| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  **3022.56**   |  **6243.25**   |
-|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  **2924.48**   |  **6416.01**   |
-|  2   | torch |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   62.87    |   152.81   |
-
-Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, PyTorch 1.12.0+cu116, Python 3.9.18:
-
-| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  1819.13   |  3423.22   |
-|  1   | torch | PTSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  1445.27   |  2969.95   |
-|  2   | torch |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   34.52    |   115.38   |
-
-Results on NVIDIA RTX 4090 with Ryzen 7800X3D 8-Core CPU on Windows 11, TensorFlow 2.10 with CUDA 11.2 and CUDNN 8.8, Python 3.10.13:
-
-| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | tensorflow | TFSimpleClassificationCNN | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 8  |  1633.47   |  3926.38   |
-|  1   | tensorflow | TFSimpleClassificationCNN | NVIDIA GeForce RTX 4090 |    MIXED_FP16     | 8  |  1505.08   |  4003.79   |
-|  2   | tensorflow |          ResNet           | NVIDIA GeForce RTX 4090 | DEFAULT_PRECISION | 1  |   53.57    |   194.31   |
-
-Results on AMD Radeon 7900 GRE with Intel i5 12600K, Ubuntu 22.04 + Docker(Ubuntu 20.04) + Kernel 6.5.0, PyTorch 2.2.0, ROCm 6.02, Python 3.9.18:
-
-| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN |      Radeon RX 7900 GRE      | DEFAULT_PRECISION | 8  |   866.3   |  2736.78   |
-|  1   | torch | PTSimpleClassificationCNN |      Radeon RX 7900 GRE       |    MIXED_FP16     | 8  |   1280.49   |  5617.77   |
-|  2   | torch |          ResNet           |      Radeon RX 7900 GRE        | DEFAULT_PRECISION | 1  |   **80.11**    |   **291.11**   |
-
-Results on M1 Max 10C/24GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
-
-| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN |      M1 MAX      | DEFAULT_PRECISION | 8  |   728.66   |  2443.32   |
-|  1   | torch | PTSimpleClassificationCNN |      M1 MAX       |    MIXED_FP16     | 8  |   692.36   |  2338.85   |
-|  2   | torch |          ResNet           |      M1 MAX        | DEFAULT_PRECISION | 1  |   22.28    |   93.61    |
-
-Results on M2 Pro 10C/16GPU 32 GB, MacOS Sonoma, PyTorch 2.2.1, Python 3.10.14:
-
-| #RUN |  Lib  |           Model           |       Accelerator       |     Precision     | BS | it/s train | it/s infer |
-|------|-------|---------------------------|-------------------------|-------------------|----|------------|------------|
-|  0   | torch | PTSimpleClassificationCNN |      M2 Pro        | DEFAULT_PRECISION | 8  |   616.74   |   2053.7   |
-|  1   | torch | PTSimpleClassificationCNN |       M2 Pro      |    MIXED_FP16     | 8  |   604.78   |   2017.8   |
-|  2   | torch |          ResNet           |       M2 Pro      | DEFAULT_PRECISION | 1  |   28.74    |   119.23   |
-
-Note: In these results, TensorFlow Benchmarks are using a much older version for TF and CUDA in comparison to PyTorch Benchmarks (due to missing support for native Windows). In the future, experiments will be conducted in WSL2, to use more similar versions.
-
-## Example results [LEGACY]
-
-| Model             | Batch size | Software Framework | GPU                    | CPU                 | Inference Speed (it/s) | Training Speed (it/s) |
-|-------------------|------------|---------------------|-----------------------|---------------------|------------------------|-----------------------|
-| MLPMixer           | 128        | tensorflow2.9.0+cuda11.2    | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 18743.99                | 760.49                |
-| MLPMixer           | 128        | tensorflow2.10.0+directml0.4 | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 7979.99                 | 75.98                 |
-| MLPMixer           | 128        | tensorflow2.10.0+cuda11.2    | NVIDIA RTX 2060 Mobile | AMD Ryzen 7 4800H    | 5354.33                 | 39.34                 |
-| MLPMixer           | 128        | tensorflow2.10.0+directml0.4 | AMD RX 6600            | Intel Core i5 12600K | 2699.31                 | 68.92                 |
-| MLPMixer           | 128        | tensorflow2.10.0   | -      | AMD Ryzen 7 7800X3D                   | 1965.07                 | 207.56                |
-| EfficientNet       | 64         | tensorflow2.9.0+cuda11.2     | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 2190.57                 | 64.62                 |
-| EfficientNet       | 64         | tensorflow2.10.0+directml0.4 | NVIDIA RTX 4090        | AMD Ryzen 7 7800X3D    | 1775.09                 | 39.14                 |
-| EfficientNet       | 64         | tensorflow2.10.0+directml0.4 | AMD RX 6600            | Intel Core i5 12600K | 238.92                  | 27.54                 |
-| EfficientNet       | 64         | tensorflow2.10.0   |   -    | AMD Ryzen 7 7800X3D                   | 108.16                  | 18.47                 |
-| EfficientNet       | 32         | tensorflow2.10.0+cuda11.2    | NVIDIA RTX 2060 Mobile | AMD Ryzen 7 4800H    | 487.68                  | 22.39                 |
-
 
 ## Upcoming
 
