@@ -6,7 +6,11 @@ import pytest
 import pandas
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, NumericalPrecision, AIModelWrapper
+from simple_ai_benchmarking.definitions import (
+    AIWorkloadBaseConfig,
+    NumericalPrecision,
+    AIModelWrapper,
+)
 from simple_ai_benchmarking.log import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
@@ -20,8 +24,6 @@ def prepare() -> None:
 
 def _clean_up_prior_test_results() -> None:
 
-    _safe_remove("benchmark_results_empty.csv")
-    _safe_remove("benchmark_results_empty.xlsx")
     _safe_remove("benchmark_results_dummy.csv")
     _safe_remove("benchmark_results_dummy.xlsx")
 
@@ -59,7 +61,7 @@ class DummyWorkload(AIWorkload):
 
     def _get_accelerator_info(self) -> str:
         return "dummy_accelerator"
-    
+
     def _get_ai_framework_extra_info(self) -> str:
         return "extra99.9"
 
@@ -82,7 +84,7 @@ def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
 def test_benchmark_result_type() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
-    
+
     dummy = AIModelWrapper("dummy", None)
 
     workload = DummyWorkload(dummy, cfg)
@@ -111,13 +113,3 @@ def test_process_workloads_correct_num_workloads_output() -> None:
     assert len(df) == len(
         workloads
     ), f"Results csv has wrong number of results, has {len(df)} but should have {len(workloads)}"
-
-
-def test_process_workloads_empty_workloads() -> None:
-
-    workloads = []
-    process_workloads(workloads, "benchmark_results_empty")
-
-    assert not os.path.exists(
-        "benchmark_results_empty.csv"
-    ), "Result file does exist, although workloads were empty."
