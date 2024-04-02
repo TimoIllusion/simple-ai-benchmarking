@@ -94,32 +94,36 @@ This section shows how to use various GPUs for training and inference benchmarki
 
 **PyTorch for NVIDIA GPUs**
 
-1. Run `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
+1. Run `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
 
-2. Run `python -c "import torch;print(torch.cuda.is_available())"`
+   Note: Newer versions of PyTorch on Linux automatically install CUDA packages as dependencies.
+
+3. Run `python -c "import torch;print(torch.cuda.is_available())"`
 
 **TensorFlow for NVIDIA GPUs**
 
-1. Create and activate a virtual environment
+1. Run `pip install tensorflow` (`tensorflow<=2.10` for windows native)
 
-2. Run `pip install tensorflow` (`tensorflow<2.11` for windows native) and run `pip list` and check https://www.tensorflow.org/install/source#gpu for the relevant CUDA/cudnn version for your tensorflow version
+2. Run `pip list` and check https://www.tensorflow.org/install/source#gpu for the relevant CUDA/cudnn version for your tensorflow version
 
-3. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.11, CUDA 11.2 and CUDNN 8.1 is needed)
+4. Install cuda and cudnn with `conda install -c conda-forge cudatoolkit=11.2 cudnn=8.1.0` (in the case of tensorflow 2.10, CUDA 11.2 and CUDNN 8.1 is needed)
 
-4. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
+   Note: Newer versions of TensorFlow on Linux automatically install CUDA packages as dependencies.
+
+5. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
+
    
 **TensorFlow for AMD and Intel GPUs**
 
-For AMD and Intel GPUs, DirectML on Windows and WSL can be used. 
+For all DirectX 12 capable GPUs, DirectML on Windows and WSL can be used. This is especially handy for AMD and Intel GPUs, since there support is not as widespread as CUDA for NVIDIA GPUs.
 
-To setup everything, run steps 1-2 from the NVIDIA GPU setup and install the directml requirements with:
+1. Install TensorFlow 2.10 (on Windows native) with tfdml plugin (see [tensorflow-directml-plugin](https://github.com/microsoft/tensorflow-directml-plugin) for more information):
 
-`pip install tensorflow-cpu==2.10.0 tensorflow-directml-plugin`
+   ```bash
+   pip install tensorflow-cpu==2.10.0 tensorflow-directml-plugin
+   ```
 
-See https://github.com/microsoft/tensorflow-directml-plugin for more information.
-
-Clone repo and run benchmark with `python run_pt.py` or `python run_tf.py`
-
+2. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
 
 ## Upcoming
 
