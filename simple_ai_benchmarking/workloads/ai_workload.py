@@ -26,8 +26,10 @@ class AIWorkload(ABC):
 
         self.model_name = ai_model.name
         self.model = ai_model.model
-        
+
         self.cfg = config
+
+    def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
 
         self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
             self.cfg.input_shape_without_batch
@@ -35,8 +37,6 @@ class AIWorkload(ABC):
         self.dataset_targets_shape = [
             self.cfg.num_batches * self.cfg.batch_size
         ] + list(self.cfg.target_shape_without_batch)
-
-    def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
 
         inputs = np.random.random(self.dataset_inputs_shape).astype(np.float32)
         targets = np.random.randint(
@@ -80,7 +80,7 @@ class AIWorkload(ABC):
     @abstractmethod
     def _get_ai_framework_name(self) -> str:
         pass
-    
+
     @abstractmethod
     def _get_ai_framework_extra_info(self) -> str:
         pass
@@ -133,6 +133,6 @@ class AIWorkload(ABC):
         )
 
         return benchmark_result
-    
+
     def __str__(self) -> str:
         return str(self.model_name) + " on " + str(self._get_accelerator_info())

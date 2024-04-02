@@ -11,11 +11,7 @@ def process_workloads(
     workloads: List[AIWorkload], out_file_base="benchmark_results", repetitions=3
 ) -> None:
 
-    if not workloads:
-        logger.info(
-            f"Got empty list fo workloads: {workloads} -> Please check config.py to set workload configuration."
-        )
-        return []
+    assert workloads, "Got empty list fo workloads."
 
     result_logger = BenchmarkLogger()
 

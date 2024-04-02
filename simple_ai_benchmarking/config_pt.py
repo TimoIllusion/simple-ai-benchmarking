@@ -4,7 +4,6 @@
 from typing import List
 from copy import copy
 from sys import platform
-from copy import deepcopy
 
 import torch
 import torchvision
@@ -57,11 +56,13 @@ def build_default_pt_workloads() -> List[AIWorkload]:
         "SimpleClassificationCNN", SimpleClassificationCNN(100, model_shape)
     )
     resnet50 = AIModelWrapper("ResNet50", torchvision.models.resnet50(num_classes=1000))
+    vitb16 = AIModelWrapper("ViT-B-16", torchvision.models.vit_b_16(num_classes=1000))
 
     workloads = [
         PyTorchWorkload(simple_classification_cnn, common_cfg_default),
         PyTorchWorkload(simple_classification_cnn2, common_cfg_fp16_mixed),
         PyTorchWorkload(resnet50, common_cfg_bs1_default),
+        PyTorchWorkload(vitb16, common_cfg_bs1_default),
     ]
 
     return workloads

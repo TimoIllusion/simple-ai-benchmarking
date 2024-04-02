@@ -58,6 +58,8 @@ I develop this application in my free time as a hobby.
    ```
 
    Note: Alternatively execute `python run_tf.py` for tf benchmark or `python run_pt.py` for pytorch benchmark.  
+
+   For advanced users: Use `saib-pt -h` for advanced options like selecting specific benchmarks and batch sizes.
    
 
 ## Publish to AI Benchmark Database
