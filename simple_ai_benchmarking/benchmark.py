@@ -4,7 +4,7 @@ import math
 from loguru import logger
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.log import BenchmarkLogger, BenchmarkResult
+from simple_ai_benchmarking.results import BenchmarkLogger, BenchmarkResult
 from simple_ai_benchmarking.timer import Timer
 
 

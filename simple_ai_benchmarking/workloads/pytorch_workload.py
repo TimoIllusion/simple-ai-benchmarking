@@ -6,7 +6,7 @@ from loguru import logger
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from simple_ai_benchmarking.log import *
+from simple_ai_benchmarking.results import *
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.definitions import NumericalPrecision
 

@@ -11,7 +11,7 @@ from simple_ai_benchmarking.definitions import (
     NumericalPrecision,
     AIModelWrapper,
 )
-from simple_ai_benchmarking.log import BenchmarkResult
+from simple_ai_benchmarking.results import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
 _PER_FUNCTION_TIME_DELAY_S = 0.1

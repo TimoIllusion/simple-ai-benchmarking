@@ -10,7 +10,7 @@ import numpy as np
 import psutil
 import cpuinfo
 
-from simple_ai_benchmarking.log import (
+from simple_ai_benchmarking.results import (
     SWInfo,
     HWInfo,
     BenchInfo,
