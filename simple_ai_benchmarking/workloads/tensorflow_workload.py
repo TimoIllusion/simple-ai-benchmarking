@@ -1,9 +1,8 @@
-import os
-
 from loguru import logger
 
 import tensorflow as tf
 import numpy as np
+import tqdm
 
 from simple_ai_benchmarking.definitions import NumericalPrecision
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
@@ -58,18 +57,39 @@ class TensorFlowKerasWorkload(AIWorkload):
             self.syn_dataset = self.syn_dataset.batch(self.cfg.batch_size)
             self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
 
-    def train(self) -> None:
-        _ = self.model.fit(
-            self.syn_dataset, epochs=self.cfg.epochs, validation_data=None, verbose=1
+    def _warmup(self) -> None:
+
+        MAX_WARMUP_BATCHES = 10
+
+        num_warmup_batches = min(self.cfg.num_batches, MAX_WARMUP_BATCHES)
+
+        for batch in tqdm.tqdm(self.syn_dataset.take(num_warmup_batches)):
+            self.model.train_on_batch(batch[0], batch[1])
+
+    def _train(self) -> None:
+
+        self.model.fit(
+            self.syn_dataset,
+            epochs=self.cfg.epochs,
+            validation_data=None,
+            verbose=0,
         )
+        
+        for _ in range(self.cfg.epochs * self.cfg.num_batches):
+            self._increment_train_iteration_counter_by_batch_size()
 
     def eval(self) -> None:
         raise NotImplementedError(
             "Evaluation not implemented for TensorFlow Keras Workload"
         )
 
-    def infer(self) -> None:
-        self.model.predict(self.syn_dataset, verbose=1)
+    def _infer(self) -> None:
+
+        for batch in self.syn_dataset:
+
+            predictions = self.model.predict(batch[0], verbose=0)
+
+            self._increment_infer_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
 

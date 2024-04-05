@@ -1,6 +1,5 @@
 import platform
-import os
-import re
+import math
 
 from loguru import logger
 
@@ -81,21 +80,27 @@ class PyTorchWorkload(AIWorkload):
     def count_model_parameters(self) -> int:
         return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
 
-    def train(self) -> None:
+    def _warmup(self) -> None:
+        self._training_loop(1, max_batches=10)
+
+    def _train(self) -> None:
 
         if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
-            self._training_loop()
+            self._training_loop(self.cfg.epochs)
         else:
             with torch.autocast(
                 device_type=self.autocast_device_type, dtype=self.numerical_precision
             ):
-                self._training_loop()
+                self._training_loop(self.cfg.epochs)
 
-    def _training_loop(self) -> None:
+    def _training_loop(self, max_epochs: int, max_batches: int = math.inf) -> None:
 
         self.model.train()
 
-        for epoch in tqdm.tqdm(range(self.cfg.epochs)):
+        batch_counter = 0
+
+        for _ in range(max_epochs):
+
             for inputs, labels in self.dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
 
@@ -106,10 +111,17 @@ class PyTorchWorkload(AIWorkload):
                 loss.backward()
                 self.optimizer.step()
 
+                batch_counter += 1
+                
+                self._increment_train_iteration_counter_by_batch_size()
+
+                if batch_counter >= max_batches:
+                    break
+
     def eval(self) -> None:
         raise NotImplementedError("Eval not implemented yet")
 
-    def infer(self) -> None:
+    def _infer(self) -> None:
 
         if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             self._infer_loop()
@@ -123,9 +135,11 @@ class PyTorchWorkload(AIWorkload):
 
         self.model.eval()
 
-        for inputs, labels in tqdm.tqdm(self.dataloader):
+        for inputs, labels in self.dataloader:
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             outputs = self.model(inputs)
+            
+            self._increment_infer_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
         if torch.cuda.is_available():
@@ -140,9 +154,9 @@ class PyTorchWorkload(AIWorkload):
 
     def _get_ai_framework_version(self) -> str:
         # remove the second part of version, e.g. 1.8.0+cu111 -> 1.8.0
-        
+
         version = torch.__version__
-        
+
         if "cu" in version and "git" not in version:
             return version.split("+")[0]
         else:
@@ -150,7 +164,7 @@ class PyTorchWorkload(AIWorkload):
 
     def _get_ai_framework_extra_info(self) -> str:
         version = torch.__version__
-        
+
         if "cu" in version and "git" not in version:
             cuda_short_str = version.split("+")[1]
             return cuda_short_str
