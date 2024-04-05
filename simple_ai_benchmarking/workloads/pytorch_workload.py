@@ -163,6 +163,7 @@ class PyTorchInference(PyTorchTraining):
             ):
                 self._infer_loop()
 
+    #TODO: use loop that is similar to real world usage (no dataloader, more like webcam image stream etc.)
     def _infer_loop(self, max_batches: int = math.inf) -> None:
 
         self.model.eval()
