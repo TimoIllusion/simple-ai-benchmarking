@@ -3,7 +3,6 @@ import math
 
 from loguru import logger
 
-import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
@@ -12,7 +11,7 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.definitions import NumericalPrecision
 
 
-class PyTorchWorkload(AIWorkload):
+class PyTorchTraining(AIWorkload):
 
     def setup(self) -> None:
 
@@ -83,7 +82,7 @@ class PyTorchWorkload(AIWorkload):
     def _warmup(self) -> None:
         self._training_loop(1, max_batches=10)
 
-    def _train(self) -> None:
+    def _execute(self) -> None:
 
         if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
             self._training_loop(self.cfg.epochs)
@@ -112,34 +111,11 @@ class PyTorchWorkload(AIWorkload):
                 self.optimizer.step()
 
                 batch_counter += 1
-                
-                self._increment_train_iteration_counter_by_batch_size()
+
+                self._increment_iteration_counter_by_batch_size()
 
                 if batch_counter >= max_batches:
                     break
-
-    def eval(self) -> None:
-        raise NotImplementedError("Eval not implemented yet")
-
-    def _infer(self) -> None:
-
-        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
-            self._infer_loop()
-        else:
-            with torch.autocast(
-                device_type=self.autocast_device_type, dtype=self.numerical_precision
-            ):
-                self._infer_loop()
-
-    def _infer_loop(self) -> None:
-
-        self.model.eval()
-
-        for inputs, labels in self.dataloader:
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-            outputs = self.model(inputs)
-            
-            self._increment_infer_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
         if torch.cuda.is_available():
@@ -170,3 +146,32 @@ class PyTorchWorkload(AIWorkload):
             return cuda_short_str
         else:
             return "N/A"
+
+
+class PyTorchInference(PyTorchTraining):
+
+    def _warmup(self) -> None:
+        self._infer_loop(max_batches=10)
+
+    def _execute(self) -> None:
+
+        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+            self._infer_loop()
+        else:
+            with torch.autocast(
+                device_type=self.autocast_device_type, dtype=self.numerical_precision
+            ):
+                self._infer_loop()
+
+    def _infer_loop(self, max_batches: int = math.inf) -> None:
+
+        self.model.eval()
+
+        for i, (inputs, labels) in enumerate(self.dataloader):
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+            outputs = self.model(inputs)
+
+            self._increment_iteration_counter_by_batch_size()
+
+            if i >= max_batches:
+                break

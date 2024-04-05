@@ -2,13 +2,12 @@ from loguru import logger
 
 import tensorflow as tf
 import numpy as np
-import tqdm
 
 from simple_ai_benchmarking.definitions import NumericalPrecision
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
 
-class TensorFlowKerasWorkload(AIWorkload):
+class TensorFlowKerasTraining(AIWorkload):
 
     def setup(self) -> None:
 
@@ -63,10 +62,10 @@ class TensorFlowKerasWorkload(AIWorkload):
 
         num_warmup_batches = min(self.cfg.num_batches, MAX_WARMUP_BATCHES)
 
-        for batch in tqdm.tqdm(self.syn_dataset.take(num_warmup_batches)):
+        for batch in self.syn_dataset.take(num_warmup_batches):
             self.model.train_on_batch(batch[0], batch[1])
 
-    def _train(self) -> None:
+    def _execute(self) -> None:
 
         self.model.fit(
             self.syn_dataset,
@@ -74,22 +73,9 @@ class TensorFlowKerasWorkload(AIWorkload):
             validation_data=None,
             verbose=0,
         )
-        
+
         for _ in range(self.cfg.epochs * self.cfg.num_batches):
-            self._increment_train_iteration_counter_by_batch_size()
-
-    def eval(self) -> None:
-        raise NotImplementedError(
-            "Evaluation not implemented for TensorFlow Keras Workload"
-        )
-
-    def _infer(self) -> None:
-
-        for batch in self.syn_dataset:
-
-            predictions = self.model.predict(batch[0], verbose=0)
-
-            self._increment_infer_iteration_counter_by_batch_size()
+            self._increment_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
 
@@ -123,7 +109,7 @@ class TensorFlowKerasWorkload(AIWorkload):
             layer_type = l.__class__.__name__
             if layer_type == "Model":
                 internal_model_mem_count += (
-                    TensorFlowKerasWorkload.get_model_memory_usage(batch_size, l)
+                    TensorFlowKerasTraining.get_model_memory_usage(batch_size, l)
                 )
             single_layer_mem = 1
             out_shape = l.output_shape
@@ -153,3 +139,23 @@ class TensorFlowKerasWorkload(AIWorkload):
         )
         gbytes = np.round(total_memory / (1024.0**3), 3) + internal_model_mem_count
         return gbytes
+
+
+class TensorFlowKerasInference(TensorFlowKerasTraining):
+
+    def _warmup(self) -> None:
+        self._infer_loop(max_batches=10)
+
+    def _execute(self) -> None:
+        self._infer_loop()
+
+    def _infer_loop(self, max_batches: int = np.inf) -> None:
+
+        for i, batch in enumerate(self.syn_dataset):
+
+            predictions = self.model.predict(batch[0], verbose=0)
+
+            self._increment_iteration_counter_by_batch_size()
+
+            if i >= max_batches:
+                break

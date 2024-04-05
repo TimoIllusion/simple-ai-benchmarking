@@ -7,6 +7,7 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.benchmark import process_workloads
 from simple_ai_benchmarking.log import initialize_logger
 
+REPETITIONS = 1
 
 def header() -> None:
     print("############## SIMPLE AI BENCHMARKING ##############")
@@ -74,7 +75,7 @@ def run_tf_benchmarks() -> None:
     
     workloads = workload_overrides(workloads)
     
-    process_workloads(workloads, "benchmark_results_tf", repetitions=3)
+    process_workloads(workloads, "benchmark_results_tf", repetitions=REPETITIONS)
 
 
 # TODO: rework config management and cli, directly select models by name and use registry
@@ -90,7 +91,7 @@ def run_pt_benchmarks() -> None:
     
     workloads = workload_overrides(workloads)
 
-    process_workloads(workloads, "benchmark_results_pt", repetitions=3)
+    process_workloads(workloads, "benchmark_results_pt", repetitions=REPETITIONS)
 
 
 def publish() -> None:

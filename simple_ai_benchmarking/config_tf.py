@@ -12,7 +12,7 @@ from simple_ai_benchmarking.definitions import (
     AIModelWrapper,
 )
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasWorkload
+from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasTraining, TensorFlowKerasInference
 from simple_ai_benchmarking.models.tf.simple_classification_cnn import (
     SimpleClassificationCNN,
 )
@@ -55,11 +55,16 @@ def build_default_tf_workloads() -> List[AIWorkload]:
 
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
-        TensorFlowKerasWorkload(simple_classification_cnn, common_cfg_default),
-        TensorFlowKerasWorkload(
+        TensorFlowKerasInference(simple_classification_cnn, common_cfg_default),
+        TensorFlowKerasInference(
             simple_classification_cnn2, common_cfg_fp16_mixed
         ),
-        TensorFlowKerasWorkload(resnet50, common_cfg_bs1_default),
+        TensorFlowKerasInference(resnet50, common_cfg_bs1_default),
+        TensorFlowKerasTraining(simple_classification_cnn, common_cfg_default),
+        TensorFlowKerasTraining(
+            simple_classification_cnn2, common_cfg_fp16_mixed
+        ),
+        TensorFlowKerasTraining(resnet50, common_cfg_bs1_default),
     ]
 
     return workloads

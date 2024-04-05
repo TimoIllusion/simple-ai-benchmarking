@@ -29,19 +29,15 @@ class AIWorkload(ABC):
 
         self.cfg = config
 
-        self.reset_train_and_infer_iteration_counters()
+        self.reset_iteration_counter()
 
         self.warmup_done = False
 
-    def reset_train_and_infer_iteration_counters(self) -> None:
-        self.infer_iteration_counter = 0
-        self.train_iteration_counter = 0
+    def reset_iteration_counter(self) -> None:
+        self.iteration_counter = 0
 
-    def _increment_infer_iteration_counter_by_batch_size(self) -> None:
-        self.infer_iteration_counter += self.cfg.batch_size
-
-    def _increment_train_iteration_counter_by_batch_size(self) -> None:
-        self.train_iteration_counter += self.cfg.batch_size
+    def _increment_iteration_counter_by_batch_size(self) -> None:
+        self.iteration_counter += self.cfg.batch_size
 
     def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
 
@@ -72,31 +68,20 @@ class AIWorkload(ABC):
 
     def warmup(self) -> None:
         self._warmup()
-        self.reset_train_and_infer_iteration_counters()
+        self.reset_iteration_counter()
         self.warmup_done = True
+        self.warmup_inference_done = False
 
     @abstractmethod
     def _warmup(self) -> None:
         pass
 
-    def train(self) -> None:
-        assert self.warmup_done, "Warmup not done before training."
-        self._train()
+    def execute(self) -> None:
+        assert self.warmup_done, "Warmup not done before execution."
+        self._execute()
 
     @abstractmethod
-    def _train(self) -> None:
-        pass
-
-    @abstractmethod
-    def eval(self) -> None:
-        pass
-
-    def infer(self) -> None:
-        assert self.warmup_done, "Warmup not done before inference."
-        self._infer()
-
-    @abstractmethod
-    def _infer(self) -> None:
+    def _execute(self) -> None:
         pass
 
     @abstractmethod
@@ -142,13 +127,9 @@ class AIWorkload(ABC):
             date=datetime.datetime.now().isoformat(),
         )
 
-        train_performance = PerformanceResult(
-            iterations=self.train_iteration_counter
-        )
+        train_performance = PerformanceResult(iterations=self.iteration_counter)
 
-        infer_performance = PerformanceResult(
-            iterations=self.infer_iteration_counter
-        )
+        infer_performance = PerformanceResult(iterations=self.iteration_counter)
 
         benchmark_result = BenchmarkResult(
             sw_info=sw_info,
@@ -161,4 +142,4 @@ class AIWorkload(ABC):
         return benchmark_result
 
     def __str__(self) -> str:
-        return str(self.model_name) + " on " + str(self._get_accelerator_info())
+        return f"{self.__class__.__name__} | {self.model_name} | {self._get_accelerator_info()}"

@@ -40,17 +40,10 @@ class DummyWorkload(AIWorkload):
     def setup(self) -> None:
         pass
 
-    def warmup(self) -> None:
-        self.train()
-        self.infer()
+    def _warmup(self) -> None:
+        self._execute()
 
-    def train(self) -> None:
-        time.sleep(_PER_FUNCTION_TIME_DELAY_S)
-
-    def eval(self) -> None:
-        time.sleep(_PER_FUNCTION_TIME_DELAY_S)
-
-    def infer(self) -> None:
+    def _execute(self) -> None:
         time.sleep(_PER_FUNCTION_TIME_DELAY_S)
 
     def _get_ai_framework_version(self) -> str:
