@@ -18,16 +18,19 @@ from simple_ai_benchmarking.results import (
     BenchmarkResult,
 )
 from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, AIModelWrapper
+from simple_ai_benchmarking.dataset import Dataset
 
 
 class AIWorkload(ABC):
 
-    def __init__(self, ai_model: AIModelWrapper, config: AIWorkloadBaseConfig) -> None:
+    def __init__(self, ai_model: AIModelWrapper, dataset: Dataset, config: AIWorkloadBaseConfig) -> None:
 
         self.model_name = ai_model.name
         self.model = ai_model.model
 
         self.cfg = config
+        
+        self.dataset = dataset
 
         self.reset_iteration_counter()
 
@@ -38,29 +41,6 @@ class AIWorkload(ABC):
 
     def _increment_iteration_counter_by_batch_size(self) -> None:
         self.iteration_counter += self.cfg.batch_size
-
-    def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
-
-        self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
-            self.cfg.input_shape_without_batch
-        )
-        self.dataset_targets_shape = [
-            self.cfg.num_batches * self.cfg.batch_size
-        ] + list(self.cfg.target_shape_without_batch)
-
-        inputs = np.random.random(self.dataset_inputs_shape).astype(np.float32)
-        targets = np.random.randint(
-            low=0, high=2, size=self.dataset_targets_shape
-        ).astype(np.int64)
-
-        logger.debug(
-            "Synthetic Dataset NumPy Inputs Shape: {} {}", inputs.shape, inputs.dtype
-        )
-        logger.debug(
-            "Synthetic Dataset NumPy Targets Shape: {} {}", targets.shape, targets.dtype
-        )
-
-        return inputs, targets
 
     @abstractmethod
     def setup(self) -> None:

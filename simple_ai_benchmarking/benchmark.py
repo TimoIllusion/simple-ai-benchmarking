@@ -57,15 +57,15 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
     with Timer() as t:
         workload.execute()
         
-    train_calib_duration_s = t.duration_s
-    train_repetitions = calculate_repetitions(TARGET_BENCHMARK_DURATION_SECONDS, train_calib_duration_s)
+    calib_duration_seconds = t.duration_s
+    num_executions = calculate_repetitions(TARGET_BENCHMARK_DURATION_SECONDS, calib_duration_seconds)
 
     workload.reset_iteration_counter()
 
-    logger.info(f"{train_repetitions} EXECUTIONS of {workload.__class__.__name__}")
+    logger.info(f"{num_executions} EXECUTIONS of {workload.__class__.__name__}")
     with Timer() as t:
-        for i in range(train_repetitions):
-            logger.info(f"EXECUTION {i+1}/{train_repetitions}")
+        for i in range(num_executions):
+            logger.info(f"EXECUTION {i+1}/{num_executions}")
             workload.execute()
     training_duration_s = t.duration_s
     

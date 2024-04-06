@@ -16,6 +16,7 @@ from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKeras
 from simple_ai_benchmarking.models.tf.simple_classification_cnn import (
     SimpleClassificationCNN,
 )
+from simple_ai_benchmarking.dataset import Dataset, DatasetConfig, SyntheticTensorFlowDataset
 
 
 def build_default_tf_workloads() -> List[AIWorkload]:
@@ -23,6 +24,25 @@ def build_default_tf_workloads() -> List[AIWorkload]:
     device_name = "/gpu:0"
 
     model_shape = [224, 224, 3]
+    
+    
+    dataset_config_bs8 = DatasetConfig(
+        num_batches=50,
+        batch_size=8,
+        input_shape_without_batch=model_shape,
+        target_shape_without_batch=[]
+    )
+    
+    syn_dataset_bs8 = SyntheticTensorFlowDataset(dataset_config_bs8)
+    syn_dataset_bs8.prepare()
+    
+    
+    dataset_config_bs1 = copy(dataset_config_bs8)
+    dataset_config_bs1.batch_size = 1
+    
+    syn_dataset_bs1 = SyntheticTensorFlowDataset(dataset_config_bs1)
+    syn_dataset_bs1.prepare()
+    
 
     common_cfg_default = AIWorkloadBaseConfig(
         batch_size=8,
@@ -55,16 +75,16 @@ def build_default_tf_workloads() -> List[AIWorkload]:
 
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
-        TensorFlowKerasInference(simple_classification_cnn, common_cfg_default),
+        TensorFlowKerasInference(simple_classification_cnn, syn_dataset_bs8, common_cfg_default),
         TensorFlowKerasInference(
-            simple_classification_cnn2, common_cfg_fp16_mixed
+            simple_classification_cnn2, syn_dataset_bs8, common_cfg_fp16_mixed
         ),
-        TensorFlowKerasInference(resnet50, common_cfg_bs1_default),
-        TensorFlowKerasTraining(simple_classification_cnn, common_cfg_default),
+        TensorFlowKerasInference(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
+        TensorFlowKerasTraining(simple_classification_cnn, syn_dataset_bs8,common_cfg_default),
         TensorFlowKerasTraining(
-            simple_classification_cnn2, common_cfg_fp16_mixed
+            simple_classification_cnn2, syn_dataset_bs8, common_cfg_fp16_mixed
         ),
-        TensorFlowKerasTraining(resnet50, common_cfg_bs1_default),
+        TensorFlowKerasTraining(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
     ]
 
     return workloads

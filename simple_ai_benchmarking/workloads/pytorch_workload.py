@@ -19,11 +19,8 @@ class PyTorchTraining(AIWorkload):
         logger.trace("Number of model parameters: {}", self.count_model_parameters())
 
         self.device = torch.device(self.cfg.device_name)
-
-        self.inputs, self.targets = self._generate_random_dataset_with_numpy()
-
-        self.inputs = torch.Tensor(self.inputs).to(torch.float32)
-        self.targets = torch.Tensor(self.targets).to(torch.int64)
+        
+        self.inputs, self.targets = self.dataset.get_dataset()
 
         logger.trace(
             "Synthetic Dataset PyTorch Inputs Shape: {} {}",

@@ -19,6 +19,7 @@ from simple_ai_benchmarking.workloads.pytorch_workload import PyTorchTraining, P
 from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
     SimpleClassificationCNN,
 )
+from simple_ai_benchmarking.dataset import SyntheticPytorchDataset, DatasetConfig
 
 
 # TODO: use workload factory to create workloads
@@ -29,6 +30,23 @@ def build_default_pt_workloads() -> List[AIWorkload]:
     logger.trace("Device Name: {}", device_name)
 
     model_shape = [3, 224, 224]
+    
+    dataset_config_bs8 = DatasetConfig(
+        num_batches=50,
+        batch_size=8,
+        input_shape_without_batch=model_shape,
+        target_shape_without_batch=[]
+    )
+    
+    syn_dataset_bs8 = SyntheticPytorchDataset(dataset_config_bs8)
+    syn_dataset_bs8.prepare()
+    
+    
+    dataset_config_bs1 = copy(dataset_config_bs8)
+    dataset_config_bs1.batch_size = 1
+    
+    syn_dataset_bs1 = SyntheticPytorchDataset(dataset_config_bs1)
+    syn_dataset_bs1.prepare()
 
     common_cfg_default = AIWorkloadBaseConfig(
         batch_size=8,
@@ -56,14 +74,14 @@ def build_default_pt_workloads() -> List[AIWorkload]:
     vitb16 = AIModelWrapper("ViT-B-16", torchvision.models.vit_b_16(num_classes=1000))
 
     workloads = [
-        PyTorchInference(simple_classification_cnn, common_cfg_default),
-        PyTorchInference(simple_classification_cnn, common_cfg_fp16_mixed),
-        PyTorchInference(resnet50, common_cfg_bs1_default),
-        PyTorchInference(vitb16, common_cfg_bs1_default),
-        PyTorchTraining(simple_classification_cnn, common_cfg_default),
-        PyTorchTraining(simple_classification_cnn, common_cfg_fp16_mixed),
-        PyTorchTraining(resnet50, common_cfg_bs1_default),
-        PyTorchTraining(vitb16, common_cfg_bs1_default),
+        PyTorchInference(simple_classification_cnn, syn_dataset_bs8, common_cfg_default),
+        PyTorchInference(simple_classification_cnn, syn_dataset_bs8, common_cfg_fp16_mixed),
+        PyTorchInference(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
+        PyTorchInference(vitb16, syn_dataset_bs1, common_cfg_bs1_default),
+        PyTorchTraining(simple_classification_cnn, syn_dataset_bs8, common_cfg_default),
+        PyTorchTraining(simple_classification_cnn, syn_dataset_bs8, common_cfg_fp16_mixed),
+        PyTorchTraining(resnet50, syn_dataset_bs1,common_cfg_bs1_default),
+        PyTorchTraining(vitb16, syn_dataset_bs1, common_cfg_bs1_default),
     ]
 
     return workloads

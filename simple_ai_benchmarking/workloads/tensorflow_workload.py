@@ -10,43 +10,29 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 class TensorFlowKerasTraining(AIWorkload):
 
     def setup(self) -> None:
-
-        if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
-            tf.keras.mixed_precision.set_global_policy("mixed_float16")
-        elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
-            tf.keras.mixed_precision.set_global_policy("float32")
-        elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
-            pass
-        else:
-            raise NotImplementedError(
-                f"Data type not implemented: {self.cfg.data_type}"
-            )
-
-        self.model.compile(
-            optimizer="adam",
-            loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
-            metrics=["accuracy"],
-        )
-        # self.model.summary()
-
-        self.inputs, self.targets = self._generate_random_dataset_with_numpy()
-
+        
         # Always generate dataset on system RAM, that is why CPU is forced here
         with tf.device("/cpu:0"):
 
-            self.inputs = tf.convert_to_tensor(self.inputs, dtype=tf.float32)
-            self.targets = tf.convert_to_tensor(self.targets, dtype=tf.int64)
+            if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
+                tf.keras.mixed_precision.set_global_policy("mixed_float16")
+            elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
+                tf.keras.mixed_precision.set_global_policy("float32")
+            elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+                pass
+            else:
+                raise NotImplementedError(
+                    f"Data type not implemented: {self.cfg.data_type}"
+                )
 
-            logger.debug(
-                "Synthetic Dataset TensorFlow Inputs Shape: {} {}",
-                self.inputs.shape,
-                self.inputs.dtype,
+            self.model.compile(
+                optimizer="adam",
+                loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
+                metrics=["accuracy"],
             )
-            logger.debug(
-                "Synthetic Dataset TensorFlow Targets Shape: {} {}",
-                self.targets.shape,
-                self.targets.dtype,
-            )
+            # self.model.summary()
+
+            self.inputs, self.targets = self.dataset.get_dataset()
 
             self.syn_dataset = tf.data.Dataset.from_tensor_slices(
                 (self.inputs, self.targets)
@@ -57,13 +43,13 @@ class TensorFlowKerasTraining(AIWorkload):
             self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
 
     def _warmup(self) -> None:
-
-        MAX_WARMUP_BATCHES = 10
-
-        num_warmup_batches = min(self.cfg.num_batches, MAX_WARMUP_BATCHES)
-
-        for batch in self.syn_dataset.take(num_warmup_batches):
-            self.model.train_on_batch(batch[0], batch[1])
+        
+        self.model.fit(
+            self.syn_dataset,
+            epochs=1,
+            validation_data=None,
+            verbose=0,
+        )
 
     def _execute(self) -> None:
 
@@ -144,18 +130,16 @@ class TensorFlowKerasTraining(AIWorkload):
 class TensorFlowKerasInference(TensorFlowKerasTraining):
 
     def _warmup(self) -> None:
-        self._infer_loop(max_batches=10)
+        self._infer_loop()
 
     def _execute(self) -> None:
         self._infer_loop()
 
-    def _infer_loop(self, max_batches: int = np.inf) -> None:
+    def _infer_loop(self) -> None:
 
-        for i, batch in enumerate(self.syn_dataset):
+        predictions = self.model.predict(self.syn_dataset, verbose=0)
 
-            predictions = self.model.predict(batch[0], verbose=0)
-
+        for _ in range(self.cfg.num_batches):
             self._increment_iteration_counter_by_batch_size()
 
-            if i >= max_batches:
-                break
+    
