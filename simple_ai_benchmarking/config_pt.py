@@ -9,7 +9,7 @@ import torch
 import torchvision
 from loguru import logger
 
-from simple_ai_benchmarking.definitions import (
+from simple_ai_benchmarking.config import (
     NumericalPrecision,
     AIWorkloadBaseConfig,
     AIModelWrapper,

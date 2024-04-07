@@ -17,19 +17,21 @@ from simple_ai_benchmarking.results import (
     PerformanceResult,
     BenchmarkResult,
 )
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, AIModelWrapper
+from simple_ai_benchmarking.config import AIWorkloadBaseConfig, AIModelWrapper
 from simple_ai_benchmarking.dataset import Dataset
 
 
 class AIWorkload(ABC):
 
-    def __init__(self, ai_model: AIModelWrapper, dataset: Dataset, config: AIWorkloadBaseConfig) -> None:
+    def __init__(
+        self, ai_model: AIModelWrapper, dataset: Dataset, config: AIWorkloadBaseConfig
+    ) -> None:
 
         self.model_name = ai_model.name
         self.model = ai_model.model
 
         self.cfg = config
-        
+
         self.dataset = dataset
 
         self.reset_iteration_counter()

@@ -3,7 +3,7 @@ from loguru import logger
 import tensorflow as tf
 import numpy as np
 
-from simple_ai_benchmarking.definitions import NumericalPrecision
+from simple_ai_benchmarking.config import NumericalPrecision
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
 

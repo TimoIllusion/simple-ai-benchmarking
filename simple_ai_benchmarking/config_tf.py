@@ -6,7 +6,7 @@ from copy import copy, deepcopy
 
 import tensorflow as tf
 
-from simple_ai_benchmarking.definitions import (
+from simple_ai_benchmarking.config import (
     NumericalPrecision,
     AIWorkloadBaseConfig,
     AIModelWrapper,
