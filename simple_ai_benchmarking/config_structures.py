@@ -38,14 +38,9 @@ class ImageShape:
         return (self.channels, self.height, self.width)
 
 
-DEFAULT_INPUT_IMAGE_SHAPE = ImageShape(224, 224, 3)
-DEFAULT_NUM_CLASSES = 100
-DEFAULT_EPOCHS = 5
-
-
 @dataclass
 class ModelConfig:
-    model_identifier: ModelIdentifier = "NOT SET"
+    model_identifier: ModelIdentifier = ModelIdentifier.SIMPLE_CLASSIFICATION_CNN
     model_shape: Sequence[int] = ()
 
 
@@ -72,16 +67,10 @@ class AIWorkloadBaseConfig:
 
 @dataclass
 class InferenceConfig(AIWorkloadBaseConfig):
-    dataset_cfg: DatasetConfig = DatasetConfig(
-        input_shape_without_batch=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_chw()
-    )
-    model_cfg: ClassificiationModelConfig = ClassificiationModelConfig(
-        model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
-        model_shape=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_chw(),
-        num_classes=DEFAULT_NUM_CLASSES,
-    )
+    dataset_cfg: DatasetConfig = DatasetConfig()
+    model_cfg: ClassificiationModelConfig = ClassificiationModelConfig()
 
 
 @dataclass
 class TrainingConfig(InferenceConfig):
-    epochs: int = DEFAULT_EPOCHS
+    epochs: int = 5
