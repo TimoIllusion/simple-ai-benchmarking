@@ -6,6 +6,8 @@ from loguru import logger
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.benchmark import process_workloads
 from simple_ai_benchmarking.results import initialize_logger
+from simple_ai_benchmarking.config import AIFramework
+from simple_ai_benchmarking.config_pt_tf import build_default_pt_workloads
 
 REPETITIONS = 1
 
@@ -69,9 +71,7 @@ def run_tf_benchmarks() -> None:
 
     initialize_logger("benchmark_tf.log")
 
-    from simple_ai_benchmarking.config_tf import build_default_tf_workloads
-
-    workloads = build_default_tf_workloads()
+    workloads = build_default_pt_workloads(AIFramework.TENSORFLOW)
     
     workloads = workload_overrides(workloads)
     
@@ -85,9 +85,7 @@ def run_pt_benchmarks() -> None:
 
     initialize_logger("benchmark_pt.log")
 
-    from simple_ai_benchmarking.config_pt import build_default_pt_workloads
-
-    workloads = build_default_pt_workloads()
+    workloads = build_default_pt_workloads(AIFramework.PYTORCH)
     
     workloads = workload_overrides(workloads)
 

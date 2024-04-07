@@ -71,7 +71,7 @@ class AIWorkloadBaseConfig:
 
 
 @dataclass
-class PytorchInferenceConfig(AIWorkloadBaseConfig):
+class InferenceConfig(AIWorkloadBaseConfig):
     dataset_cfg: DatasetConfig = DatasetConfig(
         input_shape_without_batch=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_chw()
     )
@@ -83,22 +83,22 @@ class PytorchInferenceConfig(AIWorkloadBaseConfig):
 
 
 @dataclass
-class PytorchTrainingConfig(PytorchInferenceConfig):
+class TrainingConfig(InferenceConfig):
     epochs: int = DEFAULT_EPOCHS
 
 
-@dataclass
-class TensorflowInferenceConfig(AIWorkloadBaseConfig):
-    dataset_cfg: DatasetConfig = DatasetConfig(
-        input_shape_without_batch=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_hwc()
-    )
-    model_cfg: ClassificiationModelConfig = ClassificiationModelConfig(
-        model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
-        model_shape=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_hwc(),
-        num_classes=DEFAULT_NUM_CLASSES,
-    )
+# @dataclass
+# class TensorflowInferenceConfig(AIWorkloadBaseConfig):
+#     dataset_cfg: DatasetConfig = DatasetConfig(
+#         input_shape_without_batch=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_hwc()
+#     )
+#     model_cfg: ClassificiationModelConfig = ClassificiationModelConfig(
+#         model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+#         model_shape=DEFAULT_INPUT_IMAGE_SHAPE.to_tuple_hwc(),
+#         num_classes=DEFAULT_NUM_CLASSES,
+#     )
 
 
-@dataclass
-class TensorflowTrainingConfig(TensorflowInferenceConfig):
-    epochs: int = DEFAULT_EPOCHS
+# @dataclass
+# class TensorflowTrainingConfig(TensorflowInferenceConfig):
+#     epochs: int = DEFAULT_EPOCHS

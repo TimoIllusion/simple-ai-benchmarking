@@ -7,7 +7,7 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.config import NumericalPrecision, PytorchTrainingConfig
+from simple_ai_benchmarking.config import NumericalPrecision, TrainingConfig
 from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.config import AIFramework, AIStage
@@ -15,10 +15,10 @@ from simple_ai_benchmarking.config import AIFramework, AIStage
 
 class PyTorchTraining(AIWorkload):
 
-    def __init__(self, config: PytorchTrainingConfig) -> None:
+    def __init__(self, config: TrainingConfig) -> None:
         super().__init__(config)
 
-        self.cfg: PytorchTrainingConfig  # for type hinting
+        self.cfg: TrainingConfig  # for type hinting
 
     def setup(self) -> None:
 
@@ -168,6 +168,11 @@ class PyTorchTraining(AIWorkload):
 
 
 class PyTorchInference(PyTorchTraining):
+
+    def __init__(self, config: TrainingConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: TrainingConfig  # for type hinting
 
     def _warmup(self) -> None:
         self._infer_loop(max_batches=10)

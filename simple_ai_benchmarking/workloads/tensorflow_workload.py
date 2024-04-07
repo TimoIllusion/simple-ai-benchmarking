@@ -3,11 +3,18 @@ from loguru import logger
 import tensorflow as tf
 import numpy as np
 
-from simple_ai_benchmarking.config import NumericalPrecision, AIStage
+from simple_ai_benchmarking.config import NumericalPrecision, AIStage, AIFramework, InferenceConfig, TrainingConfig
+from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
+from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
 
 class TensorFlowTraining(AIWorkload):
+
+    def __init__(self, config: TrainingConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: TrainingConfig  # for type hinting
 
     def setup(self) -> None:
 
@@ -24,6 +31,10 @@ class TensorFlowTraining(AIWorkload):
                 raise NotImplementedError(
                     f"Data type not implemented: {self.cfg.precision}"
                 )
+            
+            self.model = ClassificationModelFactory.create_model(
+                self.cfg.model_cfg, AIFramework.TENSORFLOW
+            )
 
             self.model.compile(
                 optimizer="adam",
@@ -32,20 +43,25 @@ class TensorFlowTraining(AIWorkload):
             )
             # self.model.summary()
 
-            self.inputs, self.targets = self.dataset.get_dataset()
+            dataset = SyntheticDatasetFactory.create_dataset(
+                self.cfg.dataset_cfg, AIFramework.TENSORFLOW
+            )
 
-            self.syn_dataset = tf.data.Dataset.from_tensor_slices(
+            dataset.prepare()
+            self.inputs, self.targets = dataset.get_dataset()
+
+            self.tf_dataset = tf.data.Dataset.from_tensor_slices(
                 (self.inputs, self.targets)
             )
 
-            self.syn_dataset = self.syn_dataset.shuffle(buffer_size=10000)
-            self.syn_dataset = self.syn_dataset.batch(self.cfg.batch_size)
-            self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
+            self.tf_dataset = self.tf_dataset.shuffle(buffer_size=10000)
+            self.tf_dataset = self.tf_dataset.batch(self.cfg.dataset_cfg.batch_size)
+            self.tf_dataset = self.tf_dataset.prefetch(tf.data.AUTOTUNE)
 
     def _warmup(self) -> None:
 
         self.model.fit(
-            self.syn_dataset,
+            self.tf_dataset,
             epochs=1,
             validation_data=None,
             verbose=0,
@@ -54,13 +70,13 @@ class TensorFlowTraining(AIWorkload):
     def _execute(self) -> None:
 
         self.model.fit(
-            self.syn_dataset,
+            self.tf_dataset,
             epochs=self.cfg.epochs,
             validation_data=None,
             verbose=0,
         )
 
-        for _ in range(self.cfg.epochs * self.cfg.num_batches):
+        for _ in range(self.cfg.epochs * self.cfg.dataset_cfg.num_batches):
             self._increment_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
@@ -132,6 +148,11 @@ class TensorFlowTraining(AIWorkload):
 
 class TensorFlowInference(TensorFlowTraining):
 
+    def __init__(self, config: InferenceConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: InferenceConfig  # for type hinting
+
     def _warmup(self) -> None:
         self._infer_loop()
 
@@ -140,9 +161,9 @@ class TensorFlowInference(TensorFlowTraining):
 
     def _infer_loop(self) -> None:
 
-        predictions = self.model.predict(self.syn_dataset, verbose=0)
+        predictions = self.model.predict(self.tf_dataset, verbose=0)
 
-        for _ in range(self.cfg.num_batches):
+        for _ in range(self.cfg.dataset_cfg.num_batches):
             self._increment_iteration_counter_by_batch_size()
             
     def _get_ai_stage(self) -> AIStage:

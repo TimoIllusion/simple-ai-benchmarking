@@ -9,59 +9,90 @@ from loguru import logger
 from simple_ai_benchmarking.config import (
     NumericalPrecision,
     AIWorkloadBaseConfig,
-    PytorchInferenceConfig,
-    PytorchTrainingConfig,
+    InferenceConfig,
+    TrainingConfig,
     DatasetConfig,
     ImageShape,
+    AIFramework,
+    ClassificiationModelConfig,
+    ModelIdentifier,
 )
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 
 
-def build_default_pt_workloads() -> List[AIWorkload]:
-
-    device_name = get_device_name()
-
-    logger.trace("Device Name: {}", device_name)
+def build_default_pt_workloads(framework: AIFramework) -> List[AIWorkload]:
 
     img_shape = ImageShape(224, 224, 3)
-    input_sample_shape = img_shape.to_tuple_chw()
+    num_classes = 100
+
+    if framework is AIFramework.PYTORCH:
+        device_name = get_device_name_pytorch()
+        input_sample_shape = img_shape.to_tuple_chw()
+    elif framework is AIFramework.TENSORFLOW:
+        device_name = get_device_name_tensorflow()
+        input_sample_shape = img_shape.to_tuple_hwc()
+    else:
+        raise ValueError("Invalid framework")
+
+    logger.trace("Device Name: {}", device_name)
+    logger.trace("Input Sample Shape: {}", input_sample_shape)
 
     workload_cfgs = [
-        PytorchInferenceConfig(
+        InferenceConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8, input_shape_without_batch=input_sample_shape
             ),
-            device_name=device_name,
-        ),
-        PytorchTrainingConfig(
-            dataset_cfg=DatasetConfig(
-                batch_size=8, input_shape_without_batch=input_sample_shape
+            model_cfg=ClassificiationModelConfig(
+                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+                model_shape=input_sample_shape,
+                num_classes=num_classes
             ),
             device_name=device_name,
         ),
-        PytorchInferenceConfig(
+        TrainingConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8, input_shape_without_batch=input_sample_shape
+            ),
+            model_cfg=ClassificiationModelConfig(
+                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+                model_shape=input_sample_shape,
+                num_classes=num_classes
+            ),
+            device_name=device_name,
+        ),
+        InferenceConfig(
+            dataset_cfg=DatasetConfig(
+                batch_size=8, input_shape_without_batch=input_sample_shape
+            ),
+            model_cfg=ClassificiationModelConfig(
+                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+                model_shape=input_sample_shape,
+                num_classes=num_classes
             ),
             device_name=device_name,
             precision=NumericalPrecision.MIXED_FP16,
         ),
-        PytorchTrainingConfig(
+        TrainingConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8, input_shape_without_batch=input_sample_shape
+            ),
+            model_cfg=ClassificiationModelConfig(
+                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+                model_shape=input_sample_shape,
+                num_classes=num_classes
             ),
             device_name=device_name,
             precision=NumericalPrecision.MIXED_FP16,
         ),
     ]
 
-    workloads = [WorkloadFactory.create_pytorch_workload(cfg) for cfg in workload_cfgs]
+    workloads = [WorkloadFactory.create_workload(cfg, framework) for cfg in workload_cfgs]
 
     return workloads
 
 
-def get_device_name() -> str:
+def get_device_name_pytorch() -> str:
     import torch
 
     if platform == "linux" or platform == "linux2" or platform == "win32":
@@ -82,3 +113,8 @@ def get_device_name() -> str:
         device_name = "cpu"
 
     return device_name
+
+
+def get_device_name_tensorflow() -> str:
+    return "/gpu:0"
+
