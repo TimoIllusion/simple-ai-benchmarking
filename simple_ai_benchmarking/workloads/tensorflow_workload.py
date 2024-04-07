@@ -52,7 +52,6 @@ class TensorFlowTraining(AIWorkload):
                 metrics=["accuracy"],
             )
             # self.model.summary()
-            logger.info("Number of model parameters: {}", self._get_model_parameters())
 
     def _warmup(self) -> None:
         dataset_cfg = deepcopy(self.cfg.dataset_cfg)

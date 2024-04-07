@@ -52,6 +52,25 @@ class MLP(layers.Layer):
         return x
 
 
+class TransformerBlock(layers.Layer):
+    def __init__(self, projection_dim, num_heads, transformer_units, dropout_rate):
+        super(TransformerBlock, self).__init__()
+        self.norm1 = layers.LayerNormalization(epsilon=1e-6)
+        self.mha = layers.MultiHeadAttention(
+            num_heads=num_heads, key_dim=projection_dim, dropout=0.1
+        )
+        self.norm2 = layers.LayerNormalization(epsilon=1e-6)
+        self.mlp = MLP(hidden_units=transformer_units, dropout_rate=dropout_rate)
+
+    def call(self, inputs):
+        x1 = self.norm1(inputs)
+        attn_output = self.mha(x1, x1)
+        x2 = layers.Add()([attn_output, inputs])  # Skip connection
+        x3 = self.norm2(x2)
+        x3 = self.mlp(x3)
+        return layers.Add()([x3, x2])  # Skip connection
+
+
 class VisionTransformer(tf.keras.Model):
     def __init__(
         self,
@@ -76,19 +95,11 @@ class VisionTransformer(tf.keras.Model):
 
         self.patches = Patches(patch_size)
         self.patch_encoder = PatchEncoder(num_patches, projection_dim)
-
         self.transformer_blocks = [
-            {
-                "norm1": layers.LayerNormalization(epsilon=1e-6),
-                "mha": layers.MultiHeadAttention(
-                    num_heads=num_heads, key_dim=projection_dim, dropout=0.1
-                ),
-                "norm2": layers.LayerNormalization(epsilon=1e-6),
-                "mlp": MLP(hidden_units=transformer_units, dropout_rate=0.1),
-            }
+            TransformerBlock(projection_dim, num_heads, transformer_units, 0.1)
             for _ in range(transformer_layers)
         ]
-
+        self.flatten = layers.Flatten()
         self.final_mlp = MLP(
             hidden_units=mlp_head_units + [num_classes], dropout_rate=0.5
         )
@@ -96,14 +107,7 @@ class VisionTransformer(tf.keras.Model):
     def call(self, inputs):
         x = self.patches(inputs)
         x = self.patch_encoder(x)
-
-        for block in self.transformer_blocks:
-            x1 = block['norm1'](x)
-            attn_output = block['mha'](x1, x1)
-            x2 = layers.Add()([attn_output, x])  # Skip connection
-            x3 = block['norm2'](x2)
-            x3 = block['mlp'](x3)
-            x = layers.Add()([x3, x2])  # Skip connection
-
+        for transformer_block in self.transformer_blocks:
+            x = transformer_block(x)
         x = self.flatten(x)
         return self.final_mlp(x)

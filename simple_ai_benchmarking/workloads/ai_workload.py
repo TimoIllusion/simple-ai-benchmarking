@@ -84,6 +84,8 @@ class AIWorkload(ABC):
         pass
 
     def build_result_log(self) -> BenchmarkResult:
+        
+        logger.info("Number of model parameters: {}", self._get_model_parameters())
 
         sw_info = SWInfo(
             ai_framework_name=self._get_ai_framework_name(),
