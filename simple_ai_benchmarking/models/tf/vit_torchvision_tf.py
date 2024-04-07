@@ -28,8 +28,8 @@ class EncoderBlock(layers.Layer):
         super(EncoderBlock, self).__init__()
         self.ln_1 = layers.LayerNormalization(epsilon=1e-6)
         self.mha = layers.MultiHeadAttention(
-            num_heads=num_heads, key_dim=hidden_dim, dropout=attention_dropout_rate
-        )
+            num_heads=num_heads, key_dim=hidden_dim // num_heads, dropout=attention_dropout_rate
+        ) # in keras/tf, the key_dim is not distributed among heads in contrast to pytorch!!
         self.dropout = layers.Dropout(dropout_rate)
         self.ln_2 = layers.LayerNormalization(epsilon=1e-6)
         self.mlp = MLPBlock(hidden_dim, mlp_dim, dropout_rate)
@@ -77,7 +77,7 @@ class Encoder(layers.Layer):
             x = encoder_layer(x)
         return self.ln(x)
 
-
+#TODO: fix weights amount, currently 768 too many params
 class VisionTransformer(Model):
     def __init__(
         self,
@@ -113,7 +113,9 @@ class VisionTransformer(Model):
 
     def call(self, inputs):
         batch_size = tf.shape(inputs)[0]
+        print("Start (TF):", inputs.shape)
         x = self.conv_proj(inputs)
+        print("After projection (TF):", x.shape)
         x = tf.reshape(
             x, (batch_size, -1, x.shape[-1])
         )  # (batch_size, num_patches, hidden_dim)
@@ -122,15 +124,22 @@ class VisionTransformer(Model):
         )
         # Concatenate the class token with the patch embeddings
         x = tf.concat([class_token, x], axis=1)
+        
+        print("Before encoder (TF):", x.shape)
 
         # Pass through the encoder
         x = self.encoder(x)
 
+        print("After encoder (TF):", x.shape)
         # Take the output corresponding to the class token
         class_token_final = x[:, 0]
 
+        print("Before head (TF):", class_token_final.shape)
         # Pass the class token through the final MLP head to get the predictions
-        return self.mlp_head(class_token_final)
+        output = self.mlp_head(class_token_final)
+        print("After head (TF):", output.shape)
+        
+        return output
 
 
 def create_vit_b_16():
@@ -163,7 +172,7 @@ def create_vit_b_16():
     vit_b_16_model.build(
         input_shape=(None, image_size, image_size, 3)
     )  # Build the model with the input shape (batch_size, height, width, channels)
-    vit_b_16_model.summary()
+    # vit_b_16_model.summary()
     return vit_b_16_model
 
 
