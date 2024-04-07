@@ -17,8 +17,7 @@ from simple_ai_benchmarking.config_structures import (
     ClassificiationModelConfig,
     ModelIdentifier,
 )
-from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.workloads.factory import WorkloadFactory
+
 
 
 def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkloadBaseConfig]:
@@ -26,7 +25,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
     img_shape = ImageShape(224, 224, 3)
     num_classes = 100
     training_epochs = 10
-    num_batches = 75
+    num_batches = 50
 
     if framework is AIFramework.PYTORCH:
         device_name = get_device_name_pytorch()
