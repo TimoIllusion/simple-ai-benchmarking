@@ -21,28 +21,14 @@ def estimate_array_memory_usage(shape: list, dtype: np.dtype) -> float:
     - The estimated memory usage in bytes.
     """
     itemsize = np.dtype(dtype).itemsize
-    return np.prod(shape) * itemsize
+    logger.warning(f"Itemsize : {itemsize} Bytes, shape: {shape}")
+    
+    num_items = np.prod(shape)
+    
+    logger.warning(f"Items: {num_items}")
+                   
+    return num_items * itemsize
 
-
-def is_memory_sufficient_for_arrays(*arrays_info) -> bool:
-    """
-    Checks if there is enough available system memory to create the numpy arrays.
-
-    Parameters:
-    - arrays_info: A list of tuples where each tuple contains the shape and dtype of the intended array.
-
-    Returns:
-    - True if there is enough memory to create the arrays, False otherwise.
-    """
-    required_memory = sum(
-        estimate_array_memory_usage(shape, dtype) for shape, dtype in arrays_info
-    )
-    available_memory = get_available_memory_in_bytes()
-
-    logger.warning(f"Required memory {required_memory/1e9} GB vs. available memory {available_memory/1e9} GB")
-    logger.info(f"Sufficient memory: {required_memory < available_memory}")
-
-    return required_memory < available_memory
 
 def get_available_memory_in_bytes():
     return psutil.virtual_memory().available
@@ -80,31 +66,41 @@ class SyntheticDataset(Dataset):
         self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
             self.cfg.input_shape_without_batch
         )
-        self.dataset_targets_shape = [
-            self.cfg.num_batches * self.cfg.batch_size
-        ] + list(self.cfg.target_shape_without_batch)
 
-        if is_memory_sufficient_for_arrays(
-            (self.dataset_inputs_shape, np.float32),
-            (self.dataset_targets_shape, np.int64),
-        ):
+        self.dataset_targets_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
+            self.cfg.target_shape_without_batch
+        )
 
-            self._create_data()
+        inputs_estimated_size = estimate_array_memory_usage(
+            self.dataset_inputs_shape, np.float32
+        )
+        targets_estimated_size = estimate_array_memory_usage(
+            self.dataset_targets_shape, np.int64
+        )
+        total_estimated_size = inputs_estimated_size + targets_estimated_size
 
-            logger.debug(
-                "Synthetic Dataset Inputs Shape & Type: {} {}",
-                self.inputs.shape,
-                self.inputs.dtype,
-            )
-            logger.debug(
-                "Synthetic Dataset Targets Shape & Type: {} {}",
-                self.targets.shape,
-                self.targets.dtype,
-            )
-        else:
+        available_memory = get_available_memory_in_bytes()
+
+        logger.warning(f"Estimated memory usage: {total_estimated_size/1e9} GB")
+        logger.warning(f"Available memory: {available_memory/1e9} GB")
+
+        if total_estimated_size > available_memory * 0.9:
             raise MemoryError(
                 "Insufficient memory, select lower num_batches or batch_size."
             )
+
+        self._create_data()
+
+        logger.debug(
+            "Synthetic Dataset Inputs Shape & Type: {} {}",
+            self.inputs.shape,
+            self.inputs.dtype,
+        )
+        logger.debug(
+            "Synthetic Dataset Targets Shape & Type: {} {}",
+            self.targets.shape,
+            self.targets.dtype,
+        )
 
     @abstractmethod
     def _create_data(self) -> None:
@@ -142,7 +138,7 @@ class SyntheticTensorFlowDataset(SyntheticDataset):
         self.targets = tf.random.uniform(
             self.dataset_targets_shape, minval=0, maxval=2, dtype=tf.int64
         )
-        
+
 
 class SyntheticDatasetFactory:
 

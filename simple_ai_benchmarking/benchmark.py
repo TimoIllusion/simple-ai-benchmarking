@@ -73,4 +73,4 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
 
 def check_memory(info_text: str = ""):
     available_memory_gb = get_available_memory_in_bytes() / 1e9
-    logger.warning(f"Available memory {info_text} : {available_memory_gb} GB")
+    logger.trace(f"Available memory {info_text} : {available_memory_gb} GB")

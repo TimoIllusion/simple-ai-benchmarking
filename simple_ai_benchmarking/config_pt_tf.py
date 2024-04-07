@@ -25,7 +25,8 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
 
     img_shape = ImageShape(224, 224, 3)
     num_classes = 100
-    training_epochs = 5
+    training_epochs = 10
+    num_batches = 75
 
     if framework is AIFramework.PYTORCH:
         device_name = get_device_name_pytorch()
@@ -44,6 +45,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             dataset_cfg=DatasetConfig(
                 batch_size=8,
                 input_shape_without_batch=input_sample_shape,
+                num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
@@ -57,6 +59,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             dataset_cfg=DatasetConfig(
                 batch_size=8,
                 input_shape_without_batch=input_sample_shape,
+                num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
@@ -70,6 +73,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             dataset_cfg=DatasetConfig(
                 batch_size=8,
                 input_shape_without_batch=input_sample_shape,
+                num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
@@ -84,6 +88,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             dataset_cfg=DatasetConfig(
                 batch_size=8,
                 input_shape_without_batch=input_sample_shape,
+                num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
