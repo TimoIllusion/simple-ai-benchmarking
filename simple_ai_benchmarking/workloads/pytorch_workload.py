@@ -32,6 +32,7 @@ class PyTorchTraining(AIWorkload):
         self.model = ClassificationModelFactory.create_model(
             self.cfg.model_cfg, AIFramework.PYTORCH
         )
+        print(self.model)
 
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=0.001, momentum=0.9
