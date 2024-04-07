@@ -3,7 +3,13 @@ from loguru import logger
 import tensorflow as tf
 import numpy as np
 
-from simple_ai_benchmarking.config_structures import NumericalPrecision, AIStage, AIFramework, InferenceConfig, TrainingConfig
+from simple_ai_benchmarking.config_structures import (
+    NumericalPrecision,
+    AIStage,
+    AIFramework,
+    InferenceConfig,
+    TrainingConfig,
+)
 from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
@@ -18,30 +24,20 @@ class TensorFlowTraining(AIWorkload):
 
     def setup(self) -> None:
 
-        # Always generate dataset on system RAM, that is why CPU is forced here
-        with tf.device("/cpu:0"):
-
-            if self.cfg.precision == NumericalPrecision.MIXED_FP16:
-                tf.keras.mixed_precision.set_global_policy("mixed_float16")
-            elif self.cfg.precision == NumericalPrecision.EXPLICIT_FP32:
-                tf.keras.mixed_precision.set_global_policy("float32")
-            elif self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
-                pass
-            else:
-                raise NotImplementedError(
-                    f"Data type not implemented: {self.cfg.precision}"
-                )
-            
-            self.model = ClassificationModelFactory.create_model(
-                self.cfg.model_cfg, AIFramework.TENSORFLOW
+        if self.cfg.precision == NumericalPrecision.MIXED_FP16:
+            tf.keras.mixed_precision.set_global_policy("mixed_float16")
+        elif self.cfg.precision == NumericalPrecision.EXPLICIT_FP32:
+            tf.keras.mixed_precision.set_global_policy("float32")
+        elif self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
+            pass
+        else:
+            raise NotImplementedError(
+                f"Data type not implemented: {self.cfg.precision}"
             )
 
-            self.model.compile(
-                optimizer="adam",
-                loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
-                metrics=["accuracy"],
-            )
-            # self.model.summary()
+        with tf.device(
+            "/cpu:0"
+        ):  # Always generate dataset on system RAM, that is why CPU is forced here
 
             dataset = SyntheticDatasetFactory.create_dataset(
                 self.cfg.dataset_cfg, AIFramework.TENSORFLOW
@@ -58,26 +54,41 @@ class TensorFlowTraining(AIWorkload):
             self.tf_dataset = self.tf_dataset.batch(self.cfg.dataset_cfg.batch_size)
             self.tf_dataset = self.tf_dataset.prefetch(tf.data.AUTOTUNE)
 
-    def _warmup(self) -> None:
+        with tf.device(
+            self.cfg.device_name
+        ):  # Model shall be loaded to accelerator device directly
+            self.model = ClassificationModelFactory.create_model(
+                self.cfg.model_cfg, AIFramework.TENSORFLOW
+            )
 
-        self.model.fit(
-            self.tf_dataset,
-            epochs=1,
-            validation_data=None,
-            verbose=0,
-        )
+            self.model.compile(
+                optimizer="adam",
+                loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
+                metrics=["accuracy"],
+            )
+            # self.model.summary()
+
+    def _warmup(self) -> None:
+        with tf.device(self.cfg.device_name):
+            self.model.fit(
+                self.tf_dataset,
+                epochs=1,
+                validation_data=None,
+                verbose=0,
+            )
 
     def _execute(self) -> None:
+        with tf.device(self.cfg.device_name):
 
-        self.model.fit(
-            self.tf_dataset,
-            epochs=self.cfg.epochs,
-            validation_data=None,
-            verbose=0,
-        )
+            self.model.fit(
+                self.tf_dataset,
+                epochs=self.cfg.epochs,
+                validation_data=None,
+                verbose=0,
+            )
 
-        for _ in range(self.cfg.epochs * self.cfg.dataset_cfg.num_batches):
-            self._increment_iteration_counter_by_batch_size()
+            for _ in range(self.cfg.epochs * self.cfg.dataset_cfg.num_batches):
+                self._increment_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
 
@@ -141,7 +152,7 @@ class TensorFlowTraining(AIWorkload):
         )
         gbytes = np.round(total_memory / (1024.0**3), 3) + internal_model_mem_count
         return gbytes
-    
+
     def _get_ai_stage(self) -> AIStage:
         return AIStage.TRAINING
 
@@ -160,11 +171,12 @@ class TensorFlowInference(TensorFlowTraining):
         self._infer_loop()
 
     def _infer_loop(self) -> None:
+        with tf.device(self.cfg.device_name):
 
-        predictions = self.model.predict(self.tf_dataset, verbose=0)
+            predictions = self.model.predict(self.tf_dataset, verbose=0)
 
-        for _ in range(self.cfg.dataset_cfg.num_batches):
-            self._increment_iteration_counter_by_batch_size()
-            
+            for _ in range(self.cfg.dataset_cfg.num_batches):
+                self._increment_iteration_counter_by_batch_size()
+
     def _get_ai_stage(self) -> AIStage:
         return AIStage.INFERENCE
