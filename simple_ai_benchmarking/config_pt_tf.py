@@ -19,8 +19,9 @@ from simple_ai_benchmarking.config_structures import (
 )
 
 
-
-def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkloadBaseConfig]:
+def build_default_pt_workload_configs(
+    framework: AIFramework,
+) -> List[AIWorkloadBaseConfig]:
 
     img_shape = ImageShape(224, 224, 3)
     num_classes = 100
@@ -49,7 +50,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
                 model_shape=input_sample_shape,
-                num_classes=num_classes
+                num_classes=num_classes,
             ),
             device_name=device_name,
             precision=NumericalPrecision.DEFAULT_PRECISION,
@@ -63,7 +64,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
                 model_shape=input_sample_shape,
-                num_classes=num_classes
+                num_classes=num_classes,
             ),
             device_name=device_name,
             precision=NumericalPrecision.MIXED_FP16,
@@ -77,7 +78,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
                 model_shape=input_sample_shape,
-                num_classes=num_classes
+                num_classes=num_classes,
             ),
             device_name=device_name,
             precision=NumericalPrecision.DEFAULT_PRECISION,
@@ -92,7 +93,7 @@ def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkload
             model_cfg=ClassificiationModelConfig(
                 model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
                 model_shape=input_sample_shape,
-                num_classes=num_classes
+                num_classes=num_classes,
             ),
             device_name=device_name,
             precision=NumericalPrecision.MIXED_FP16,
@@ -128,4 +129,3 @@ def get_device_name_pytorch() -> str:
 
 def get_device_name_tensorflow() -> str:
     return "/gpu:0"
-

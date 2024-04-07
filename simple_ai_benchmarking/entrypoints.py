@@ -3,7 +3,6 @@ from typing import List
 
 from loguru import logger
 
-from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.benchmark import process_workloads
 from simple_ai_benchmarking.results import initialize_logger
 from simple_ai_benchmarking.config_structures import AIFramework, AIWorkloadBaseConfig
