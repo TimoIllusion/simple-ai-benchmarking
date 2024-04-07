@@ -61,18 +61,7 @@ class ClassificationModelFactory:
 
             from simple_ai_benchmarking.models.tf.vit import VisionTransformer
 
-            vit_base_16 = VisionTransformer(
-                patch_size=16,
-                num_patches=196,
-                projection_dim=768,
-                num_heads=12,
-                transformer_units=[3072, 768],
-                transformer_layers=12,
-                mlp_head_units=[2048, 1024],
-                num_classes=model_cfg.num_classes,
-            )
-
-            return vit_base_16
+            return VisionTransformer(model_cfg.num_classes)
 
         elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
 
