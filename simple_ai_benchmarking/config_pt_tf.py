@@ -67,21 +67,21 @@ def build_default_pt_workload_configs(
                 num_classes=num_classes,
             ),
             device_name=device_name,
-            precision=NumericalPrecision.MIXED_FP16,
+            precision=NumericalPrecision.DEFAULT_PRECISION,
         ),
         InferenceConfig(
             dataset_cfg=DatasetConfig(
-                batch_size=1,
+                batch_size=8,
                 input_shape_without_batch=input_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.VIT_B_16,
+                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
                 model_shape=input_sample_shape,
                 num_classes=num_classes,
             ),
             device_name=device_name,
-            precision=NumericalPrecision.DEFAULT_PRECISION,
+            precision=NumericalPrecision.MIXED_FP16,
         ),
         TrainingConfig(
             dataset_cfg=DatasetConfig(

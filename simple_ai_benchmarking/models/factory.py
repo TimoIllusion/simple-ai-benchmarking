@@ -28,13 +28,19 @@ class ClassificationModelFactory:
                 SimpleClassificationCNN,
             )
 
-        # elif model_cfg.model_identifier == ModelIdentifier.VIT_B_16:
-        #     import torchvision
+            return SimpleClassificationCNN(model_cfg.num_classes, model_cfg.model_shape)
 
-        #     resnet50 = torchvision.models.resnet50(num_classes=1000)
-        #     vitb16 = AIModelWrapper("ViT-B-16", torchvision.models.vit_b_16(num_classes=1000))
+        elif model_cfg.model_identifier == ModelIdentifier.VIT_B_16:
+            from simple_ai_benchmarking.models.pt.vit import VisionTransformer
 
-        #     return SimpleClassificationCNN(model_cfg.num_classes, model_cfg.model_shape)
+            return VisionTransformer(model_cfg.num_classes)
+
+        elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
+
+            raise NotImplementedError("ResNet50 not implemented for PyTorch")
+
+            #     resnet50 = torchvision.models.resnet50(num_classes=1000)
+
         else:
             raise ValueError(
                 f"Model {model_cfg.model_identifier} not supported for PyTorch"
@@ -67,6 +73,10 @@ class ClassificationModelFactory:
             )
 
             return vit_base_16
+
+        elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
+
+            raise NotImplementedError("ResNet50 not implemented for TensorFlow")
 
         else:
             raise ValueError(
