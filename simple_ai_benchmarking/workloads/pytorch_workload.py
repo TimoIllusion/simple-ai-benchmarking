@@ -32,8 +32,7 @@ class PyTorchTraining(AIWorkload):
         self.model = ClassificationModelFactory.create_model(
             self.cfg.model_cfg, AIFramework.PYTORCH
         )
-
-        logger.trace("Number of model parameters: {}", self.count_model_parameters())
+        logger.info("Number of model parameters: {}", self._get_model_parameters())
 
         self.optimizer = torch.optim.SGD(
             self.model.parameters(), lr=0.001, momentum=0.9
@@ -71,8 +70,8 @@ class PyTorchTraining(AIWorkload):
     def _assign_autocast_device_type(self) -> None:
         self.autocast_device_type = "cuda" if "cuda" in self.cfg.device_name else "cpu"
 
-    def count_model_parameters(self) -> int:
-        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+    def _get_model_parameters(self) -> int:
+        return sum(p.numel() for p in self.model.parameters())
 
     def _warmup(self) -> None:
         warmup_dataset_cfg = deepcopy(self.cfg.dataset_cfg)

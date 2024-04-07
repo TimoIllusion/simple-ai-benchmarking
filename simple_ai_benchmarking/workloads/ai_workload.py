@@ -79,6 +79,10 @@ class AIWorkload(ABC):
     def _get_ai_stage(self) -> AIStage:
         pass
 
+    @abstractmethod
+    def _get_model_parameters(self) -> int:
+        pass
+
     def build_result_log(self) -> BenchmarkResult:
 
         sw_info = SWInfo(
@@ -100,10 +104,11 @@ class AIWorkload(ABC):
             workload_type=self.__class__.__name__,
             model=self.cfg.model_cfg.model_identifier.value,
             compute_precision=self.cfg.precision.name,
-            batch_size_training=self.cfg.dataset_cfg.batch_size,
-            batch_size_inference=self.cfg.dataset_cfg.batch_size,
-            sample_shape=None,
+            batch_size=self.cfg.dataset_cfg.batch_size,
+            sample_shape=self.cfg.dataset_cfg.input_shape_without_batch,
             date=datetime.datetime.now().isoformat(),
+            num_classes=self.cfg.model_cfg.num_classes,
+            num_parameters=self._get_model_parameters(),
         )
 
         performance = PerformanceResult(iterations=self._calculate_iterations())

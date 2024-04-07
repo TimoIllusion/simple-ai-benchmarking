@@ -58,10 +58,11 @@ class BenchInfo:
     workload_type: str
     model: str
     compute_precision: str
-    batch_size_training: int
-    batch_size_inference: int
+    batch_size: int
     date: str
     sample_shape: List[int]
+    num_classes: int
+    num_parameters: int
 
 
 @dataclass
@@ -148,6 +149,7 @@ class BenchmarkLogger:
 
         header = [
             "#RUN",
+            "WorkloadType",
             "Lib",
             "Model",
             "Accelerator",
@@ -158,20 +160,18 @@ class BenchmarkLogger:
         table_data = []
 
         for i, result in enumerate(self.results):
+            workload_type = result.bench_info.workload_type
             sw_framework = result.sw_info.ai_framework_name
             model = result.bench_info.model
             accelerator = result.hw_info.accelerator
             precision = result.bench_info.compute_precision
             throughput = round(result.performance.throughput, 2)
 
-            assert (
-                result.bench_info.batch_size_inference
-                == result.bench_info.batch_size_training
-            )
-            batch_size = result.bench_info.batch_size_training
+            batch_size = result.bench_info.batch_size
 
             row_data = [
                 str(i),
+                workload_type,
                 sw_framework,
                 model,
                 accelerator,

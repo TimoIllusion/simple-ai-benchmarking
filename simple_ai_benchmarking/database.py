@@ -30,6 +30,7 @@ class BenchmarkData:
     benchmark_version: str
     benchmark_commit_id: str
     benchmark_date: str
+    input_shape: str
 
     def to_dict(self) -> dict:
         """Converts the data class instance to a dictionary."""
@@ -197,16 +198,8 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str):
                 benchmark_version=read_version(),
                 benchmark_commit_id=get_git_commit_hash(),
                 benchmark_date=row["bench_info_date"],
+                input_shape=row["bench_info_sample_shape"],
             )
-
-            benchmark_datasets.append(benchmark_data)
-
-            benchmark_data = deepcopy(benchmark_data)
-            benchmark_data.benchmark_type = "training"
-            benchmark_data.score_iterations_per_second = float(
-                row["train_performance_throughput"]
-            )
-            benchmark_data.batch_size = int(row["bench_info_batch_size_training"])
 
             benchmark_datasets.append(benchmark_data)
 
