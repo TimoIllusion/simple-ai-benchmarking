@@ -215,7 +215,7 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str):
     return benchmark_datasets
 
 
-def main():
+def publish_results_cli():
 
     parser = argparse.ArgumentParser(
         description="Submit benchmark results to the AI Benchmark Database."
@@ -319,6 +319,3 @@ def main():
             print("Submission failed. Exiting...")
             break
 
-
-if __name__ == "__main__":
-    main()

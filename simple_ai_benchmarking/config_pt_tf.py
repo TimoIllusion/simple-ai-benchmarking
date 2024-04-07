@@ -21,7 +21,7 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 
 
-def build_default_pt_workloads(framework: AIFramework) -> List[AIWorkload]:
+def build_default_pt_workload_configs(framework: AIFramework) -> List[AIWorkloadBaseConfig]:
 
     img_shape = ImageShape(224, 224, 3)
     num_classes = 100
@@ -53,20 +53,6 @@ def build_default_pt_workloads(framework: AIFramework) -> List[AIWorkload]:
             device_name=device_name,
             precision=NumericalPrecision.DEFAULT_PRECISION,
         ),
-        TrainingConfig(
-            dataset_cfg=DatasetConfig(
-                batch_size=8,
-                input_shape_without_batch=input_sample_shape,
-            ),
-            model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
-                model_shape=input_sample_shape,
-                num_classes=num_classes
-            ),
-            device_name=device_name,
-            precision=NumericalPrecision.DEFAULT_PRECISION,
-            epochs=training_epochs,
-        ),
         InferenceConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8,
@@ -91,14 +77,26 @@ def build_default_pt_workloads(framework: AIFramework) -> List[AIWorkload]:
                 num_classes=num_classes
             ),
             device_name=device_name,
+            precision=NumericalPrecision.DEFAULT_PRECISION,
+            epochs=training_epochs,
+        ),
+        TrainingConfig(
+            dataset_cfg=DatasetConfig(
+                batch_size=8,
+                input_shape_without_batch=input_sample_shape,
+            ),
+            model_cfg=ClassificiationModelConfig(
+                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+                model_shape=input_sample_shape,
+                num_classes=num_classes
+            ),
+            device_name=device_name,
             precision=NumericalPrecision.MIXED_FP16,
             epochs=training_epochs,
         ),
     ]
 
-    workloads = [WorkloadFactory.create_workload(cfg, framework) for cfg in workload_cfgs]
-
-    return workloads
+    return workload_cfgs
 
 
 def get_device_name_pytorch() -> str:

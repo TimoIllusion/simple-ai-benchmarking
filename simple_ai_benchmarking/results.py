@@ -69,14 +69,10 @@ class BenchmarkResult:
     sw_info: SWInfo
     hw_info: HWInfo
     bench_info: BenchInfo
-    train_performance: PerformanceResult
-    infer_performance: PerformanceResult
+    performance: PerformanceResult
 
-    def update_train_performance_duration(self, duration_s: float) -> None:
-        self.train_performance.update_duration_and_calc_throughput(duration_s)
-
-    def update_infer_performance_duration(self, duration_s: float) -> None:
-        self.infer_performance.update_duration_and_calc_throughput(duration_s)
+    def update_performance_duration(self, duration_s: float) -> None:
+        self.performance.update_duration_and_calc_throughput(duration_s)
 
 
 class BenchmarkLogger:
@@ -84,11 +80,11 @@ class BenchmarkLogger:
     def __init__(self) -> None:
         self.results: List[BenchmarkResult] = []
 
-    def add_repetitions_for_one_benchmark(
-        self, repetition_results: List[BenchmarkResult]
+    def add_benchmark_result_by_averaging_multiple_results(
+        self, results: List[BenchmarkResult]
     ) -> None:
 
-        averaged_benchmark_result = self._average_benchmark_results(repetition_results)
+        averaged_benchmark_result = self._average_benchmark_results(results)
         self.add_result(averaged_benchmark_result)
 
     def _average_benchmark_results(
@@ -97,19 +93,14 @@ class BenchmarkLogger:
 
         assert benchmark_results, "Got empty list of benchmark results"
 
-        infer_performances = [result.infer_performance for result in benchmark_results]
-        train_performances = [result.train_performance for result in benchmark_results]
+        performances = [result.performance for result in benchmark_results]
 
-        infer_avg_perf = self._accumulate_and_average_performance_results(
-            infer_performances
-        )
-        train_avg_perf = self._accumulate_and_average_performance_results(
-            train_performances
+        avg_perf = self._accumulate_and_average_performance_results(
+            performances
         )
 
         combined_avg_benchmark_result = benchmark_results[0]
-        combined_avg_benchmark_result.infer_performance = infer_avg_perf
-        combined_avg_benchmark_result.train_performance = train_avg_perf
+        combined_avg_benchmark_result.performance = avg_perf
 
         return combined_avg_benchmark_result
 
@@ -162,8 +153,7 @@ class BenchmarkLogger:
             "Accelerator",
             "Precision",
             "BS",
-            "it/s train",
-            "it/s infer",
+            "it/s",
         ]
         table_data = []
 
@@ -172,8 +162,7 @@ class BenchmarkLogger:
             model = result.bench_info.model
             accelerator = result.hw_info.accelerator
             precision = result.bench_info.compute_precision
-            train_throughput = round(result.train_performance.throughput, 2)
-            infer_throughput = round(result.infer_performance.throughput, 2)
+            throughput = round(result.performance.throughput, 2)
 
             assert (
                 result.bench_info.batch_size_inference
@@ -188,8 +177,7 @@ class BenchmarkLogger:
                 accelerator,
                 precision,
                 batch_size,
-                train_throughput,
-                infer_throughput,
+                throughput,
             ]
             table_data.append(row_data)
 

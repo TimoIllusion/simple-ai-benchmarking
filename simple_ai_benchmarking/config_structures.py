@@ -42,6 +42,9 @@ class ImageShape:
 class ModelConfig:
     model_identifier: ModelIdentifier = ModelIdentifier.SIMPLE_CLASSIFICATION_CNN
     model_shape: Sequence[int] = ()
+    
+    def __str__(self):
+        return f"{self.model_identifier.name} {self.model_shape}"
 
 
 @dataclass
@@ -63,6 +66,9 @@ class AIWorkloadBaseConfig:
     precision: NumericalPrecision = NumericalPrecision.DEFAULT_PRECISION
     dataset_cfg: DatasetConfig = DatasetConfig()
     model_cfg: ModelConfig = ModelConfig()
+    
+    def __str__(self):
+        return f"{self.model_cfg} with {self.precision.name} on {self.device_name}"
 
 
 @dataclass

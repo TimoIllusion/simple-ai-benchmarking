@@ -1,3 +1,5 @@
+from typing import List
+
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.config_structures import (
     AIWorkloadBaseConfig,
@@ -52,3 +54,13 @@ class WorkloadFactory:
             return TensorFlowTraining(workload_cfg)
         else:
             raise ValueError(f"Workload type {type(workload_cfg)} not supported")
+    
+    @staticmethod   
+    def build_multiple_workloads(workload_configs: List[AIWorkloadBaseConfig], framework: AIFramework) -> List[AIWorkload]:
+    
+        workloads = []
+        for cfg in workload_configs:
+            workload = WorkloadFactory.create_workload(cfg, framework)
+            workloads.append(workload)
+
+        return workloads

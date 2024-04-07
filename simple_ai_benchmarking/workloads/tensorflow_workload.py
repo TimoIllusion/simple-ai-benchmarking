@@ -1,3 +1,6 @@
+import time
+from copy import deepcopy
+
 from loguru import logger
 
 import tensorflow as tf
@@ -9,6 +12,7 @@ from simple_ai_benchmarking.config_structures import (
     AIFramework,
     InferenceConfig,
     TrainingConfig,
+    DatasetConfig,
 )
 from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
@@ -36,25 +40,6 @@ class TensorFlowTraining(AIWorkload):
             )
 
         with tf.device(
-            "/cpu:0"
-        ):  # Always generate dataset on system RAM, that is why CPU is forced here
-
-            dataset = SyntheticDatasetFactory.create_dataset(
-                self.cfg.dataset_cfg, AIFramework.TENSORFLOW
-            )
-
-            dataset.prepare()
-            self.inputs, self.targets = dataset.get_dataset()
-
-            self.tf_dataset = tf.data.Dataset.from_tensor_slices(
-                (self.inputs, self.targets)
-            )
-
-            self.tf_dataset = self.tf_dataset.shuffle(buffer_size=10000)
-            self.tf_dataset = self.tf_dataset.batch(self.cfg.dataset_cfg.batch_size)
-            self.tf_dataset = self.tf_dataset.prefetch(tf.data.AUTOTUNE)
-
-        with tf.device(
             self.cfg.device_name
         ):  # Model shall be loaded to accelerator device directly
             self.model = ClassificationModelFactory.create_model(
@@ -69,26 +54,59 @@ class TensorFlowTraining(AIWorkload):
             # self.model.summary()
 
     def _warmup(self) -> None:
-        with tf.device(self.cfg.device_name):
-            self.model.fit(
-                self.tf_dataset,
-                epochs=1,
-                validation_data=None,
-                verbose=0,
+        dataset_cfg = deepcopy(self.cfg.dataset_cfg)
+        dataset_cfg.num_batches = 3
+
+        tf_dataset_warmup = self._prepare_synthetic_dataset(dataset_cfg)
+        self._train_loop(tf_dataset_warmup, 1)
+
+    def _prepare_synthetic_dataset(self, dataset_cfg: DatasetConfig) -> tf.data.Dataset:
+        with tf.device(
+            "/cpu:0"
+        ):  # Always generate dataset on system RAM, that is why CPU is forced here
+
+            warmup_dataset = SyntheticDatasetFactory.create_dataset(
+                dataset_cfg, AIFramework.TENSORFLOW
             )
+            warmup_dataset.prepare()
+            inputs, targets = warmup_dataset.get_inputs_and_targets()
+            
+            logger.trace(
+                "Synthetic Dataset TensorFlow Inputs Shape: {} {}",
+                inputs.shape,
+                inputs.dtype,
+            )
+            logger.trace(
+                "Synthetic Dataset TensorFlow Targets Shape: {} {}",
+                targets.shape,
+                targets.dtype,
+            )
+            
+            tf_dataset = tf.data.Dataset.from_tensor_slices((inputs, targets))
+
+            tf_dataset = tf_dataset.batch(dataset_cfg.batch_size)
+            tf_dataset = tf_dataset.shuffle(buffer_size=10000)
+
+            tf_dataset = tf_dataset.prefetch(tf.data.AUTOTUNE)
+            
+        return tf_dataset
+
+    def prepare_execution(self) -> None:
+        self.tf_dataset_execution = self._prepare_synthetic_dataset(
+            self.cfg.dataset_cfg
+        )
 
     def _execute(self) -> None:
-        with tf.device(self.cfg.device_name):
+        self._train_loop(self.tf_dataset_execution, self.cfg.epochs)
 
+    def _train_loop(self, dataset: tf.data.Dataset, epochs: int) -> None:
+        with tf.device(self.cfg.device_name):
             self.model.fit(
-                self.tf_dataset,
-                epochs=self.cfg.epochs,
+                dataset,
+                epochs=epochs,
                 validation_data=None,
                 verbose=0,
             )
-
-            for _ in range(self.cfg.epochs * self.cfg.dataset_cfg.num_batches):
-                self._increment_iteration_counter_by_batch_size()
 
     def _get_accelerator_info(self) -> str:
 
@@ -153,8 +171,21 @@ class TensorFlowTraining(AIWorkload):
         gbytes = np.round(total_memory / (1024.0**3), 3) + internal_model_mem_count
         return gbytes
 
+    def _calculate_iterations(self) -> int:
+        return (
+            self.cfg.dataset_cfg.num_batches
+            * self.cfg.dataset_cfg.batch_size
+            * self.cfg.epochs
+        )
+
     def _get_ai_stage(self) -> AIStage:
         return AIStage.TRAINING
+
+    def clean_up(self) -> None:
+
+        del self.model
+        del self.tf_dataset_execution
+        tf.keras.backend.clear_session()
 
 
 class TensorFlowInference(TensorFlowTraining):
@@ -165,18 +196,21 @@ class TensorFlowInference(TensorFlowTraining):
         self.cfg: InferenceConfig  # for type hinting
 
     def _warmup(self) -> None:
-        self._infer_loop()
+        warmup_dataset_cfg = deepcopy(self.cfg.dataset_cfg)
+        warmup_dataset_cfg.num_batches = 3
+
+        tf_dataset_warmup = self._prepare_synthetic_dataset(warmup_dataset_cfg)
+        self._infer_loop(tf_dataset_warmup)
 
     def _execute(self) -> None:
-        self._infer_loop()
+        self._infer_loop(self.tf_dataset_execution)
 
-    def _infer_loop(self) -> None:
+    def _infer_loop(self, dataset: tf.data.Dataset) -> None:
         with tf.device(self.cfg.device_name):
+            predictions = self.model.predict(dataset, verbose=0)
 
-            predictions = self.model.predict(self.tf_dataset, verbose=0)
-
-            for _ in range(self.cfg.dataset_cfg.num_batches):
-                self._increment_iteration_counter_by_batch_size()
+    def _calculate_iterations(self) -> int:
+        return self.cfg.dataset_cfg.num_batches * self.cfg.dataset_cfg.batch_size
 
     def _get_ai_stage(self) -> AIStage:
         return AIStage.INFERENCE

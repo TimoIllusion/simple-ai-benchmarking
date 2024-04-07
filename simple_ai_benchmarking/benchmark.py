@@ -1,11 +1,12 @@
 from typing import List
-import math
+import time
 
 from loguru import logger
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.results import BenchmarkLogger, BenchmarkResult
 from simple_ai_benchmarking.timer import Timer
+from simple_ai_benchmarking.dataset import get_available_memory_in_bytes
 
 
 def process_workloads(
@@ -19,7 +20,9 @@ def process_workloads(
     for workload in workloads:
         logger.info(f"Running benchmark: {workload}")
         benchmark_repetition_results = _repeat_benchmark_n_times(workload, repetitions)
-        result_logger.add_repetitions_for_one_benchmark(benchmark_repetition_results)
+        result_logger.add_benchmark_result_by_averaging_multiple_results(
+            benchmark_repetition_results
+        )
 
     result_logger.pretty_print_summary()
 
@@ -44,42 +47,30 @@ def _repeat_benchmark_n_times(
 
     return benchmark_repetition_results
 
+
 def benchmark(workload: AIWorkload) -> BenchmarkResult:
-    
-    TARGET_BENCHMARK_DURATION_SECONDS = 0.1
-
+    check_memory("before START")
     workload.setup()
+    check_memory("after SETUP")
 
-    logger.info("WARMUP")
+    logger.info(f"WARMUP: {workload.__class__.__name__}")
     workload.warmup()
-    
-    logger.info("CALIBRATION")
+    check_memory("after WARMUP")
+
+    logger.info(f"EXECUTION: {workload.__class__.__name__}")
+    workload.prepare_execution()
+    check_memory("after EXECUTION PREPARATION")
     with Timer() as t:
         workload.execute()
-        
-    calib_duration_seconds = t.duration_s
-    num_executions = calculate_repetitions(TARGET_BENCHMARK_DURATION_SECONDS, calib_duration_seconds)
-
-    workload.reset_iteration_counter()
-
-    logger.info(f"{num_executions} EXECUTIONS of {workload.__class__.__name__}")
-    with Timer() as t:
-        for i in range(num_executions):
-            logger.info(f"EXECUTION {i+1}/{num_executions}")
-            workload.execute()
     training_duration_s = t.duration_s
-    
+
     result_log = workload.build_result_log()
 
-    result_log.update_train_performance_duration(training_duration_s)
-    result_log.update_infer_performance_duration(training_duration_s)
+    result_log.update_performance_duration(training_duration_s)
 
     return result_log
 
-def calculate_repetitions(target_duration_seconds: float, actual_duration_seconds: float) -> int:
-    repetitions = math.ceil(target_duration_seconds / actual_duration_seconds)
 
-    if repetitions == 0:
-        repetitions = 1
-
-    return int(repetitions)
+def check_memory(info_text: str = ""):
+    available_memory_gb = get_available_memory_in_bytes() / 1e9
+    logger.warning(f"Available memory {info_text} : {available_memory_gb} GB")

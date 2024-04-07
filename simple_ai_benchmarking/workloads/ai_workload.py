@@ -18,36 +18,33 @@ from simple_ai_benchmarking.results import (
 from simple_ai_benchmarking.config_structures import AIWorkloadBaseConfig, AIStage
 
 
-
 class AIWorkload(ABC):
 
     def __init__(self, config: AIWorkloadBaseConfig) -> None:
         self.cfg = config
-        
-        self.model_name = self.cfg.model_cfg.model_identifier.value
-
-        self.reset_iteration_counter()
 
         self.warmup_done = False
-
-    def reset_iteration_counter(self) -> None:
-        self.iteration_counter = 0
-
-    def _increment_iteration_counter_by_batch_size(self) -> None:
-        self.iteration_counter += self.cfg.dataset_cfg.batch_size
 
     @abstractmethod
     def setup(self) -> None:
         pass
 
+    @abstractmethod
+    def _prepare_synthetic_dataset(self) -> object:
+        pass
+
     def warmup(self) -> None:
+        """Warm up workload before execution."""
+
         self._warmup()
-        self.reset_iteration_counter()
         self.warmup_done = True
-        self.warmup_inference_done = False
 
     @abstractmethod
     def _warmup(self) -> None:
+        pass
+
+    @abstractmethod
+    def prepare_execution(self) -> None:
         pass
 
     def execute(self) -> None:
@@ -56,6 +53,10 @@ class AIWorkload(ABC):
 
     @abstractmethod
     def _execute(self) -> None:
+        pass
+
+    @abstractmethod
+    def _calculate_iterations(self) -> int:
         pass
 
     @abstractmethod
@@ -73,7 +74,7 @@ class AIWorkload(ABC):
     @abstractmethod
     def _get_accelerator_info(self) -> str:
         pass
-    
+
     @abstractmethod
     def _get_ai_stage(self) -> AIStage:
         pass
@@ -97,7 +98,7 @@ class AIWorkload(ABC):
 
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
-            model=self.model_name,
+            model=self.cfg.model_cfg.model_identifier.value,
             compute_precision=self.cfg.precision.name,
             batch_size_training=self.cfg.dataset_cfg.batch_size,
             batch_size_inference=self.cfg.dataset_cfg.batch_size,
@@ -105,19 +106,16 @@ class AIWorkload(ABC):
             date=datetime.datetime.now().isoformat(),
         )
 
-        train_performance = PerformanceResult(iterations=self.iteration_counter)
-
-        infer_performance = PerformanceResult(iterations=self.iteration_counter)
+        performance = PerformanceResult(iterations=self._calculate_iterations())
 
         benchmark_result = BenchmarkResult(
             sw_info=sw_info,
             hw_info=hw_info,
             bench_info=bench_info,
-            train_performance=train_performance,
-            infer_performance=infer_performance,
+            performance=performance,
         )
 
         return benchmark_result
 
     def __str__(self) -> str:
-        return f"{self.__class__.__name__} | {self.model_name} | {self._get_accelerator_info()}"
+        return f"{self.__class__.__name__} | {self.cfg.model_cfg.model_identifier.value} | {self._get_accelerator_info()}"

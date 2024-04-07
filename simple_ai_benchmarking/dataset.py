@@ -9,7 +9,7 @@ import numpy as np
 import psutil
 
 
-def _estimate_array_memory_usage(shape: list, dtype: np.dtype) -> float:
+def estimate_array_memory_usage(shape: list, dtype: np.dtype) -> float:
     """
     Estimates the memory usage of a numpy array.
 
@@ -24,7 +24,7 @@ def _estimate_array_memory_usage(shape: list, dtype: np.dtype) -> float:
     return np.prod(shape) * itemsize
 
 
-def _is_memory_sufficient_for_arrays(*arrays_info) -> bool:
+def is_memory_sufficient_for_arrays(*arrays_info) -> bool:
     """
     Checks if there is enough available system memory to create the numpy arrays.
 
@@ -35,14 +35,17 @@ def _is_memory_sufficient_for_arrays(*arrays_info) -> bool:
     - True if there is enough memory to create the arrays, False otherwise.
     """
     required_memory = sum(
-        _estimate_array_memory_usage(shape, dtype) for shape, dtype in arrays_info
+        estimate_array_memory_usage(shape, dtype) for shape, dtype in arrays_info
     )
-    available_memory = psutil.virtual_memory().available
+    available_memory = get_available_memory_in_bytes()
 
-    logger.warning(f"{required_memory/1e9} {available_memory/1e9}")
-    logger.info(required_memory < available_memory)
+    logger.warning(f"Required memory {required_memory/1e9} GB vs. available memory {available_memory/1e9} GB")
+    logger.info(f"Sufficient memory: {required_memory < available_memory}")
 
     return required_memory < available_memory
+
+def get_available_memory_in_bytes():
+    return psutil.virtual_memory().available
 
 
 class Dataset(ABC):
@@ -55,7 +58,7 @@ class Dataset(ABC):
         pass
 
     @abstractmethod
-    def get_dataset(self) -> Tuple[object, object]:
+    def get_inputs_and_targets(self) -> Tuple[object, object]:
         """Returns dataset.
 
         Returns:
@@ -81,7 +84,7 @@ class SyntheticDataset(Dataset):
             self.cfg.num_batches * self.cfg.batch_size
         ] + list(self.cfg.target_shape_without_batch)
 
-        if _is_memory_sufficient_for_arrays(
+        if is_memory_sufficient_for_arrays(
             (self.dataset_inputs_shape, np.float32),
             (self.dataset_targets_shape, np.int64),
         ):
@@ -107,7 +110,7 @@ class SyntheticDataset(Dataset):
     def _create_data(self) -> None:
         pass
 
-    def get_dataset(self) -> Tuple[object, object]:
+    def get_inputs_and_targets(self) -> Tuple[object, object]:
         if self.inputs is None or self.targets is None:
             raise ValueError("Dataset not prepared.")
         return self.inputs, self.targets
