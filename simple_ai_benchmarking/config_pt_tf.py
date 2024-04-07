@@ -6,7 +6,7 @@ from sys import platform
 
 from loguru import logger
 
-from simple_ai_benchmarking.config import (
+from simple_ai_benchmarking.config_structures import (
     NumericalPrecision,
     AIWorkloadBaseConfig,
     InferenceConfig,

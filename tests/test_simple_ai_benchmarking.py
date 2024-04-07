@@ -6,7 +6,7 @@ import pytest
 import pandas
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.config import (
+from simple_ai_benchmarking.config_structures import (
     AIWorkloadBaseConfig,
     NumericalPrecision,
     AIModelWrapper,

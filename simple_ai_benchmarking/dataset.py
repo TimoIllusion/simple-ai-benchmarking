@@ -1,7 +1,7 @@
 from typing import List, Tuple
 from abc import ABC, abstractmethod
 
-from simple_ai_benchmarking.config import DatasetConfig, AIFramework
+from simple_ai_benchmarking.config_structures import DatasetConfig, AIFramework
 
 from loguru import logger
 

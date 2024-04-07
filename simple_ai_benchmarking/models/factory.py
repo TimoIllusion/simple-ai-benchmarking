@@ -1,4 +1,4 @@
-from simple_ai_benchmarking.config import (
+from simple_ai_benchmarking.config_structures import (
     ModelIdentifier,
     AIFramework,
     ClassificiationModelConfig,

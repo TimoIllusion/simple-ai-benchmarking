@@ -7,10 +7,10 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.config import NumericalPrecision, TrainingConfig
+from simple_ai_benchmarking.config_structures import NumericalPrecision, TrainingConfig
 from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
-from simple_ai_benchmarking.config import AIFramework, AIStage
+from simple_ai_benchmarking.config_structures import AIFramework, AIStage
 
 
 class PyTorchTraining(AIWorkload):

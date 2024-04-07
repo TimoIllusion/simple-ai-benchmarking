@@ -3,7 +3,7 @@ from loguru import logger
 import tensorflow as tf
 import numpy as np
 
-from simple_ai_benchmarking.config import NumericalPrecision, AIStage, AIFramework, InferenceConfig, TrainingConfig
+from simple_ai_benchmarking.config_structures import NumericalPrecision, AIStage, AIFramework, InferenceConfig, TrainingConfig
 from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload

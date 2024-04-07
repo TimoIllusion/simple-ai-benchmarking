@@ -15,7 +15,7 @@ from simple_ai_benchmarking.results import (
     PerformanceResult,
     BenchmarkResult,
 )
-from simple_ai_benchmarking.config import AIWorkloadBaseConfig, AIStage
+from simple_ai_benchmarking.config_structures import AIWorkloadBaseConfig, AIStage
 
 
 
