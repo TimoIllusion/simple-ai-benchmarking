@@ -6,21 +6,37 @@ from loguru import logger
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from simple_ai_benchmarking.results import *
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.config import NumericalPrecision
+from simple_ai_benchmarking.config import NumericalPrecision, PytorchTrainingConfig
+from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
+from simple_ai_benchmarking.models.factory import ClassificationModelFactory
+from simple_ai_benchmarking.config import AIFramework, AIStage
 
 
 class PyTorchTraining(AIWorkload):
 
+    def __init__(self, config: PytorchTrainingConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: PytorchTrainingConfig  # for type hinting
+
     def setup(self) -> None:
+
+        self.device = torch.device(self.cfg.device_name)
+
+        self.model = ClassificationModelFactory.create_model(
+            self.cfg.model_cfg, AIFramework.PYTORCH
+        )
 
         # print(self.model)
         logger.trace("Number of model parameters: {}", self.count_model_parameters())
 
-        self.device = torch.device(self.cfg.device_name)
-        
-        self.inputs, self.targets = self.dataset.get_dataset()
+        dataset = SyntheticDatasetFactory.create_dataset(
+            self.cfg.dataset_cfg, AIFramework.PYTORCH
+        )
+
+        dataset.prepare()
+        self.inputs, self.targets = dataset.get_dataset()
 
         logger.trace(
             "Synthetic Dataset PyTorch Inputs Shape: {} {}",
@@ -35,7 +51,10 @@ class PyTorchTraining(AIWorkload):
 
         dataset = TensorDataset(self.inputs, self.targets)
         self.dataloader = DataLoader(
-            dataset, batch_size=self.cfg.batch_size, shuffle=False, pin_memory=True
+            dataset,
+            batch_size=self.cfg.dataset_cfg.batch_size,
+            shuffle=False,
+            pin_memory=True,
         )
 
         self.optimizer = torch.optim.SGD(
@@ -59,15 +78,15 @@ class PyTorchTraining(AIWorkload):
 
     def _assign_numerical_precision(self) -> None:
 
-        if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
+        if self.cfg.precision == NumericalPrecision.MIXED_FP16:
             self.numerical_precision = torch.float16
-        elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        elif self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
             pass
-        elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
+        elif self.cfg.precision == NumericalPrecision.EXPLICIT_FP32:
             self.numerical_precision = torch.float32
         else:
             raise NotImplementedError(
-                f"Data type not implemented: {self.cfg.data_type}"
+                f"Data type not implemented: {self.cfg.precision}"
             )
 
     def _assign_autocast_device_type(self) -> None:
@@ -81,7 +100,7 @@ class PyTorchTraining(AIWorkload):
 
     def _execute(self) -> None:
 
-        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        if self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
             self._training_loop(self.cfg.epochs)
         else:
             with torch.autocast(
@@ -144,6 +163,9 @@ class PyTorchTraining(AIWorkload):
         else:
             return "N/A"
 
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.TRAINING
+
 
 class PyTorchInference(PyTorchTraining):
 
@@ -152,7 +174,7 @@ class PyTorchInference(PyTorchTraining):
 
     def _execute(self) -> None:
 
-        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        if self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
             self._infer_loop()
         else:
             with torch.autocast(
@@ -160,7 +182,7 @@ class PyTorchInference(PyTorchTraining):
             ):
                 self._infer_loop()
 
-    #TODO: use loop that is similar to real world usage (no dataloader, more like webcam image stream etc.)
+    # TODO: use loop that is similar to real world usage (no dataloader, more like webcam image stream etc.)
     def _infer_loop(self, max_batches: int = math.inf) -> None:
 
         self.model.eval()
@@ -173,3 +195,6 @@ class PyTorchInference(PyTorchTraining):
 
             if i >= max_batches:
                 break
+
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.INFERENCE

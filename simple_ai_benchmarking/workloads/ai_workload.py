@@ -1,12 +1,10 @@
 from abc import abstractmethod, ABC
 import platform
 import multiprocessing
-from typing import Tuple
 import datetime
 
 from loguru import logger
 
-import numpy as np
 import psutil
 import cpuinfo
 
@@ -17,22 +15,16 @@ from simple_ai_benchmarking.results import (
     PerformanceResult,
     BenchmarkResult,
 )
-from simple_ai_benchmarking.config import AIWorkloadBaseConfig, AIModelWrapper
-from simple_ai_benchmarking.dataset import Dataset
+from simple_ai_benchmarking.config import AIWorkloadBaseConfig, AIStage
+
 
 
 class AIWorkload(ABC):
 
-    def __init__(
-        self, ai_model: AIModelWrapper, dataset: Dataset, config: AIWorkloadBaseConfig
-    ) -> None:
-
-        self.model_name = ai_model.name
-        self.model = ai_model.model
-
+    def __init__(self, config: AIWorkloadBaseConfig) -> None:
         self.cfg = config
-
-        self.dataset = dataset
+        
+        self.model_name = self.cfg.model_cfg.model_identifier.value
 
         self.reset_iteration_counter()
 
@@ -42,7 +34,7 @@ class AIWorkload(ABC):
         self.iteration_counter = 0
 
     def _increment_iteration_counter_by_batch_size(self) -> None:
-        self.iteration_counter += self.cfg.batch_size
+        self.iteration_counter += self.cfg.dataset_cfg.batch_size
 
     @abstractmethod
     def setup(self) -> None:
@@ -81,6 +73,10 @@ class AIWorkload(ABC):
     @abstractmethod
     def _get_accelerator_info(self) -> str:
         pass
+    
+    @abstractmethod
+    def _get_ai_stage(self) -> AIStage:
+        pass
 
     def build_result_log(self) -> BenchmarkResult:
 
@@ -102,9 +98,9 @@ class AIWorkload(ABC):
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
             model=self.model_name,
-            compute_precision=self.cfg.data_type.name,
-            batch_size_training=self.cfg.batch_size,
-            batch_size_inference=self.cfg.batch_size,
+            compute_precision=self.cfg.precision.name,
+            batch_size_training=self.cfg.dataset_cfg.batch_size,
+            batch_size_inference=self.cfg.dataset_cfg.batch_size,
             sample_shape=None,
             date=datetime.datetime.now().isoformat(),
         )

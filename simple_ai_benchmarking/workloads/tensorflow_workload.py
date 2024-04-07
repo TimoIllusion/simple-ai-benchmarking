@@ -3,26 +3,26 @@ from loguru import logger
 import tensorflow as tf
 import numpy as np
 
-from simple_ai_benchmarking.config import NumericalPrecision
+from simple_ai_benchmarking.config import NumericalPrecision, AIStage
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
 
-class TensorFlowKerasTraining(AIWorkload):
+class TensorFlowTraining(AIWorkload):
 
     def setup(self) -> None:
-        
+
         # Always generate dataset on system RAM, that is why CPU is forced here
         with tf.device("/cpu:0"):
 
-            if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
+            if self.cfg.precision == NumericalPrecision.MIXED_FP16:
                 tf.keras.mixed_precision.set_global_policy("mixed_float16")
-            elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
+            elif self.cfg.precision == NumericalPrecision.EXPLICIT_FP32:
                 tf.keras.mixed_precision.set_global_policy("float32")
-            elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+            elif self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
                 pass
             else:
                 raise NotImplementedError(
-                    f"Data type not implemented: {self.cfg.data_type}"
+                    f"Data type not implemented: {self.cfg.precision}"
                 )
 
             self.model.compile(
@@ -43,7 +43,7 @@ class TensorFlowKerasTraining(AIWorkload):
             self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
 
     def _warmup(self) -> None:
-        
+
         self.model.fit(
             self.syn_dataset,
             epochs=1,
@@ -94,8 +94,8 @@ class TensorFlowKerasTraining(AIWorkload):
         for l in model.layers:
             layer_type = l.__class__.__name__
             if layer_type == "Model":
-                internal_model_mem_count += (
-                    TensorFlowKerasTraining.get_model_memory_usage(batch_size, l)
+                internal_model_mem_count += TensorFlowTraining.get_model_memory_usage(
+                    batch_size, l
                 )
             single_layer_mem = 1
             out_shape = l.output_shape
@@ -125,9 +125,12 @@ class TensorFlowKerasTraining(AIWorkload):
         )
         gbytes = np.round(total_memory / (1024.0**3), 3) + internal_model_mem_count
         return gbytes
+    
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.TRAINING
 
 
-class TensorFlowKerasInference(TensorFlowKerasTraining):
+class TensorFlowInference(TensorFlowTraining):
 
     def _warmup(self) -> None:
         self._infer_loop()
@@ -141,5 +144,6 @@ class TensorFlowKerasInference(TensorFlowKerasTraining):
 
         for _ in range(self.cfg.num_batches):
             self._increment_iteration_counter_by_batch_size()
-
-    
+            
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.INFERENCE

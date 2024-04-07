@@ -66,9 +66,9 @@ def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
         batch_size=1,
         num_batches=1,
         device_name="cpu",
-        data_type=NumericalPrecision.DEFAULT_PRECISION,
-        input_shape_without_batch=[10, 10, 10],
-        target_shape_without_batch=[10, 10, 10],
+        precision=NumericalPrecision.DEFAULT_PRECISION,
+        input_shape_without_batch_hwc=[10, 10, 10],
+        target_shape_without_batch_hwc=[10, 10, 10],
     )
 
     return cfg

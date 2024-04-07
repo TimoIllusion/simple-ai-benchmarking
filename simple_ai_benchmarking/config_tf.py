@@ -12,7 +12,7 @@ from simple_ai_benchmarking.config import (
     AIModelWrapper,
 )
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowKerasTraining, TensorFlowKerasInference
+from simple_ai_benchmarking.workloads.tensorflow_workload import TensorFlowTraining, TensorFlowInference
 from simple_ai_benchmarking.models.tf.simple_classification_cnn import (
     SimpleClassificationCNN,
 )
@@ -48,14 +48,14 @@ def build_default_tf_workloads() -> List[AIWorkload]:
         batch_size=8,
         num_batches=50,
         epochs=10,
-        input_shape_without_batch=model_shape,
-        target_shape_without_batch=[],
+        input_shape_without_batch_hwc=model_shape,
+        target_shape_without_batch_hwc=[],
         device_name=device_name,
-        data_type=NumericalPrecision.DEFAULT_PRECISION,
+        precision=NumericalPrecision.DEFAULT_PRECISION,
     )
 
     common_cfg_fp16_mixed = copy(common_cfg_default)
-    common_cfg_fp16_mixed.data_type = NumericalPrecision.MIXED_FP16
+    common_cfg_fp16_mixed.precision = NumericalPrecision.MIXED_FP16
 
     # common_cfg_fp32_explicit = copy(common_cfg_default)
     # common_cfg_fp32_explicit.data_type = NumericalPrecision.EXPLICIT_FP32
@@ -75,16 +75,16 @@ def build_default_tf_workloads() -> List[AIWorkload]:
 
     # Get more models form keras model zoo: https://keras.io/api/applications/
     workloads = [
-        TensorFlowKerasInference(simple_classification_cnn, syn_dataset_bs8, common_cfg_default),
-        TensorFlowKerasInference(
+        TensorFlowInference(simple_classification_cnn, syn_dataset_bs8, common_cfg_default),
+        TensorFlowInference(
             simple_classification_cnn2, syn_dataset_bs8, common_cfg_fp16_mixed
         ),
-        TensorFlowKerasInference(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
-        TensorFlowKerasTraining(simple_classification_cnn, syn_dataset_bs8,common_cfg_default),
-        TensorFlowKerasTraining(
+        TensorFlowInference(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
+        TensorFlowTraining(simple_classification_cnn, syn_dataset_bs8,common_cfg_default),
+        TensorFlowTraining(
             simple_classification_cnn2, syn_dataset_bs8, common_cfg_fp16_mixed
         ),
-        TensorFlowKerasTraining(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
+        TensorFlowTraining(resnet50, syn_dataset_bs1, common_cfg_bs1_default),
     ]
 
     return workloads
