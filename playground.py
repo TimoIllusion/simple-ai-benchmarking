@@ -26,7 +26,7 @@ print(pt_model)
 
 pt_layer_info = []
 
-temp_param_sum  = 0
+temp_param_sum  = -768
 for name, param in pt_model.named_parameters():
     num_params = param.numel()
     temp_param_sum += num_params
