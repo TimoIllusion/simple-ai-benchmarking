@@ -2,8 +2,7 @@
 
 import tensorflow as tf
 from tensorflow.keras import layers, Model
-import numpy as np
-import math
+
 
 
 class MLPBlock(layers.Layer):
@@ -94,7 +93,7 @@ class VisionTransformer(Model):
         super(VisionTransformer, self).__init__()
         num_patches = (image_size // patch_size) ** 2
         self.patch_size = patch_size
-        self.conv_proj = layers.Conv2D(
+        self.conv_proj = tf.keras.layers.Conv2D(
             hidden_dim, kernel_size=patch_size, strides=patch_size
         )
         self.class_token = self.add_weight(
@@ -122,7 +121,7 @@ class VisionTransformer(Model):
         class_token = tf.broadcast_to(
             self.class_token, (batch_size, 1, self.class_token.shape[-1])
         )
-        # Concatenate the class token with the patch embeddings
+        # # Concatenate the class token with the patch embeddings
         x = tf.concat([class_token, x], axis=1)
         
         print("Before encoder (TF):", x.shape)
@@ -142,7 +141,7 @@ class VisionTransformer(Model):
         return output
 
 
-def create_vit_b_16():
+def create_vit_b_16() -> VisionTransformer:
 
     # Define the VisionTransformer model parameters as per the ViT-B/16 configuration
     image_size = 224  # Assuming input images are 224x224
