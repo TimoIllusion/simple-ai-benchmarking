@@ -37,9 +37,9 @@ class ClassificationModelFactory:
 
         elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
 
-            raise NotImplementedError("ResNet50 not implemented for PyTorch")
+            from simple_ai_benchmarking.models.pt.resnet50 import ResNet50
 
-            #     resnet50 = torchvision.models.resnet50(num_classes=1000)
+            return ResNet50(model_cfg.num_classes)
 
         else:
             raise ValueError(
@@ -65,7 +65,9 @@ class ClassificationModelFactory:
 
         elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
 
-            raise NotImplementedError("ResNet50 not implemented for TensorFlow")
+            from simple_ai_benchmarking.models.tf.resnet50 import ResNet50
+            
+            return ResNet50(model_cfg.num_classes, model_cfg.model_shape)
 
         else:
             raise ValueError(

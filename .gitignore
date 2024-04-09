@@ -4,6 +4,14 @@ log.json
 *.csv
 *.xlsx
 
+benchmark_results_dummy.csv
+model_pt.onnx
+model_tf.onnx
+pt_model.json
+tf_model.json
+tf_model
+
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -134,4 +142,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-benchmark_results_dummy.csv
+ResNet50.onnx
