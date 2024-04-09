@@ -23,12 +23,14 @@ class ClassificationModelFactory:
     def _create_pytorch_model(
         model_cfg: ClassificiationModelConfig,
     ):
+        input_shape = model_cfg.model_shape.to_tuple_chw()
+        
         if model_cfg.model_identifier == ModelIdentifier.SIMPLE_CLASSIFICATION_CNN:
             from simple_ai_benchmarking.models.pt.simple_classification_cnn import (
                 SimpleClassificationCNN,
             )
 
-            return SimpleClassificationCNN(model_cfg.num_classes, model_cfg.model_shape)
+            return SimpleClassificationCNN(model_cfg.num_classes, input_shape)
 
         elif model_cfg.model_identifier == ModelIdentifier.VIT_B_16:
             from simple_ai_benchmarking.models.pt.vit import VisionTransformer
@@ -50,24 +52,27 @@ class ClassificationModelFactory:
     def _create_tensorflow_model(
         model_cfg: ClassificiationModelConfig,
     ):
+        
+        input_shape = model_cfg.model_shape.to_tuple_hwc()
+        
         if model_cfg.model_identifier == ModelIdentifier.SIMPLE_CLASSIFICATION_CNN:
             from simple_ai_benchmarking.models.tf.simple_classification_cnn import (
                 SimpleClassificationCNN,
             )
 
-            return SimpleClassificationCNN(model_cfg.num_classes, model_cfg.model_shape)
+            return SimpleClassificationCNN(model_cfg.num_classes, input_shape)
 
         elif model_cfg.model_identifier == ModelIdentifier.VIT_B_16:
 
             from simple_ai_benchmarking.models.tf.vit import create_vit_b_16
 
-            return create_vit_b_16(model_cfg.num_classes, model_cfg.model_shape)
+            return create_vit_b_16(model_cfg.num_classes, input_shape)
 
         elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
 
             from simple_ai_benchmarking.models.tf.resnet50 import ResNet50
             
-            return ResNet50(model_cfg.num_classes, model_cfg.model_shape)
+            return ResNet50(model_cfg.num_classes, input_shape)
 
         else:
             raise ValueError(

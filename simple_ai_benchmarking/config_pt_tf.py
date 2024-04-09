@@ -23,17 +23,15 @@ def build_default_pt_workload_configs(
     framework: AIFramework,
 ) -> List[AIWorkloadBaseConfig]:
 
-    img_shape = ImageShape(224, 224, 3)
+    input_sample_shape = ImageShape(224, 224, 3)
     num_classes = 100
     training_epochs = 10
     num_batches = 50
 
     if framework is AIFramework.PYTORCH:
         device_name = get_device_name_pytorch()
-        input_sample_shape = img_shape.to_tuple_chw()
     elif framework is AIFramework.TENSORFLOW:
         device_name = get_device_name_tensorflow()
-        input_sample_shape = img_shape.to_tuple_hwc()
     else:
         raise ValueError("Invalid framework")
 

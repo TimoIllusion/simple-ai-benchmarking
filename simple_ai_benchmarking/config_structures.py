@@ -50,6 +50,7 @@ class ModelConfig:
 @dataclass
 class ClassificiationModelConfig(ModelConfig):
     num_classes: int = 2
+    model_shape: ImageShape = ImageShape(224, 224, 3)
 
 
 @dataclass
