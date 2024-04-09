@@ -36,6 +36,14 @@ class ImageShape:
 
     def to_tuple_chw(self) -> Tuple[int]:
         return (self.channels, self.height, self.width)
+    
+    def to_tuple_depending_on_framework(self, framework: AIFramework) -> Tuple[int]:
+        if framework is AIFramework.PYTORCH:
+            return self.to_tuple_chw()
+        elif framework is AIFramework.TENSORFLOW:
+            return self.to_tuple_hwc()
+        else:
+            raise ValueError("Invalid framework")
 
 
 @dataclass

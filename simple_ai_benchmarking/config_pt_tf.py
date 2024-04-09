@@ -37,12 +37,14 @@ def build_default_pt_workload_configs(
 
     logger.trace("Device Name: {}", device_name)
     logger.trace("Input Sample Shape: {}", input_sample_shape)
+    
+    dataset_sample_shape = input_sample_shape.to_tuple_depending_on_framework(framework)
 
     workload_cfgs = [
         InferenceConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=1,
-                input_shape_without_batch=input_sample_shape,
+                input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
@@ -56,7 +58,7 @@ def build_default_pt_workload_configs(
         InferenceConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8,
-                input_shape_without_batch=input_sample_shape,
+                input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
@@ -70,7 +72,7 @@ def build_default_pt_workload_configs(
         InferenceConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8,
-                input_shape_without_batch=input_sample_shape,
+                input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
@@ -84,7 +86,7 @@ def build_default_pt_workload_configs(
         TrainingConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8,
-                input_shape_without_batch=input_sample_shape,
+                input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
@@ -99,7 +101,7 @@ def build_default_pt_workload_configs(
         TrainingConfig(
             dataset_cfg=DatasetConfig(
                 batch_size=8,
-                input_shape_without_batch=input_sample_shape,
+                input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
