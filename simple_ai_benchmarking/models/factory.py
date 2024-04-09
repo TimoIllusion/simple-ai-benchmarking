@@ -59,9 +59,9 @@ class ClassificationModelFactory:
 
         elif model_cfg.model_identifier == ModelIdentifier.VIT_B_16:
 
-            from simple_ai_benchmarking.models.tf.vit_torchvision_tf import create_vit_b_16
+            from simple_ai_benchmarking.models.tf.vit import create_vit_b_16
 
-            return create_vit_b_16()
+            return create_vit_b_16(model_cfg.num_classes, model_cfg.model_shape)
 
         elif model_cfg.model_identifier == ModelIdentifier.RESNET50:
 

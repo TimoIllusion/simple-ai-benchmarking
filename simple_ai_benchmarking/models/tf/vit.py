@@ -1,133 +1,233 @@
-# adapted from https://github.com/keras-team/keras-io/blob/a3c5fc04fd613189bf5142ccd2bdab8fc2fc07b2/examples/vision/image_classification_with_vision_transformer.py (Apache-2.0 license)
-# Original Author: [Khalid Salama](https://www.linkedin.com/in/khalid-salama-24403144/)
+# Conversion to TensorFlow of # https://github.com/pytorch/vision/blob/main/torchvision/models/vision_transformer.py
+# Using 1:1 amount of parameters (85875556)
 
+from typing import Tuple
 
 import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers
+from tensorflow.keras import layers, Model
 
 
-image_size = 224  # We'll resize input images to this size
-patch_size = 16  # Size of the patches to be extract from the input images
-num_patches = (image_size // patch_size) ** 2
-projection_dim = 768
-num_heads = 12
-transformer_units = [
-    projection_dim * 4,
-    projection_dim,
-]  # Size of the transformer layers
-transformer_layers = 12
-mlp_head_units = [768]  # Size of the dense layers of the final classifier
+class MLPBlock(layers.Layer):
+    def __init__(self, in_dim, mlp_dim, dropout_rate):
+        super(MLPBlock, self).__init__()
+        self.fc1 = layers.Dense(mlp_dim, activation=tf.keras.activations.gelu)
+        self.dropout1 = layers.Dropout(dropout_rate)
+        self.fc2 = layers.Dense(in_dim)
+        self.dropout2 = layers.Dropout(dropout_rate)
+
+    def call(self, inputs):
+        x = self.fc1(inputs)
+        x = self.dropout1(x)
+        x = self.fc2(x)
+        return self.dropout2(x)
 
 
-def mlp(x, hidden_units, dropout_rate):
-    for units in hidden_units:
-        x = layers.Dense(units, activation=tf.nn.gelu)(x)
-        x = layers.Dropout(dropout_rate)(x)
-    return x
+class EncoderBlock(layers.Layer):
+    def __init__(
+        self, num_heads, hidden_dim, mlp_dim, dropout_rate, attention_dropout_rate
+    ):
+        super(EncoderBlock, self).__init__()
+        self.ln_1 = layers.LayerNormalization(epsilon=1e-6)
+        self.mha = layers.MultiHeadAttention(
+            num_heads=num_heads,
+            key_dim=hidden_dim // num_heads,
+            dropout=attention_dropout_rate,
+        )  # in keras/tf, the key_dim is not distributed among heads in contrast to pytorch!!
+        self.dropout = layers.Dropout(dropout_rate)
+        self.ln_2 = layers.LayerNormalization(epsilon=1e-6)
+        self.mlp = MLPBlock(hidden_dim, mlp_dim, dropout_rate)
+
+    def call(self, inputs):
+        attn_output = self.mha(inputs, inputs)
+        attn_output = self.dropout(attn_output)
+        out1 = self.ln_1(inputs + attn_output)
+        mlp_output = self.mlp(out1)
+        return self.ln_2(out1 + mlp_output)
 
 
-class Patches(layers.Layer):
-    def __init__(self, patch_size):
-        super().__init__()
-        self.patch_size = patch_size
-
-    def call(self, images):
-        batch_size = tf.shape(images)[0]
-        patches = tf.image.extract_patches(
-            images=images,
-            sizes=[1, self.patch_size, self.patch_size, 1],
-            strides=[1, self.patch_size, self.patch_size, 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
+class Encoder(layers.Layer):
+    def __init__(
+        self,
+        seq_length,
+        num_layers,
+        num_heads,
+        hidden_dim,
+        mlp_dim,
+        dropout_rate,
+        attention_dropout_rate,
+    ):
+        super(Encoder, self).__init__()
+        self.pos_embedding = self.add_weight(
+            name="pos_embedding",
+            shape=(1, seq_length, hidden_dim),
+            initializer="random_normal",
         )
-        patch_dims = patches.shape[-1]
-        patches = tf.reshape(patches, [batch_size, -1, patch_dims])
-        return patches
+        self.dropout = layers.Dropout(dropout_rate)
+        self.encoder_layers = [
+            EncoderBlock(
+                num_heads, hidden_dim, mlp_dim, dropout_rate, attention_dropout_rate
+            )
+            for _ in range(num_layers)
+        ]
+        self.ln = layers.LayerNormalization(epsilon=1e-6)
+
+    def call(self, inputs):
+        seq_len = tf.shape(inputs)[1]
+        pos_embedding = self.pos_embedding[:, :seq_len, :]
+        print("Before PE (TF):", inputs.shape)
+
+        x = inputs + pos_embedding
+        print("after PE (TF):", x.shape)
+        x = self.dropout(x)
+        for encoder_layer in self.encoder_layers:
+            x = encoder_layer(x)
+        return self.ln(x)
 
 
-class PatchExtractorConv2D(layers.Layer):
-    def __init__(self, patch_size, projection_dim):
-        super().__init__()
-        self.conv = layers.Conv2D(
-            filters=projection_dim,
-            kernel_size=patch_size,
-            strides=patch_size,
-            padding="VALID",
+class ConcatClassTokenLayer(layers.Layer):
+    def __init__(self, hidden_dim, **kwargs):
+        super(ConcatClassTokenLayer, self).__init__(**kwargs)
+        self.hidden_dim = hidden_dim
+
+        self.class_token = self.add_weight(
+            name="class_token",
+            shape=(1, 1, self.hidden_dim),
+            initializer="zeros",
+            trainable=True,
         )
 
-    def call(self, images):
-        # Conv2D will extract and project patches in one step
-        patches = self.conv(images)
-        # Reshape to (batch_size, num_patches, projection_dim)
-        batch_size = tf.shape(images)[0]
-        patches = tf.reshape(patches, [batch_size, -1, self.conv.filters])
-        return patches
-
-
-class PatchEncoder(layers.Layer):
-    def __init__(self, num_patches, projection_dim):
-        super().__init__()
-        self.num_patches = num_patches
-        self.projection = layers.Dense(units=projection_dim)
-        self.position_embedding = layers.Embedding(
-            input_dim=num_patches, output_dim=projection_dim
+    def call(self, inputs):
+        batch_size = tf.shape(inputs)[0]
+        broadcast_class_token = tf.broadcast_to(
+            self.class_token, (batch_size, 1, self.hidden_dim)
         )
 
-    def call(self, patch):
-        positions = tf.range(start=0, limit=self.num_patches, delta=1)
-        encoded = self.projection(patch) + self.position_embedding(positions)
-        return encoded
+        return tf.concat([broadcast_class_token, inputs], axis=1)
+
+    def get_config(self):
+        config = super(ConcatClassTokenLayer, self).get_config()
+        config.update({"hidden_dim": self.hidden_dim})
+        return config
 
 
-class VisionTransformer(tf.keras.Model):
-
-    def __init__(self, num_classes, input_shape):
+class VisionTransformer(Model):
+    def __init__(
+        self,
+        image_size,
+        patch_size,
+        num_layers,
+        num_heads,
+        hidden_dim,
+        mlp_dim,
+        num_classes,
+        dropout_rate=0.1,
+        attention_dropout_rate=0.1,
+    ):
         super(VisionTransformer, self).__init__()
 
-        self.num_classes = num_classes
-        self.in_shape = input_shape
+        self.patch_size = patch_size
 
-        self.model = self.create_vit_classifier()
+        self.conv_proj = tf.keras.layers.Conv2D(
+            hidden_dim, kernel_size=patch_size, strides=patch_size
+        )
 
-    def create_vit_classifier(self):
-        inputs = layers.Input(shape=self.in_shape)
-        # Create patches.
-        # patches = Patches(patch_size)(inputs)
-        
-        patches = PatchExtractorConv2D(patch_size, projection_dim)(inputs)
-        
-        # Encode patches.
-        encoded_patches = PatchEncoder(num_patches, projection_dim)(patches)
+        num_patches = (image_size // patch_size) ** 2  # is seq_length
 
-        # Create multiple layers of the Transformer block.
-        for _ in range(transformer_layers):
-            # Layer normalization 1.
-            x1 = layers.LayerNormalization(epsilon=1e-6)(encoded_patches)
-            # Create a multi-head attention layer.
-            attention_output = layers.MultiHeadAttention(
-                num_heads=num_heads, key_dim=projection_dim, dropout=0.1
-            )(x1, x1)
-            # Skip connection 1.
-            x2 = layers.Add()([attention_output, encoded_patches])
-            # Layer normalization 2.
-            x3 = layers.LayerNormalization(epsilon=1e-6)(x2)
-            # MLP.
-            x3 = mlp(x3, hidden_units=transformer_units, dropout_rate=0.1)
-            # Skip connection 2.
-            encoded_patches = layers.Add()([x3, x2])
+        self.class_token_concatenation = ConcatClassTokenLayer(hidden_dim)
 
-        # Create a [batch_size, projection_dim] tensor.
-        representation = layers.LayerNormalization(epsilon=1e-6)(encoded_patches)
-        representation = layers.Flatten()(representation)
-        representation = layers.Dropout(0.5)(representation)
-        # Add MLP.
-        features = mlp(representation, hidden_units=mlp_head_units, dropout_rate=0.5)
-        # Classify outputs.
-        logits = layers.Dense(self.num_classes)(features)
-        # Create the Keras model.
-        model = keras.Model(inputs=inputs, outputs=logits)
-        return model
+        num_patches += 1  # account for the additional class token
 
-    def call(self, x):
-        return self.model(x)
+        self.encoder = Encoder(
+            num_patches,
+            num_layers,
+            num_heads,
+            hidden_dim,
+            mlp_dim,
+            dropout_rate,
+            attention_dropout_rate,
+        )
+
+        self.mlp_head = layers.Dense(num_classes)
+
+    def call(self, inputs):
+
+        print("Start (TF):", inputs.shape)
+        x = self.conv_proj(inputs)
+        print("After projection (TF):", x.shape)
+
+        batch_size = tf.shape(inputs)[0]
+
+        x = tf.reshape(
+            x, (batch_size, -1, x.shape[-1])
+        )  # (batch_size, num_patches, hidden_dim)
+
+        ## Theis code of torchvision vit has bee transfered to ConcatClassTokenLayer
+        # batch_class_token = tf.broadcast_to(
+        #     self.class_token, (batch_size, 1, self.class_token.shape[-1])
+        # )
+        # x = tf.concat([batch_class_token, x], axis=1)
+        x = self.class_token_concatenation(x)
+
+        x = self.encoder(x)
+
+        # Take the output corresponding to the class token
+        x = x[:, 0]
+
+        x = self.mlp_head(x)
+
+        return x
+
+
+def create_vit_b_16(num_classes: int, model_sample_shape: Tuple[int]) -> VisionTransformer:
+
+    assert len(model_sample_shape) == 3, "Expecting image shape for the model sample (H, W, C)"
+    assert model_sample_shape[0] == model_sample_shape[1], "Expecting square image shape for the model sample"
+    
+    height, width, channels = model_sample_shape
+
+    image_size = height
+    
+    # ViT-B/16 configuration
+    patch_size = 16
+    num_layers = 12
+    num_heads = 12
+    hidden_dim = 768
+    mlp_dim = 3072
+
+    dropout_rate = 0.1
+    attention_dropout_rate = 0.1
+
+    vit_b_16_model = VisionTransformer(
+        image_size=image_size,
+        patch_size=patch_size,
+        num_layers=num_layers,
+        num_heads=num_heads,
+        hidden_dim=hidden_dim,
+        mlp_dim=mlp_dim,
+        num_classes=num_classes,
+        dropout_rate=dropout_rate,
+        attention_dropout_rate=attention_dropout_rate,
+    )
+
+    vit_b_16_model.build(
+        input_shape=(None, image_size, image_size, 3)
+    )
+
+    return vit_b_16_model
+
+
+if __name__ == "__main__":
+    vit_b_16_model = create_vit_b_16(100, (224, 224, 3))
+
+    # compile model
+    vit_b_16_model.compile(
+        optimizer="adam",
+        loss="sparse_categorical_crossentropy", 
+        metrics=["accuracy"],
+    )
+
+    sample_input = tf.zeros([1, 224, 224, 3])
+    _ = vit_b_16_model(sample_input)
+
+    save_path = "saved_model_vit_b_16"
+    vit_b_16_model.save(save_path, save_format="tf")
