@@ -1,19 +1,22 @@
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
-from simple_ai_benchmarking.models.factory import (
+from simple_ai_benchmarking.config_structures import (
     AIFramework,
     ClassificiationModelConfig,
+    ImageShape,
 )
 from simple_ai_benchmarking.models.factory import ModelIdentifier
 
 import json
 
 
-MODEL_TO_COMPARE = ModelIdentifier.RESNET50
+MODEL_TO_COMPARE = ModelIdentifier.SIMPLE_CLASSIFICATION_CNN
 
+
+img_shape = ImageShape(224, 224, 3)
 model_cfg = ClassificiationModelConfig(
     model_identifier=MODEL_TO_COMPARE,
     num_classes=100,
-    model_shape=(224, 224, 3),
+    model_shape=img_shape,
 )
 
 pt_model = ClassificationModelFactory.create_model(model_cfg, AIFramework.PYTORCH)
@@ -22,13 +25,15 @@ tf_model = ClassificationModelFactory.create_model(model_cfg, AIFramework.TENSOR
 
 import tensorflow as tf
 
-dummy_input = tf.random.normal((1, 224, 224, 3))
+shape = (1, ) + img_shape.to_tuple_hwc()
+dummy_input = tf.random.normal(shape)
 tf_model(dummy_input)
 tf_model.summary()
 
 import torch
 
-dummy_input = torch.randn(1, 3, 224, 224)
+shape = (1, ) + img_shape.to_tuple_chw()
+dummy_input = torch.randn(shape)
 pt_model.eval()
 pt_model(dummy_input)
 print(pt_model)
