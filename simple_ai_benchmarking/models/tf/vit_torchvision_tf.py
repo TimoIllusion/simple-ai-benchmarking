@@ -54,7 +54,7 @@ class Encoder(layers.Layer):
     ):
         super(Encoder, self).__init__()
         self.pos_embedding = self.add_weight(
-            "pos_embedding",
+            name="pos_embedding",
             shape=(1, seq_length + 1, hidden_dim),
             initializer="random_normal",
         )
@@ -70,7 +70,10 @@ class Encoder(layers.Layer):
     def call(self, inputs):
         seq_len = tf.shape(inputs)[1]
         pos_embedding = self.pos_embedding[:, :seq_len, :]
+        print("Before PE (TF):", inputs.shape)
+        
         x = inputs + pos_embedding
+        print("after PE (TF):", x.shape)
         x = self.dropout(x)
         for encoder_layer in self.encoder_layers:
             x = encoder_layer(x)
@@ -97,7 +100,7 @@ class VisionTransformer(Model):
             hidden_dim, kernel_size=patch_size, strides=patch_size
         )
         self.class_token = self.add_weight(
-            "class_token", shape=(1, 1, hidden_dim), initializer="zeros"
+            name="class_token", shape=(1, 1, hidden_dim), initializer="zeros"
         )
         self.encoder = Encoder(
             num_layers,
@@ -122,6 +125,9 @@ class VisionTransformer(Model):
             self.class_token, (batch_size, 1, self.class_token.shape[-1])
         )
         # # Concatenate the class token with the patch embeddings
+        
+        print("Class token (TF):", class_token.shape)
+        print("Before concat (TF):", x.shape)
         x = tf.concat([class_token, x], axis=1)
         
         print("Before encoder (TF):", x.shape)
