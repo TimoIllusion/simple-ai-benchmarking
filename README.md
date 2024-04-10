@@ -156,7 +156,7 @@ For all DirectX 12 capable GPUs, DirectML on Windows and WSL can be used. This i
 
 ## License
 
-Copyright (C) [2024] [Timo Leitritz]
+Copyright (C) 2024 Timo Leitritz
 
 This project (simple-ai-benchmarking) is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for the full license text.
 
