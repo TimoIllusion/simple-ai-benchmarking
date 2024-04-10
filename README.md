@@ -153,3 +153,10 @@ For all DirectX 12 capable GPUs, DirectML on Windows and WSL can be used. This i
 - [x] Save results to csv
 - [x] Add models using pytorch
 - [x] Add automatic mixed precision options
+
+## License
+
+Copyright (C) [2024] [Timo Leitritz]
+
+This project (simple-ai-benchmarking) is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for the full license text.
+
