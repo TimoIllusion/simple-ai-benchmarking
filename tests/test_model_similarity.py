@@ -1,5 +1,5 @@
 # Project Name: simple-ai-benchmarking
-# File Name: compare_tf_pt_models.py
+# File Name: test_model_similarity.py
 # Author: Timo Leitritz
 # Copyright (C) 2024 Timo Leitritz
 #
@@ -20,12 +20,31 @@
 from simple_ai_benchmarking.model_comparison import calculate_model_similarity
 from simple_ai_benchmarking.config_structures import ModelIdentifier
 
-MODEL = ModelIdentifier.RESNET50
-SIMILARITY_THRESHOLD = 0.01
+MAXIMAL_ALLOWED_RELATIVE_PARAM_DIFFERENCE = 0.01
 
-rel_diff, abs_diff = calculate_model_similarity(MODEL)
 
-if rel_diff < SIMILARITY_THRESHOLD:
-    print("Model similarity: OK")
-else:
-    print("Model similarity: NOT OK")
+def test_model_similarity_resnet50() -> None:
+
+    MODEL = ModelIdentifier.RESNET50
+
+    rel_diff, abs_diff = calculate_model_similarity(MODEL)
+
+    assert rel_diff < MAXIMAL_ALLOWED_RELATIVE_PARAM_DIFFERENCE, "Models are not similar enough"
+
+
+def test_model_similarity_vitb16() -> None:
+
+    MODEL = ModelIdentifier.VIT_B_16
+
+    rel_diff, abs_diff = calculate_model_similarity(MODEL)
+
+    assert rel_diff < MAXIMAL_ALLOWED_RELATIVE_PARAM_DIFFERENCE, "Models are not similar enough"
+
+
+def test_model_similarity_simpleclassificationcnn() -> None:
+
+    MODEL = ModelIdentifier.SIMPLE_CLASSIFICATION_CNN
+
+    rel_diff, abs_diff = calculate_model_similarity(MODEL)
+
+    assert rel_diff < MAXIMAL_ALLOWED_RELATIVE_PARAM_DIFFERENCE, "Models are not similar enough"
