@@ -18,7 +18,7 @@ from simple_ai_benchmarking.config_structures import (
     ModelIdentifier,
 )
 
-
+#TODO: write model builder function to generate easy configs
 def build_default_pt_workload_configs(
     framework: AIFramework,
 ) -> List[AIWorkloadBaseConfig]:
