@@ -39,6 +39,11 @@ def process_workloads(
     for workload in workloads:
         logger.info(f"Running benchmark: {workload}")
         benchmark_repetition_results = _repeat_benchmark_n_times(workload, repetitions)
+        
+        if not benchmark_repetition_results:
+            logger.warning(f"No results for benchmark {workload}.")
+            continue
+        
         result_logger.add_benchmark_result_by_averaging_multiple_results(
             benchmark_repetition_results
         )
@@ -50,7 +55,7 @@ def process_workloads(
         result_logger.export_to_excel(out_file_base + ".xlsx")
     except ModuleNotFoundError as e:
         logger.warning(
-            f'Could not export to excel: "{e}" -> Please install openpyxl to export to excel, e.g. via SAI [xlsx] extra.'
+            f'Could not export to excel: "{e}" -> Please install openpyxl to export to excel, e.g. via SAIB [xlsx] extra.'
         )
 
 
