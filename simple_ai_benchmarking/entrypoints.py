@@ -28,7 +28,7 @@ from simple_ai_benchmarking.config_structures import AIFramework, AIWorkloadBase
 from simple_ai_benchmarking.config_pt_tf import build_default_pt_workload_configs
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 
-REPETITIONS = 1
+REPETITIONS = 3
 
 
 def header() -> None:

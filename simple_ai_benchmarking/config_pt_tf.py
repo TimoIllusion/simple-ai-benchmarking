@@ -17,7 +17,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from typing import List
+from typing import List, Tuple, Sequence
 from sys import platform
 
 from loguru import logger
@@ -34,15 +34,12 @@ from simple_ai_benchmarking.config_structures import (
     ModelIdentifier,
 )
 
-#TODO: write model builder function to generate easy configs
+
 def build_default_pt_workload_configs(
     framework: AIFramework,
 ) -> List[AIWorkloadBaseConfig]:
 
-    input_sample_shape = ImageShape(224, 224, 3)
-    num_classes = 100
-    training_epochs = 10
-    num_batches = 50
+    INPUT_SAMPLE_SHAPE = ImageShape(224, 224, 3)
 
     if framework is AIFramework.PYTORCH:
         device_name = get_device_name_pytorch()
@@ -52,84 +49,67 @@ def build_default_pt_workload_configs(
         raise ValueError("Invalid framework")
 
     logger.trace("Device Name: {}", device_name)
-    logger.trace("Input Sample Shape: {}", input_sample_shape)
-    
-    dataset_sample_shape = input_sample_shape.to_tuple_depending_on_framework(framework)
+    logger.trace("Input Sample Shape: {}", INPUT_SAMPLE_SHAPE)
 
-    workload_cfgs = [
-        InferenceConfig(
+    dataset_sample_shape = INPUT_SAMPLE_SHAPE.to_tuple_depending_on_framework(framework)
+
+    workload_cfgs = create_standard_configs_for_all_models(
+        batch_size=1,
+        num_batches=50,
+        dataset_sample_shape=dataset_sample_shape,
+        input_sample_shape=INPUT_SAMPLE_SHAPE,
+        device_name=device_name,
+    )
+
+    return workload_cfgs
+
+
+def create_standard_configs_for_all_models(
+    batch_size: int,
+    num_batches: int,
+    dataset_sample_shape: Sequence[int],
+    input_sample_shape: ImageShape,
+    device_name: str,
+) -> List[AIWorkloadBaseConfig]:
+
+    NUM_CLASSES = 100
+    TRAINING_EPOCHS = 5
+
+    workload_cfgs = []
+    for model_identifier in ModelIdentifier:
+
+        infer_cfg = InferenceConfig(
             dataset_cfg=DatasetConfig(
-                batch_size=1,
+                batch_size=batch_size,
                 input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.VIT_B_16,
+                model_identifier=model_identifier,
                 model_shape=input_sample_shape,
-                num_classes=num_classes,
+                num_classes=NUM_CLASSES,
             ),
             device_name=device_name,
             precision=NumericalPrecision.DEFAULT_PRECISION,
-        ),
-        InferenceConfig(
+        )
+        workload_cfgs.append(infer_cfg)
+
+        train_cfg = TrainingConfig(
             dataset_cfg=DatasetConfig(
-                batch_size=8,
+                batch_size=batch_size,
                 input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches,
             ),
             model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
+                model_identifier=model_identifier,
                 model_shape=input_sample_shape,
-                num_classes=num_classes,
+                num_classes=NUM_CLASSES,
             ),
             device_name=device_name,
             precision=NumericalPrecision.DEFAULT_PRECISION,
-        ),
-        InferenceConfig(
-            dataset_cfg=DatasetConfig(
-                batch_size=8,
-                input_shape_without_batch=dataset_sample_shape,
-                num_batches=num_batches,
-            ),
-            model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
-                model_shape=input_sample_shape,
-                num_classes=num_classes,
-            ),
-            device_name=device_name,
-            precision=NumericalPrecision.MIXED_FP16,
-        ),
-        TrainingConfig(
-            dataset_cfg=DatasetConfig(
-                batch_size=8,
-                input_shape_without_batch=dataset_sample_shape,
-                num_batches=num_batches,
-            ),
-            model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
-                model_shape=input_sample_shape,
-                num_classes=num_classes,
-            ),
-            device_name=device_name,
-            precision=NumericalPrecision.DEFAULT_PRECISION,
-            epochs=training_epochs,
-        ),
-        TrainingConfig(
-            dataset_cfg=DatasetConfig(
-                batch_size=8,
-                input_shape_without_batch=dataset_sample_shape,
-                num_batches=num_batches,
-            ),
-            model_cfg=ClassificiationModelConfig(
-                model_identifier=ModelIdentifier.SIMPLE_CLASSIFICATION_CNN,
-                model_shape=input_sample_shape,
-                num_classes=num_classes,
-            ),
-            device_name=device_name,
-            precision=NumericalPrecision.MIXED_FP16,
-            epochs=training_epochs,
-        ),
-    ]
+            epochs=TRAINING_EPOCHS,
+        )
+        workload_cfgs.append(train_cfg)
 
     return workload_cfgs
 
