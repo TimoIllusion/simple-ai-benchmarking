@@ -93,10 +93,8 @@ class Encoder(layers.Layer):
     def call(self, inputs):
         seq_len = tf.shape(inputs)[1]
         pos_embedding = self.pos_embedding[:, :seq_len, :]
-        print("Before PE (TF):", inputs.shape)
 
         x = inputs + pos_embedding
-        print("after PE (TF):", x.shape)
         x = self.dropout(x)
         for encoder_layer in self.encoder_layers:
             x = encoder_layer(x)
@@ -170,9 +168,7 @@ class VisionTransformer(Model):
 
     def call(self, inputs):
 
-        print("Start (TF):", inputs.shape)
         x = self.conv_proj(inputs)
-        print("After projection (TF):", x.shape)
 
         batch_size = tf.shape(inputs)[0]
 
