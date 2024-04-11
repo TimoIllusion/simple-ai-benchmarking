@@ -40,12 +40,12 @@ def estimate_array_memory_usage(shape: list, dtype: np.dtype) -> float:
     - The estimated memory usage in bytes.
     """
     itemsize = np.dtype(dtype).itemsize
-    logger.warning(f"Itemsize : {itemsize} Bytes, shape: {shape}")
-    
+    logger.trace(f"Itemsize : {itemsize} Bytes, shape: {shape}")
+
     num_items = np.prod(shape)
-    
-    logger.warning(f"Items: {num_items}")
-                   
+
+    logger.trace(f"Items: {num_items}")
+
     return num_items * itemsize
 
 
@@ -86,9 +86,9 @@ class SyntheticDataset(Dataset):
             self.cfg.input_shape_without_batch
         )
 
-        self.dataset_targets_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
-            self.cfg.target_shape_without_batch
-        )
+        self.dataset_targets_shape = [
+            self.cfg.num_batches * self.cfg.batch_size
+        ] + list(self.cfg.target_shape_without_batch)
 
         inputs_estimated_size = estimate_array_memory_usage(
             self.dataset_inputs_shape, np.float32
@@ -100,10 +100,18 @@ class SyntheticDataset(Dataset):
 
         available_memory = get_available_memory_in_bytes()
 
-        logger.warning(f"Estimated memory usage: {total_estimated_size/1e9} GB")
-        logger.warning(f"Available memory: {available_memory/1e9} GB")
+        logger.info(f"Estimated memory usage: {total_estimated_size/1e9} GB")
+        logger.info(f"Available memory: {available_memory/1e9} GB")
 
-        if total_estimated_size > available_memory * 0.9:
+        total_estimated_size_with_overhead = (
+            total_estimated_size * 2.0 + 2 * 1e9
+        )  # double estimated size and add static overhead
+
+        logger.info(
+            f"Estimated memory usage with overhead: {total_estimated_size_with_overhead/1e9} GB"
+        )
+
+        if total_estimated_size_with_overhead > available_memory * 0.9:
             raise MemoryError(
                 "Insufficient memory, select lower num_batches or batch_size."
             )
