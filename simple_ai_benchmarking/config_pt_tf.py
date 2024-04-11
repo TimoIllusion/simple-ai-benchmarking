@@ -55,7 +55,8 @@ def build_default_pt_workload_configs(
 
     workload_cfgs = create_standard_configs_for_all_models(
         batch_size=1,
-        num_batches=50,
+        num_batches_inference=150,
+        num_batches_training=50,
         dataset_sample_shape=dataset_sample_shape,
         input_sample_shape=INPUT_SAMPLE_SHAPE,
         device_name=device_name,
@@ -66,7 +67,8 @@ def build_default_pt_workload_configs(
 
 def create_standard_configs_for_all_models(
     batch_size: int,
-    num_batches: int,
+    num_batches_inference: int,
+    num_batches_training: int,
     dataset_sample_shape: Sequence[int],
     input_sample_shape: ImageShape,
     device_name: str,
@@ -82,7 +84,7 @@ def create_standard_configs_for_all_models(
             dataset_cfg=DatasetConfig(
                 batch_size=batch_size,
                 input_shape_without_batch=dataset_sample_shape,
-                num_batches=num_batches,
+                num_batches=num_batches_inference,
             ),
             model_cfg=ClassificiationModelConfig(
                 model_identifier=model_identifier,
@@ -98,7 +100,7 @@ def create_standard_configs_for_all_models(
             dataset_cfg=DatasetConfig(
                 batch_size=batch_size,
                 input_shape_without_batch=dataset_sample_shape,
-                num_batches=num_batches,
+                num_batches=num_batches_training,
             ),
             model_cfg=ClassificiationModelConfig(
                 model_identifier=model_identifier,
