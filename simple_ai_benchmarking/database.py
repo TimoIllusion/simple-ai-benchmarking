@@ -194,24 +194,29 @@ def prompt_for_updates(
         exit(1)
 
 
-def read_csv_and_create_benchmark_dataset(csv_file_path: str):
+def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = None):
 
     benchmark_datasets = []
     with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
-            
+
             if "training" in row["bench_info_workload_type"].lower():
                 benchmark_type = "training"
             elif "inference" in row["bench_info_workload_type"].lower():
                 benchmark_type = "inference"
             else:
-                raise ValueError(f"Unknown benchmark type: {row['bench_info_workload_type']}")
+                raise ValueError(
+                    f"Unknown benchmark type: {row['bench_info_workload_type']}"
+                )
+
+            if extra_info is None:
+                extra_info = row["sw_info_ai_framework_extra_info"]
 
             benchmark_data = BenchmarkData(
-                ai_framework_name=f"{row['sw_info_ai_framework_name']}",
+                ai_framework_name=row['sw_info_ai_framework_name'],
                 ai_framework_version=row["sw_info_ai_framework_version"],
-                ai_framework_extra_info=row["sw_info_ai_framework_extra_info"],
+                ai_framework_extra_info=extra_info,
                 python_version=row["sw_info_python_version"],
                 cpu_name=row["hw_info_cpu"],
                 accelerator=row["hw_info_accelerator"],
@@ -281,6 +286,13 @@ def publish_results_cli():
         default=None,
         help="The user to authenticate with the database.",
     )
+    parser.add_argument(
+        "-e",
+        "--extra-info",
+        type=str,
+        default=None,
+        help="Extra information to add to the benchmark results.",
+    )
 
     args = parser.parse_args()
 
@@ -305,7 +317,7 @@ def publish_results_cli():
     else:
         print("API Token:", "*" * (len(api_token) - 3) + api_token[-3:])
 
-    benchmark_datasets = read_csv_and_create_benchmark_dataset(args.results_csv_path)
+    benchmark_datasets = read_csv_and_create_benchmark_dataset(args.results_csv_path, args.extra_info)
 
     # write data to json for review
     json_file_path = "benchmark_dataset.json"
@@ -341,4 +353,3 @@ def publish_results_cli():
         if not success:
             print("Submission failed. Exiting...")
             break
-
