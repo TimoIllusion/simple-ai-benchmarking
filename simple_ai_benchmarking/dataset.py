@@ -118,12 +118,12 @@ class SyntheticDataset(Dataset):
 
         self._create_data()
 
-        logger.debug(
+        logger.info(
             "Synthetic Dataset Inputs Shape & Type: {} {}",
             self.inputs.shape,
             self.inputs.dtype,
         )
-        logger.debug(
+        logger.info(
             "Synthetic Dataset Targets Shape & Type: {} {}",
             self.targets.shape,
             self.targets.dtype,
