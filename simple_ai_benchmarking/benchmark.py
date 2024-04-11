@@ -18,7 +18,7 @@
 
 
 from typing import List
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, set_start_method
 
 from loguru import logger
 
@@ -57,6 +57,8 @@ def process_workloads(
 def _repeat_benchmark_n_times(
     workload: AIWorkload, n_repetitions: int
 ) -> List[BenchmarkResult]:
+    set_start_method('spawn', force=True)
+    
     benchmark_repetition_results = []
     for i in range(n_repetitions):
         logger.info(f"Repetition ({i+1}/{n_repetitions})")
@@ -65,14 +67,21 @@ def _repeat_benchmark_n_times(
         p.start()
         p.join()  # Wait for the process to complete
         benchmark_result = result_queue.get()  # Retrieve the result from the process
-        benchmark_repetition_results.append(benchmark_result)
+        
+        if isinstance(benchmark_result, Exception):
+            logger.error(f"Error in benchmark repetition {i+1}: {benchmark_result}")
+        else:
+            benchmark_repetition_results.append(benchmark_result)
 
     return benchmark_repetition_results
 
 
 def _benchmark_process(workload: AIWorkload, result_queue: Queue) -> None:
-    benchmark_result = benchmark(workload)
-    result_queue.put(benchmark_result)  # Send the result back to the parent process
+    try:
+        benchmark_result = benchmark(workload)
+        result_queue.put(benchmark_result)  # Send the result back to the parent process
+    except Exception as e:
+        result_queue.put(e)
 
 
 def benchmark(workload: AIWorkload) -> BenchmarkResult:
