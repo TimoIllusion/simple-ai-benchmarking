@@ -1,3 +1,22 @@
+# Project Name: simple-ai-benchmarking
+# File Name: database.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import csv
 import requests
 from requests.auth import HTTPBasicAuth
@@ -30,6 +49,9 @@ class BenchmarkData:
     benchmark_version: str
     benchmark_commit_id: str
     benchmark_date: str
+    input_shape: str
+    model_params: int
+    model_num_classes: int
 
     def to_dict(self) -> dict:
         """Converts the data class instance to a dictionary."""
@@ -178,6 +200,13 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str):
     with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
         for row in reader:
+            
+            if "training" in row["bench_info_workload_type"].lower():
+                benchmark_type = "training"
+            elif "inference" in row["bench_info_workload_type"].lower():
+                benchmark_type = "inference"
+            else:
+                raise ValueError(f"Unknown benchmark type: {row['bench_info_workload_type']}")
 
             benchmark_data = BenchmarkData(
                 ai_framework_name=f"{row['sw_info_ai_framework_name']}",
@@ -187,26 +216,20 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str):
                 cpu_name=row["hw_info_cpu"],
                 accelerator=row["hw_info_accelerator"],
                 model=row["bench_info_model"],
-                benchmark_type="inference",
-                score_iterations_per_second=float(row["infer_performance_throughput"]),
+                benchmark_type=benchmark_type,
+                score_iterations_per_second=float(row["performance_throughput"]),
                 benchmark_precision=row["bench_info_compute_precision"],
                 power_usage_watts=-1.0,
-                batch_size=int(row["bench_info_batch_size_inference"]),
+                batch_size=int(row["bench_info_batch_size"]),
                 operating_system=row["sw_info_os_version"],
                 benchmark_github_repo_url=get_git_repository_url(),
                 benchmark_version=read_version(),
                 benchmark_commit_id=get_git_commit_hash(),
                 benchmark_date=row["bench_info_date"],
+                input_shape=row["bench_info_sample_shape"],
+                model_params=int(row["bench_info_num_parameters"]),
+                model_num_classes=int(row["bench_info_num_classes"]),
             )
-
-            benchmark_datasets.append(benchmark_data)
-
-            benchmark_data = deepcopy(benchmark_data)
-            benchmark_data.benchmark_type = "training"
-            benchmark_data.score_iterations_per_second = float(
-                row["train_performance_throughput"]
-            )
-            benchmark_data.batch_size = int(row["bench_info_batch_size_training"])
 
             benchmark_datasets.append(benchmark_data)
 
@@ -215,7 +238,7 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str):
     return benchmark_datasets
 
 
-def main():
+def publish_results_cli():
 
     parser = argparse.ArgumentParser(
         description="Submit benchmark results to the AI Benchmark Database."
@@ -319,6 +342,3 @@ def main():
             print("Submission failed. Exiting...")
             break
 
-
-if __name__ == "__main__":
-    main()

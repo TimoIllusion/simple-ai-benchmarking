@@ -1,5 +1,5 @@
 # Project Name: simple-ai-benchmarking
-# File Name: timer.py
+# File Name: resnet50.py
 # Author: Timo Leitritz
 # Copyright (C) 2024 Timo Leitritz
 #
@@ -17,14 +17,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-import time
+import torch.nn as nn
+import torchvision
 
 
-class Timer:
+class ResNet50(nn.Module):
 
-    def __enter__(self):
-        self.start = time.perf_counter()
-        return self
+    def __init__(self, num_classes):
+        super(ResNet50, self).__init__()
+        self.resnet50 = torchvision.models.resnet50(num_classes=num_classes)
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.duration_s = time.perf_counter() - self.start
+    def forward(self, x):
+        return self.resnet50(x)

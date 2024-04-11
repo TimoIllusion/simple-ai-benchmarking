@@ -1,76 +1,81 @@
+# Project Name: simple-ai-benchmarking
+# File Name: ai_workload.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 from abc import abstractmethod, ABC
 import platform
 import multiprocessing
-from typing import Tuple
 import datetime
 
 from loguru import logger
 
-import numpy as np
 import psutil
 import cpuinfo
 
-from simple_ai_benchmarking.log import (
+from simple_ai_benchmarking.results import (
     SWInfo,
     HWInfo,
     BenchInfo,
     PerformanceResult,
     BenchmarkResult,
 )
-from simple_ai_benchmarking.definitions import AIWorkloadBaseConfig, AIModelWrapper
+from simple_ai_benchmarking.config_structures import AIWorkloadBaseConfig, AIStage
 
 
 class AIWorkload(ABC):
 
-    def __init__(self, ai_model: AIModelWrapper, config: AIWorkloadBaseConfig) -> None:
-
-        self.model_name = ai_model.name
-        self.model = ai_model.model
-
+    def __init__(self, config: AIWorkloadBaseConfig) -> None:
         self.cfg = config
 
-    def _generate_random_dataset_with_numpy(self) -> Tuple[np.ndarray, np.ndarray]:
-
-        self.dataset_inputs_shape = [self.cfg.num_batches * self.cfg.batch_size] + list(
-            self.cfg.input_shape_without_batch
-        )
-        self.dataset_targets_shape = [
-            self.cfg.num_batches * self.cfg.batch_size
-        ] + list(self.cfg.target_shape_without_batch)
-
-        inputs = np.random.random(self.dataset_inputs_shape).astype(np.float32)
-        targets = np.random.randint(
-            low=0, high=2, size=self.dataset_targets_shape
-        ).astype(np.int64)
-
-        logger.debug(
-            "Synthetic Dataset NumPy Inputs Shape: {} {}", inputs.shape, inputs.dtype
-        )
-        logger.debug(
-            "Synthetic Dataset NumPy Targets Shape: {} {}", targets.shape, targets.dtype
-        )
-
-        return inputs, targets
+        self.warmup_done = False
 
     @abstractmethod
     def setup(self) -> None:
         pass
 
+    @abstractmethod
+    def _prepare_synthetic_dataset(self) -> object:
+        pass
+
     def warmup(self) -> None:
+        """Warm up workload before execution."""
 
-        self.train()
-        self.infer()
+        self._warmup()
+        self.warmup_done = True
 
     @abstractmethod
-    def train(self) -> None:
+    def _warmup(self) -> None:
         pass
 
     @abstractmethod
-    def eval(self) -> None:
+    def prepare_execution(self) -> None:
+        pass
+
+    def execute(self) -> None:
+        assert self.warmup_done, "Warmup not done before execution."
+        self._execute()
+
+    @abstractmethod
+    def _execute(self) -> None:
         pass
 
     @abstractmethod
-    def infer(self) -> None:
+    def _calculate_iterations(self) -> int:
         pass
 
     @abstractmethod
@@ -89,7 +94,17 @@ class AIWorkload(ABC):
     def _get_accelerator_info(self) -> str:
         pass
 
+    @abstractmethod
+    def _get_ai_stage(self) -> AIStage:
+        pass
+
+    @abstractmethod
+    def _get_model_parameters(self) -> int:
+        pass
+
     def build_result_log(self) -> BenchmarkResult:
+
+        logger.info(f"Number of model parameters: {self._get_model_parameters()/1e6:.6f} M")
 
         sw_info = SWInfo(
             ai_framework_name=self._get_ai_framework_name(),
@@ -108,31 +123,25 @@ class AIWorkload(ABC):
 
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,
-            model=self.model_name,
-            compute_precision=self.cfg.data_type.name,
-            batch_size_training=self.cfg.batch_size,
-            batch_size_inference=self.cfg.batch_size,
-            sample_shape=None,
+            model=self.cfg.model_cfg.model_identifier.value,
+            compute_precision=self.cfg.precision.name,
+            batch_size=self.cfg.dataset_cfg.batch_size,
+            sample_shape=self.cfg.dataset_cfg.input_shape_without_batch,
             date=datetime.datetime.now().isoformat(),
+            num_classes=self.cfg.model_cfg.num_classes,
+            num_parameters=self._get_model_parameters(),
         )
 
-        train_performance = PerformanceResult(
-            iterations=self.cfg.num_batches * self.cfg.batch_size * self.cfg.epochs
-        )
-
-        infer_performance = PerformanceResult(
-            iterations=self.cfg.num_batches * self.cfg.batch_size
-        )
+        performance = PerformanceResult(iterations=self._calculate_iterations())
 
         benchmark_result = BenchmarkResult(
             sw_info=sw_info,
             hw_info=hw_info,
             bench_info=bench_info,
-            train_performance=train_performance,
-            infer_performance=infer_performance,
+            performance=performance,
         )
 
         return benchmark_result
 
     def __str__(self) -> str:
-        return str(self.model_name) + " on " + str(self._get_accelerator_info())
+        return f"{self.__class__.__name__} | {self.cfg.model_cfg.model_identifier.value} | {self._get_accelerator_info()}"

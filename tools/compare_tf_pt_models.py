@@ -1,5 +1,5 @@
 # Project Name: simple-ai-benchmarking
-# File Name: timer.py
+# File Name: compare_tf_pt_models.py
 # Author: Timo Leitritz
 # Copyright (C) 2024 Timo Leitritz
 #
@@ -17,14 +17,15 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-import time
+from simple_ai_benchmarking.model_comparison import calculate_model_similarity
+from simple_ai_benchmarking.config_structures import ModelIdentifier
 
+MODEL = ModelIdentifier.RESNET50
+SIMILARITY_THRESHOLD = 0.01
 
-class Timer:
+rel_diff, abs_diff = calculate_model_similarity(MODEL)
 
-    def __enter__(self):
-        self.start = time.perf_counter()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.duration_s = time.perf_counter() - self.start
+if rel_diff < SIMILARITY_THRESHOLD:
+    print("Model similarity: OK")
+else:
+    print("Model similarity: NOT OK")

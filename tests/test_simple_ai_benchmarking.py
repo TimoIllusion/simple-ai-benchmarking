@@ -1,17 +1,37 @@
+# Project Name: simple-ai-benchmarking
+# File Name: test_simple_ai_benchmarking.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import time
 import os
 
 import pytest
-
 import pandas
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.definitions import (
+from simple_ai_benchmarking.config_structures import (
     AIWorkloadBaseConfig,
     NumericalPrecision,
-    AIModelWrapper,
+    DatasetConfig,
+    ClassificiationModelConfig,
+    AIStage,
 )
-from simple_ai_benchmarking.log import BenchmarkResult
+from simple_ai_benchmarking.results import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
 _PER_FUNCTION_TIME_DELAY_S = 0.1
@@ -40,18 +60,26 @@ class DummyWorkload(AIWorkload):
     def setup(self) -> None:
         pass
 
-    def warmup(self) -> None:
-        self.train()
-        self.infer()
+    def _warmup(self) -> None:
+        self._execute()
 
-    def train(self) -> None:
+    def _execute(self) -> None:
         time.sleep(_PER_FUNCTION_TIME_DELAY_S)
 
-    def eval(self) -> None:
-        time.sleep(_PER_FUNCTION_TIME_DELAY_S)
+    def _calculate_iterations(self) -> int:
+        return 1
 
-    def infer(self) -> None:
-        time.sleep(_PER_FUNCTION_TIME_DELAY_S)
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.TRAINING
+
+    def _get_model_parameters(self) -> int:
+        return 3
+
+    def _prepare_synthetic_dataset(self) -> object:
+        return None
+
+    def prepare_execution(self) -> None:
+        pass
 
     def _get_ai_framework_version(self) -> str:
         return "0.0.0"
@@ -69,13 +97,10 @@ class DummyWorkload(AIWorkload):
 def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
 
     cfg = AIWorkloadBaseConfig(
-        epochs=1,
-        batch_size=1,
-        num_batches=1,
         device_name="cpu",
-        data_type=NumericalPrecision.DEFAULT_PRECISION,
-        input_shape_without_batch=[10, 10, 10],
-        target_shape_without_batch=[10, 10, 10],
+        precision=NumericalPrecision.DEFAULT_PRECISION,
+        dataset_cfg=DatasetConfig(),
+        model_cfg=ClassificiationModelConfig(),
     )
 
     return cfg
@@ -85,9 +110,7 @@ def test_benchmark_result_type() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
 
-    dummy = AIModelWrapper("dummy", None)
-
-    workload = DummyWorkload(dummy, cfg)
+    workload = DummyWorkload(cfg)
     result = benchmark(workload)
 
     assert isinstance(
@@ -99,11 +122,10 @@ def test_process_workloads_correct_num_workloads_output() -> None:
 
     cfg = _prepare_benchmark_dummy_cfg()
 
-    dummy = AIModelWrapper("dummy", None)
     workloads = [
-        DummyWorkload(dummy, cfg),
-        DummyWorkload(dummy, cfg),
-        DummyWorkload(dummy, cfg),
+        DummyWorkload(cfg),
+        DummyWorkload(cfg),
+        DummyWorkload(cfg),
     ]
     process_workloads(workloads, "benchmark_results_dummy")
 

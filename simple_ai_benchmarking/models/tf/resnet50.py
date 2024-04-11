@@ -1,5 +1,5 @@
 # Project Name: simple-ai-benchmarking
-# File Name: timer.py
+# File Name: resnet50.py
 # Author: Timo Leitritz
 # Copyright (C) 2024 Timo Leitritz
 #
@@ -17,14 +17,21 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-import time
+from typing import Tuple
+
+import tensorflow as tf
 
 
-class Timer:
+class ResNet50(tf.keras.Model):
 
-    def __enter__(self):
-        self.start = time.perf_counter()
-        return self
+    def __init__(self, num_classes: int, input_shape: Tuple[int]):
+        super(ResNet50, self).__init__()
+        self.resnet50 = tf.keras.applications.ResNet50(
+            include_top=True,
+            weights=None,
+            input_shape=input_shape,
+            classes=num_classes,
+        )
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.duration_s = time.perf_counter() - self.start
+    def call(self, x):
+        return self.resnet50(x)

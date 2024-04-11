@@ -1,3 +1,22 @@
+# Project Name: simple-ai-benchmarking
+# File Name: results.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 from dataclasses import dataclass, field, asdict
 from typing import List
 import sys
@@ -58,10 +77,11 @@ class BenchInfo:
     workload_type: str
     model: str
     compute_precision: str
-    batch_size_training: int
-    batch_size_inference: int
+    batch_size: int
     date: str
     sample_shape: List[int]
+    num_classes: int
+    num_parameters: int
 
 
 @dataclass
@@ -69,14 +89,10 @@ class BenchmarkResult:
     sw_info: SWInfo
     hw_info: HWInfo
     bench_info: BenchInfo
-    train_performance: PerformanceResult
-    infer_performance: PerformanceResult
+    performance: PerformanceResult
 
-    def update_train_performance_duration(self, duration_s: float) -> None:
-        self.train_performance.update_duration_and_calc_throughput(duration_s)
-
-    def update_infer_performance_duration(self, duration_s: float) -> None:
-        self.infer_performance.update_duration_and_calc_throughput(duration_s)
+    def update_performance_duration(self, duration_s: float) -> None:
+        self.performance.update_duration_and_calc_throughput(duration_s)
 
 
 class BenchmarkLogger:
@@ -84,11 +100,11 @@ class BenchmarkLogger:
     def __init__(self) -> None:
         self.results: List[BenchmarkResult] = []
 
-    def add_repetitions_for_one_benchmark(
-        self, repetition_results: List[BenchmarkResult]
+    def add_benchmark_result_by_averaging_multiple_results(
+        self, results: List[BenchmarkResult]
     ) -> None:
 
-        averaged_benchmark_result = self._average_benchmark_results(repetition_results)
+        averaged_benchmark_result = self._average_benchmark_results(results)
         self.add_result(averaged_benchmark_result)
 
     def _average_benchmark_results(
@@ -97,19 +113,14 @@ class BenchmarkLogger:
 
         assert benchmark_results, "Got empty list of benchmark results"
 
-        infer_performances = [result.infer_performance for result in benchmark_results]
-        train_performances = [result.train_performance for result in benchmark_results]
+        performances = [result.performance for result in benchmark_results]
 
-        infer_avg_perf = self._accumulate_and_average_performance_results(
-            infer_performances
-        )
-        train_avg_perf = self._accumulate_and_average_performance_results(
-            train_performances
+        avg_perf = self._accumulate_and_average_performance_results(
+            performances
         )
 
         combined_avg_benchmark_result = benchmark_results[0]
-        combined_avg_benchmark_result.infer_performance = infer_avg_perf
-        combined_avg_benchmark_result.train_performance = train_avg_perf
+        combined_avg_benchmark_result.performance = avg_perf
 
         return combined_avg_benchmark_result
 
@@ -157,39 +168,35 @@ class BenchmarkLogger:
 
         header = [
             "#RUN",
+            "WorkloadType",
             "Lib",
             "Model",
             "Accelerator",
             "Precision",
             "BS",
-            "it/s train",
-            "it/s infer",
+            "it/s",
         ]
         table_data = []
 
         for i, result in enumerate(self.results):
+            workload_type = result.bench_info.workload_type
             sw_framework = result.sw_info.ai_framework_name
             model = result.bench_info.model
             accelerator = result.hw_info.accelerator
             precision = result.bench_info.compute_precision
-            train_throughput = round(result.train_performance.throughput, 2)
-            infer_throughput = round(result.infer_performance.throughput, 2)
+            throughput = round(result.performance.throughput, 2)
 
-            assert (
-                result.bench_info.batch_size_inference
-                == result.bench_info.batch_size_training
-            )
-            batch_size = result.bench_info.batch_size_training
+            batch_size = result.bench_info.batch_size
 
             row_data = [
                 str(i),
+                workload_type,
                 sw_framework,
                 model,
                 accelerator,
                 precision,
                 batch_size,
-                train_throughput,
-                infer_throughput,
+                throughput,
             ]
             table_data.append(row_data)
 

@@ -1,75 +1,130 @@
-import os
+# Project Name: simple-ai-benchmarking
+# File Name: tensorflow_workload.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+from copy import deepcopy
 
 from loguru import logger
 
 import tensorflow as tf
 import numpy as np
 
-from simple_ai_benchmarking.definitions import NumericalPrecision
+from simple_ai_benchmarking.config_structures import (
+    NumericalPrecision,
+    AIStage,
+    AIFramework,
+    InferenceConfig,
+    TrainingConfig,
+    DatasetConfig,
+)
+from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
+from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
 
-class TensorFlowKerasWorkload(AIWorkload):
+class TensorFlowTraining(AIWorkload):
+
+    def __init__(self, config: TrainingConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: TrainingConfig  # for type hinting
 
     def setup(self) -> None:
 
-        if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
+        if self.cfg.precision == NumericalPrecision.MIXED_FP16:
             tf.keras.mixed_precision.set_global_policy("mixed_float16")
-        elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
+        elif self.cfg.precision == NumericalPrecision.EXPLICIT_FP32:
             tf.keras.mixed_precision.set_global_policy("float32")
-        elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        elif self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
             pass
         else:
             raise NotImplementedError(
-                f"Data type not implemented: {self.cfg.data_type}"
+                f"Data type not implemented: {self.cfg.precision}"
             )
 
-        self.model.compile(
-            optimizer="adam",
-            loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
-            metrics=["accuracy"],
-        )
-        # self.model.summary()
+        with tf.device(
+            self.cfg.device_name
+        ):  # Model shall be loaded to accelerator device directly
+            self.model = ClassificationModelFactory.create_model(
+                self.cfg.model_cfg, AIFramework.TENSORFLOW
+            )
 
-        self.inputs, self.targets = self._generate_random_dataset_with_numpy()
+            self.model.compile(
+                optimizer="adam",
+                loss="sparse_categorical_crossentropy",  # To use target shape of (N, ) instead of (N, num_classes)
+                metrics=["accuracy"],
+            )
+            # self.model.summary()
 
-        # Always generate dataset on system RAM, that is why CPU is forced here
-        with tf.device("/cpu:0"):
+    def _warmup(self) -> None:
+        dataset_cfg = deepcopy(self.cfg.dataset_cfg)
+        dataset_cfg.num_batches = 3
 
-            self.inputs = tf.convert_to_tensor(self.inputs, dtype=tf.float32)
-            self.targets = tf.convert_to_tensor(self.targets, dtype=tf.int64)
+        tf_dataset_warmup = self._prepare_synthetic_dataset(dataset_cfg)
+        self._train_loop(tf_dataset_warmup, 1)
 
-            logger.debug(
+    def _prepare_synthetic_dataset(self, dataset_cfg: DatasetConfig) -> tf.data.Dataset:
+        with tf.device(
+            "/cpu:0"
+        ):  # Always generate dataset on system RAM, that is why CPU is forced here
+
+            warmup_dataset = SyntheticDatasetFactory.create_dataset(
+                dataset_cfg, AIFramework.TENSORFLOW
+            )
+            warmup_dataset.prepare()
+            inputs, targets = warmup_dataset.get_inputs_and_targets()
+
+            logger.trace(
                 "Synthetic Dataset TensorFlow Inputs Shape: {} {}",
-                self.inputs.shape,
-                self.inputs.dtype,
+                inputs.shape,
+                inputs.dtype,
             )
-            logger.debug(
+            logger.trace(
                 "Synthetic Dataset TensorFlow Targets Shape: {} {}",
-                self.targets.shape,
-                self.targets.dtype,
+                targets.shape,
+                targets.dtype,
             )
 
-            self.syn_dataset = tf.data.Dataset.from_tensor_slices(
-                (self.inputs, self.targets)
+            tf_dataset = tf.data.Dataset.from_tensor_slices((inputs, targets))
+
+            tf_dataset = tf_dataset.batch(dataset_cfg.batch_size)
+            tf_dataset = tf_dataset.shuffle(buffer_size=10000)
+
+            tf_dataset = tf_dataset.prefetch(tf.data.AUTOTUNE)
+
+        return tf_dataset
+
+    def prepare_execution(self) -> None:
+        self.tf_dataset_execution = self._prepare_synthetic_dataset(
+            self.cfg.dataset_cfg
+        )
+
+    def _execute(self) -> None:
+        self._train_loop(self.tf_dataset_execution, self.cfg.epochs)
+
+    def _train_loop(self, dataset: tf.data.Dataset, epochs: int) -> None:
+        with tf.device(self.cfg.device_name):
+            self.model.fit(
+                dataset,
+                epochs=epochs,
+                validation_data=None,
+                verbose=0,
             )
-
-            self.syn_dataset = self.syn_dataset.shuffle(buffer_size=10000)
-            self.syn_dataset = self.syn_dataset.batch(self.cfg.batch_size)
-            self.syn_dataset = self.syn_dataset.prefetch(tf.data.AUTOTUNE)
-
-    def train(self) -> None:
-        _ = self.model.fit(
-            self.syn_dataset, epochs=self.cfg.epochs, validation_data=None, verbose=1
-        )
-
-    def eval(self) -> None:
-        raise NotImplementedError(
-            "Evaluation not implemented for TensorFlow Keras Workload"
-        )
-
-    def infer(self) -> None:
-        self.model.predict(self.syn_dataset, verbose=1)
 
     def _get_accelerator_info(self) -> str:
 
@@ -93,43 +148,60 @@ class TensorFlowKerasWorkload(AIWorkload):
     def _get_ai_framework_extra_info(self) -> str:
         return "N/A"
 
-    @staticmethod
-    def get_model_memory_usage(batch_size, model) -> float:
+    def _get_model_parameters(self) -> int:
         # Credits to https://stackoverflow.com/questions/43137288/how-to-determine-needed-memory-of-keras-model
 
-        shapes_mem_count = 0
-        internal_model_mem_count = 0
-        for l in model.layers:
-            layer_type = l.__class__.__name__
-            if layer_type == "Model":
-                internal_model_mem_count += (
-                    TensorFlowKerasWorkload.get_model_memory_usage(batch_size, l)
-                )
-            single_layer_mem = 1
-            out_shape = l.output_shape
-            if type(out_shape) is list:
-                out_shape = out_shape[0]
-            for s in out_shape:
-                if s is None:
-                    continue
-                single_layer_mem *= s
-            shapes_mem_count += single_layer_mem
-
         trainable_count = np.sum(
-            [tf.keras.backend.count_params(p) for p in model.trainable_weights]
+            [tf.keras.backend.count_params(p) for p in self.model.trainable_weights]
         )
         non_trainable_count = np.sum(
-            [tf.keras.backend.count_params(p) for p in model.non_trainable_weights]
+            [tf.keras.backend.count_params(p) for p in self.model.non_trainable_weights]
         )
 
-        number_size = 4.0
-        if tf.keras.backend.floatx() == "float16":
-            number_size = 2.0
-        if tf.keras.backend.floatx() == "float64":
-            number_size = 8.0
+        total = trainable_count + non_trainable_count
 
-        total_memory = number_size * (
-            batch_size * shapes_mem_count + trainable_count + non_trainable_count
+        return int(total)
+
+    def _calculate_iterations(self) -> int:
+        return (
+            self.cfg.dataset_cfg.num_batches
+            * self.cfg.dataset_cfg.batch_size
+            * self.cfg.epochs
         )
-        gbytes = np.round(total_memory / (1024.0**3), 3) + internal_model_mem_count
-        return gbytes
+
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.TRAINING
+
+    def clean_up(self) -> None:
+
+        del self.model
+        del self.tf_dataset_execution
+        tf.keras.backend.clear_session()
+
+
+class TensorFlowInference(TensorFlowTraining):
+
+    def __init__(self, config: InferenceConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: InferenceConfig  # for type hinting
+
+    def _warmup(self) -> None:
+        warmup_dataset_cfg = deepcopy(self.cfg.dataset_cfg)
+        warmup_dataset_cfg.num_batches = 3
+
+        tf_dataset_warmup = self._prepare_synthetic_dataset(warmup_dataset_cfg)
+        self._infer_loop(tf_dataset_warmup)
+
+    def _execute(self) -> None:
+        self._infer_loop(self.tf_dataset_execution)
+
+    def _infer_loop(self, dataset: tf.data.Dataset) -> None:
+        with tf.device(self.cfg.device_name):
+            predictions = self.model.predict(dataset, verbose=0)
+
+    def _calculate_iterations(self) -> int:
+        return self.cfg.dataset_cfg.num_batches * self.cfg.dataset_cfg.batch_size
+
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.INFERENCE
