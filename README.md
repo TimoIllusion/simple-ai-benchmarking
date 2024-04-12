@@ -127,22 +127,24 @@ For all DirectX 12 capable GPUs, DirectML on Windows and WSL can be used. This i
 
 2. Run `python -c "import tensorflow;print(tensorflow.config.list_physical_devices())"` to check if GPU is available
 
-## Upcoming
+## Upcoming Features
 
-- [ ] Add very simple mode to very easily benchmark (only 1 simple model, default parameters etc.)
 - [ ] Add config management with yaml file or python files to customize benchmarks more easily
 - [ ] Expand testing suite
-- [ ] Refactor README and give more detailed installation procedures
-- [ ] Refactor code structure with more object orientation and interfaces
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation) and model registry
-- [ ] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
 - [ ] Implement interfaces for TensorRT and ONNXRuntime
-- [ ] Test ROCm support
 - [ ] Test Intel oneAPI support (see https://github.com/intel/intel-extension-for-tensorflow)
 - [ ] Add plotting of results
 - [ ] Add option to install package and put on pypi.org
-- [ ] Add support for multiple datatypes (FP32, FP16, INT8...)
+- [ ] Validate, possibly fix MIXED_PRECISION options or remove them
+- [ ] Add support for more datatypes (FP16, INT8, FP8, ...)
 - [ ] Add user dialogue for device selection and/or optimize automatic device deduction
+- [x] Create website with database to publish results to
+- [x] Refactor code structure with more object orientation and interfaces
+- [x] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
+- [x] Refactor README and give more detailed installation procedures
+- [x] Add very simple mode to very easily benchmark (only 1 simple model, default parameters etc.)
+- [x] Test ROCm support
 - [x] Add test pipeline
 - [x] Refactor code into improved and refined structure
 - [x] Remove dependencies on tf_addons and tf_datasets

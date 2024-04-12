@@ -1,46 +1,55 @@
+# Project Name: simple-ai-benchmarking
+# File Name: pytorch_workload.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
 import platform
-import os
-import re
+from copy import deepcopy
 
 from loguru import logger
 
-import tqdm
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from simple_ai_benchmarking.log import *
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.definitions import NumericalPrecision
+from simple_ai_benchmarking.config_structures import (
+    NumericalPrecision,
+    TrainingConfig,
+    DatasetConfig,
+    InferenceConfig,
+)
+from simple_ai_benchmarking.dataset import SyntheticDatasetFactory
+from simple_ai_benchmarking.models.factory import ClassificationModelFactory
+from simple_ai_benchmarking.config_structures import AIFramework, AIStage
 
 
-class PyTorchWorkload(AIWorkload):
+class PyTorchTraining(AIWorkload):
+
+    def __init__(self, config: TrainingConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: TrainingConfig  # for type hinting
 
     def setup(self) -> None:
 
-        # print(self.model)
-        logger.trace("Number of model parameters: {}", self.count_model_parameters())
-
         self.device = torch.device(self.cfg.device_name)
 
-        self.inputs, self.targets = self._generate_random_dataset_with_numpy()
-
-        self.inputs = torch.Tensor(self.inputs).to(torch.float32)
-        self.targets = torch.Tensor(self.targets).to(torch.int64)
-
-        logger.trace(
-            "Synthetic Dataset PyTorch Inputs Shape: {} {}",
-            self.inputs.shape,
-            self.inputs.dtype,
-        )
-        logger.trace(
-            "Synthetic Dataset PyTorch Targets Shape: {} {}",
-            self.targets.shape,
-            self.targets.dtype,
-        )
-
-        dataset = TensorDataset(self.inputs, self.targets)
-        self.dataloader = DataLoader(
-            dataset, batch_size=self.cfg.batch_size, shuffle=False, pin_memory=True
+        self.model = ClassificationModelFactory.create_model(
+            self.cfg.model_cfg, AIFramework.PYTORCH
         )
 
         self.optimizer = torch.optim.SGD(
@@ -64,39 +73,89 @@ class PyTorchWorkload(AIWorkload):
 
     def _assign_numerical_precision(self) -> None:
 
-        if self.cfg.data_type == NumericalPrecision.MIXED_FP16:
+        if self.cfg.precision == NumericalPrecision.MIXED_FP16:
             self.numerical_precision = torch.float16
-        elif self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
+        elif self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
             pass
-        elif self.cfg.data_type == NumericalPrecision.EXPLICIT_FP32:
+        elif self.cfg.precision == NumericalPrecision.EXPLICIT_FP32:
             self.numerical_precision = torch.float32
         else:
             raise NotImplementedError(
-                f"Data type not implemented: {self.cfg.data_type}"
+                f"Data type not implemented: {self.cfg.precision}"
             )
 
+    # TODO: what happens if device is other than cuda?
     def _assign_autocast_device_type(self) -> None:
         self.autocast_device_type = "cuda" if "cuda" in self.cfg.device_name else "cpu"
 
-    def count_model_parameters(self) -> int:
-        return sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+    def _get_model_parameters(self) -> int:
+        return sum(p.numel() for p in self.model.parameters())
 
-    def train(self) -> None:
+    def _warmup(self) -> None:
+        warmup_dataset_cfg = deepcopy(self.cfg.dataset_cfg)
+        warmup_dataset_cfg.num_batches = 3
 
-        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
-            self._training_loop()
+        warmup_dataloader = self._prepare_synthetic_dataset(warmup_dataset_cfg)
+
+        self._training_loop_with_precision_wrapper(warmup_dataloader, 1)
+
+    def _prepare_synthetic_dataset(self, dataset_cfg: DatasetConfig) -> DataLoader:
+
+        dataset = SyntheticDatasetFactory.create_dataset(
+            dataset_cfg, AIFramework.PYTORCH
+        )
+        dataset.prepare()
+        inputs, targets = dataset.get_inputs_and_targets()
+
+        logger.trace(
+            "Synthetic Dataset PyTorch Inputs Shape: {} {}",
+            inputs.shape,
+            inputs.dtype,
+        )
+        logger.trace(
+            "Synthetic Dataset PyTorch Targets Shape: {} {}",
+            targets.shape,
+            targets.dtype,
+        )
+
+        dataset = TensorDataset(inputs, targets)
+        dataloader = DataLoader(
+            dataset,
+            batch_size=dataset_cfg.batch_size,
+            shuffle=True,
+            pin_memory=True,
+        )
+
+        return dataloader
+
+    def prepare_execution(self) -> None:
+        self.execution_dataloader = self._prepare_synthetic_dataset(
+            self.cfg.dataset_cfg
+        )
+
+    def _execute(self) -> None:
+        self._training_loop_with_precision_wrapper(
+            self.execution_dataloader, self.cfg.epochs
+        )
+
+    def _training_loop_with_precision_wrapper(
+        self, dataloader: DataLoader, max_epochs: int
+    ) -> None:
+        if self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
+            self._training_loop(dataloader, max_epochs)
         else:
             with torch.autocast(
                 device_type=self.autocast_device_type, dtype=self.numerical_precision
             ):
-                self._training_loop()
+                self._training_loop(dataloader, max_epochs)
 
-    def _training_loop(self) -> None:
+    def _training_loop(self, dataloader: DataLoader, max_epochs: int) -> None:
 
         self.model.train()
 
-        for epoch in tqdm.tqdm(range(self.cfg.epochs)):
-            for inputs, labels in self.dataloader:
+        for _ in range(max_epochs):
+
+            for inputs, labels in dataloader:
                 inputs, labels = inputs.to(self.device), labels.to(self.device)
 
                 self.optimizer.zero_grad()
@@ -106,26 +165,12 @@ class PyTorchWorkload(AIWorkload):
                 loss.backward()
                 self.optimizer.step()
 
-    def eval(self) -> None:
-        raise NotImplementedError("Eval not implemented yet")
-
-    def infer(self) -> None:
-
-        if self.cfg.data_type == NumericalPrecision.DEFAULT_PRECISION:
-            self._infer_loop()
-        else:
-            with torch.autocast(
-                device_type=self.autocast_device_type, dtype=self.numerical_precision
-            ):
-                self._infer_loop()
-
-    def _infer_loop(self) -> None:
-
-        self.model.eval()
-
-        for inputs, labels in tqdm.tqdm(self.dataloader):
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-            outputs = self.model(inputs)
+    def _calculate_iterations(self) -> int:
+        return (
+            self.cfg.dataset_cfg.num_batches
+            * self.cfg.dataset_cfg.batch_size
+            * self.cfg.epochs
+        )
 
     def _get_accelerator_info(self) -> str:
         if torch.cuda.is_available():
@@ -140,9 +185,9 @@ class PyTorchWorkload(AIWorkload):
 
     def _get_ai_framework_version(self) -> str:
         # remove the second part of version, e.g. 1.8.0+cu111 -> 1.8.0
-        
+
         version = torch.__version__
-        
+
         if "cu" in version and "git" not in version:
             return version.split("+")[0]
         else:
@@ -150,9 +195,55 @@ class PyTorchWorkload(AIWorkload):
 
     def _get_ai_framework_extra_info(self) -> str:
         version = torch.__version__
-        
+
         if "cu" in version and "git" not in version:
             cuda_short_str = version.split("+")[1]
             return cuda_short_str
         else:
             return "N/A"
+
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.TRAINING
+
+
+class PyTorchInference(PyTorchTraining):
+
+    def __init__(self, config: InferenceConfig) -> None:
+        super().__init__(config)
+
+        self.cfg: InferenceConfig  # for type hinting
+
+    def _warmup(self) -> None:
+        warmup_dataset_cfg = deepcopy(self.cfg.dataset_cfg)
+        warmup_dataset_cfg.num_batches = 3
+
+        warmup_dataloader = self._prepare_synthetic_dataset(warmup_dataset_cfg)
+
+        self._infer_loop_with_precision_wrapper(warmup_dataloader)
+
+    def _execute(self) -> None:
+        self._infer_loop_with_precision_wrapper(self.execution_dataloader)
+
+    def _infer_loop_with_precision_wrapper(self, dataloader: DataLoader) -> None:
+
+        if self.cfg.precision == NumericalPrecision.DEFAULT_PRECISION:
+            self._infer_loop(dataloader)
+        else:
+            with torch.autocast(
+                device_type=self.autocast_device_type, dtype=self.numerical_precision
+            ):
+                self._infer_loop(dataloader)
+
+    # TODO: use loop that is similar to real world usage (no dataloader, more like webcam image stream etc.)
+    def _infer_loop(self, dataloader: DataLoader) -> None:
+        self.model.eval()
+
+        for inputs, labels in dataloader:
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+            outputs = self.model(inputs)
+
+    def _calculate_iterations(self) -> int:
+        return self.cfg.dataset_cfg.num_batches * self.cfg.dataset_cfg.batch_size
+
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.INFERENCE

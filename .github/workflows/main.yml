@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  linting:
     runs-on: ubuntu-latest
 
     steps:
@@ -17,18 +17,110 @@ jobs:
     - name: Set Up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.9'
+        python-version: '3.7'
 
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 pytest
-        pip install .
+        pip install flake8
 
     - name: Lint with flake8
       run: |
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
+  test_py_3_7_linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Set Up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tensorflow
+        pip install torch torchvision
+        pip install flake8 pytest
+        pip install .
+
     - name: Run Tests
       run: |
         pytest
+
+  test_py_3_12_linux:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Set Up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.12'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tensorflow
+        pip install torch torchvision
+        pip install flake8 pytest
+        pip install .
+
+    - name: Run Tests
+      run: |
+        pytest
+
+  test_py_3_7_mac:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Set Up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tensorflow
+        pip install torch torchvision
+        pip install flake8 pytest
+        pip install .
+
+    - name: Run Tests
+      run: |
+        pytest
+
+  test_py_3_7_win:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+    - name: Set Up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.7'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install tensorflow
+        pip install torch torchvision
+        pip install flake8 pytest
+        pip install .
+
+    - name: Run Tests
+      run: |
+        pytest
+

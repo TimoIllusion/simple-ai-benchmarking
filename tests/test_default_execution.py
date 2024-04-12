@@ -1,5 +1,5 @@
 # Project Name: simple-ai-benchmarking
-# File Name: timer.py
+# File Name: test_default_execution.py
 # Author: Timo Leitritz
 # Copyright (C) 2024 Timo Leitritz
 #
@@ -16,15 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+from simple_ai_benchmarking.entrypoints import BenchmarkDispatcher
+from simple_ai_benchmarking.config_structures import AIFramework
 
-import time
+
+def test_pt_benchmark() -> None:
+
+    dispatcher = BenchmarkDispatcher(AIFramework.PYTORCH)
+    dispatcher.NUM_BATCHES_INFERENCE = 2
+    dispatcher.NUM_BATCHES_TRAINING = 2
+    dispatcher.BATCH_SIZE = 2
+    dispatcher.run()
 
 
-class Timer:
+def test_tf_benchmark() -> None:
 
-    def __enter__(self):
-        self.start = time.perf_counter()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.duration_s = time.perf_counter() - self.start
+    dispatcher = BenchmarkDispatcher(AIFramework.TENSORFLOW)
+    dispatcher.NUM_BATCHES_INFERENCE = 2
+    dispatcher.NUM_BATCHES_TRAINING = 2
+    dispatcher.BATCH_SIZE = 2
+    dispatcher.run()
