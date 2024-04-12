@@ -20,7 +20,7 @@ class TensorRTInference(AIWorkload):
     def setup(self) -> None:
         # Load the TensorRT engine from a previously serialized file or directly from an ONNX model
         
-        self.engine = self.load_engine(self.cfg.model_path)
+        self.engine = self.load_engine("SimpleClassificationCNN_pt.onnx")
         
         # Create an execution context, which is required for executing the model
         self.context = self.engine.create_execution_context()
