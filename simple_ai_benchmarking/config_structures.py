@@ -37,6 +37,7 @@ class ModelIdentifier(Enum):
 class AIFramework(Enum):
     PYTORCH = "PyTorch"
     TENSORFLOW = "TensorFlow"
+    TENSORRT = "TensorRT"
 
 
 class AIStage(Enum):
