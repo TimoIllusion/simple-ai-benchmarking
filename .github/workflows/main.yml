@@ -52,7 +52,7 @@ jobs:
       run: |
         pytest
 
-  test_py3_12_linux:
+  test_py_3_12_linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -100,7 +100,7 @@ jobs:
       run: |
         pytest
 
-  test_py3_7_win:
+  test_py_3_7_win:
     runs-on: windows-latest
 
     steps:
