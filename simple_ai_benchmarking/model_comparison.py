@@ -21,7 +21,7 @@ import json
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.config_structures import (
     AIFramework,
-    ClassificiationModelConfig,
+    ClassificationModelConfig,
     ImageShape,
 )
 from simple_ai_benchmarking.models.factory import ModelIdentifier
@@ -30,7 +30,7 @@ from simple_ai_benchmarking.models.factory import ModelIdentifier
 def calculate_model_similarity(model: ModelIdentifier):
 
     img_shape = ImageShape(224, 224, 3)
-    model_cfg = ClassificiationModelConfig(
+    model_cfg = ClassificationModelConfig(
         model_identifier=model,
         num_classes=100,
         model_shape=img_shape,

@@ -20,7 +20,7 @@
 from simple_ai_benchmarking.config_structures import (
     ModelIdentifier,
     AIFramework,
-    ClassificiationModelConfig,
+    ClassificationModelConfig,
 )
 
 
@@ -28,7 +28,7 @@ class ClassificationModelFactory:
 
     @staticmethod
     def create_model(
-        model_cfg: ClassificiationModelConfig,
+        model_cfg: ClassificationModelConfig,
         framework: AIFramework,
     ):
         if framework == AIFramework.PYTORCH:
@@ -40,7 +40,7 @@ class ClassificationModelFactory:
 
     @staticmethod
     def _create_pytorch_model(
-        model_cfg: ClassificiationModelConfig,
+        model_cfg: ClassificationModelConfig,
     ):
         input_shape = model_cfg.model_shape.to_tuple_chw()
         
@@ -69,7 +69,7 @@ class ClassificationModelFactory:
 
     @staticmethod
     def _create_tensorflow_model(
-        model_cfg: ClassificiationModelConfig,
+        model_cfg: ClassificationModelConfig,
     ):
         
         input_shape = model_cfg.model_shape.to_tuple_hwc()

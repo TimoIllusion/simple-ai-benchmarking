@@ -30,13 +30,16 @@ from simple_ai_benchmarking.config_structures import (
     DatasetConfig,
     ImageShape,
     AIFramework,
-    ClassificiationModelConfig,
+    ClassificationModelConfig,
     ModelIdentifier,
 )
 
 
 def build_default_pt_workload_configs(
     framework: AIFramework,
+    batch_size: int = 1,
+    num_batches_inference: int = 150,
+    num_batches_training: int = 50,
 ) -> List[AIWorkloadBaseConfig]:
 
     INPUT_SAMPLE_SHAPE = ImageShape(224, 224, 3)
@@ -54,9 +57,9 @@ def build_default_pt_workload_configs(
     dataset_sample_shape = INPUT_SAMPLE_SHAPE.to_tuple_depending_on_framework(framework)
 
     workload_cfgs = create_standard_configs_for_all_models(
-        batch_size=1,
-        num_batches_inference=150,
-        num_batches_training=50,
+        batch_size=batch_size,
+        num_batches_inference=num_batches_inference,
+        num_batches_training=num_batches_training,
         dataset_sample_shape=dataset_sample_shape,
         input_sample_shape=INPUT_SAMPLE_SHAPE,
         device_name=device_name,
@@ -86,7 +89,7 @@ def create_standard_configs_for_all_models(
                 input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches_inference,
             ),
-            model_cfg=ClassificiationModelConfig(
+            model_cfg=ClassificationModelConfig(
                 model_identifier=model_identifier,
                 model_shape=input_sample_shape,
                 num_classes=NUM_CLASSES,
@@ -102,7 +105,7 @@ def create_standard_configs_for_all_models(
                 input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches_training,
             ),
-            model_cfg=ClassificiationModelConfig(
+            model_cfg=ClassificationModelConfig(
                 model_identifier=model_identifier,
                 model_shape=input_sample_shape,
                 num_classes=NUM_CLASSES,

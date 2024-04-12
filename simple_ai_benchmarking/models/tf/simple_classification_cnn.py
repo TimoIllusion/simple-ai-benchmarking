@@ -23,7 +23,6 @@ import tensorflow as tf
 class SimpleClassificationCNN(tf.keras.Model):
 
     def __init__(self, num_classes, input_shape):
-
         super(SimpleClassificationCNN, self).__init__()
 
         self.conv1 = tf.keras.layers.Conv2D(
@@ -39,11 +38,7 @@ class SimpleClassificationCNN(tf.keras.Model):
         self.fc1 = tf.keras.layers.Dense(64, activation="relu")
         self.fc2 = tf.keras.layers.Dense(num_classes, activation="softmax")
 
-        in_shape_with_dyn_batch = [None] + list(input_shape)
-        self.build(in_shape_with_dyn_batch)
-
     def call(self, x):
-
         x = self.conv1(x)
         x = self.maxpool1(x)
         x = self.conv2(x)
@@ -53,6 +48,5 @@ class SimpleClassificationCNN(tf.keras.Model):
         x = self.conv4(x)
         x = self.flatten(x)
         x = self.fc1(x)
-
         return self.fc2(x)
 

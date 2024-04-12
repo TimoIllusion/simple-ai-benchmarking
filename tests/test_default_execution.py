@@ -16,13 +16,23 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-from simple_ai_benchmarking.entrypoints import run_pt_benchmarks, run_tf_benchmarks
+from simple_ai_benchmarking.entrypoints import BenchmarkDispatcher
+from simple_ai_benchmarking.config_structures import AIFramework
 
 
 def test_pt_benchmark() -> None:
 
-    run_pt_benchmarks()
+    dispatcher = BenchmarkDispatcher(AIFramework.PYTORCH)
+    dispatcher.NUM_BATCHES_INFERENCE = 2
+    dispatcher.NUM_BATCHES_TRAINING = 2
+    dispatcher.BATCH_SIZE = 2
+    dispatcher.run()
+
 
 def test_tf_benchmark() -> None:
 
-    run_tf_benchmarks()
+    dispatcher = BenchmarkDispatcher(AIFramework.TENSORFLOW)
+    dispatcher.NUM_BATCHES_INFERENCE = 2
+    dispatcher.NUM_BATCHES_TRAINING = 2
+    dispatcher.BATCH_SIZE = 2
+    dispatcher.run()

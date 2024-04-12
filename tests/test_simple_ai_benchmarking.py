@@ -28,7 +28,7 @@ from simple_ai_benchmarking.config_structures import (
     AIWorkloadBaseConfig,
     NumericalPrecision,
     DatasetConfig,
-    ClassificiationModelConfig,
+    ClassificationModelConfig,
     AIStage,
 )
 from simple_ai_benchmarking.results import BenchmarkResult
@@ -100,7 +100,7 @@ def _prepare_benchmark_dummy_cfg() -> AIWorkloadBaseConfig:
         device_name="cpu",
         precision=NumericalPrecision.DEFAULT_PRECISION,
         dataset_cfg=DatasetConfig(),
-        model_cfg=ClassificiationModelConfig(),
+        model_cfg=ClassificationModelConfig(),
     )
 
     return cfg

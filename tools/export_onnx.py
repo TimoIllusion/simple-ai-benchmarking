@@ -22,7 +22,7 @@ import os
 from simple_ai_benchmarking.models.factory import ClassificationModelFactory
 from simple_ai_benchmarking.models.factory import (
     AIFramework,
-    ClassificiationModelConfig,
+    ClassificationModelConfig,
 )
 from simple_ai_benchmarking.models.factory import ModelIdentifier
 from simple_ai_benchmarking.config_structures import ImageShape
@@ -32,7 +32,7 @@ MODEL_TO_EXPORT = ModelIdentifier.RESNET50
 
 img_shape = ImageShape(224, 224, 3)
 
-model_cfg = ClassificiationModelConfig(
+model_cfg = ClassificationModelConfig(
     model_identifier=MODEL_TO_EXPORT,
     num_classes=100,
     model_shape=img_shape,
