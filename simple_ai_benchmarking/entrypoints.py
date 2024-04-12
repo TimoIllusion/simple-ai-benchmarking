@@ -122,7 +122,7 @@ def run_tf_benchmarks():
     dispatcher.run()
 
 
-def publish(self):
+def publish():
     from simple_ai_benchmarking.database import publish_results_cli
 
     publish_results_cli()
