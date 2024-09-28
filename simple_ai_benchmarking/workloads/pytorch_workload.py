@@ -237,7 +237,7 @@ class PyTorchTraining(AIWorkload):
 
         return extra_info
 
-    def _get_rocm_version() -> str:
+    def _get_rocm_version(self) -> str:
         try:
             # Try Debian/Ubuntu method (dpkg)
             result = subprocess.run(
