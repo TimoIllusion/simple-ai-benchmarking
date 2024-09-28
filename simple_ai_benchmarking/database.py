@@ -60,14 +60,46 @@ class BenchmarkData:
 
 
 def get_git_commit_hash_from_package_version():
-    from simple_ai_benchmarking import __version__
+    version = get_package_version("simple-ai-benchmarking")
 
-    if "git" in __version__:
-        git_commit_hash = __version__.split("+")[1].split(".")[1]
+    if "git" in version:
+        git_commit_hash = version.split("+")[1].split(".")[1]
     else:
         git_commit_hash = "N/A"
 
     return git_commit_hash
+
+
+def get_version_importlib(package_name):
+    try:
+        from importlib.metadata import version, PackageNotFoundError
+
+        return version(package_name)
+    except PackageNotFoundError:
+        return None
+    except ImportError:
+        # This should not occur since we're checking Python version before calling
+        return None
+
+
+def get_version_pkg_resources(package_name):
+    try:
+        import pkg_resources
+
+        return pkg_resources.get_distribution(package_name).version
+    except pkg_resources.DistributionNotFound:
+        return None
+    except ImportError:
+        return None
+
+
+def get_package_version(package_name):
+    import sys
+
+    if sys.version_info >= (3, 8):
+        return get_version_importlib(package_name)
+    else:
+        return get_version_pkg_resources(package_name)
 
 
 def submit_benchmark_result_user_pw_auth(
