@@ -34,7 +34,7 @@ from simple_ai_benchmarking.config_structures import (
 from simple_ai_benchmarking.results import BenchmarkResult
 from simple_ai_benchmarking.benchmark import benchmark, process_workloads
 
-_PER_FUNCTION_TIME_DELAY_S = 0.1
+_PER_FUNCTION_TIME_DELAY_S = 0.01
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -127,7 +127,7 @@ def test_process_workloads_correct_num_workloads_output() -> None:
         DummyWorkload(cfg),
         DummyWorkload(cfg),
     ]
-    process_workloads(workloads, "benchmark_results_dummy")
+    process_workloads(workloads, out_file_base="benchmark_results_dummy", repetitions=2)
 
     assert os.path.exists("benchmark_results_dummy.csv"), "Result file does not exist"
 

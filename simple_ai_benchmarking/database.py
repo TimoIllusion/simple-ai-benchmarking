@@ -250,8 +250,8 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
     return benchmark_datasets
 
 
-def publish_results_cli():
-
+def parse_arguments():
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
         description="Submit benchmark results to the AI Benchmark Database."
     )
@@ -270,28 +270,28 @@ def publish_results_cli():
         "--non-interactive",
         action="store_true",
         default=False,
-        help="Whether to run the script in non-interactive mode.",
+        help="Run the script in non-interactive mode.",
     )
     parser.add_argument(
         "-t",
         "--token",
         type=str,
         default=None,
-        help="The API token to authenticate with the database.",
+        help="API token to authenticate with the database.",
     )
     parser.add_argument(
         "-p",
         "--password",
         type=str,
         default=None,
-        help="The password to authenticate with the database.",
+        help="Password to authenticate with the database.",
     )
     parser.add_argument(
         "-u",
         "--user",
         type=str,
         default=None,
-        help="The user to authenticate with the database.",
+        help="User to authenticate with the database.",
     )
     parser.add_argument(
         "-e",
@@ -300,35 +300,36 @@ def publish_results_cli():
         default=None,
         help="Extra information to add to the benchmark results.",
     )
+    return parser.parse_args()
 
-    args = parser.parse_args()
 
-    submit_endpoint = "/benchmarks/submit/"
-    submit_url = args.database_url + submit_endpoint
-
+def handle_token_pw_user(args):
+    """Get token for authentication."""
     if args.token:
         api_token = args.token
     else:
         api_token = os.environ.get("AI_BENCHMARK_DATABASE_TOKEN")
 
     if not api_token:
-
         if args.user and args.password:
             print("User:", args.user)
             print("Password:", "*" * len(args.password))
+            return None
         else:
             raise ValueError(
                 "No suitable authentication provided. Please provide a token or user and password. Check README.md for details."
             )
-
     else:
         print("API Token:", "*" * (len(api_token) - 3) + api_token[-3:])
+        return api_token
 
+
+def read_and_enrich_benchmark_data(args):
+    """Read and prepare benchmark data from the provided CSV."""
     benchmark_datasets = read_csv_and_create_benchmark_dataset(
         args.results_csv_path, args.extra_info
     )
 
-    # write data to json for review
     json_file_path = "benchmark_dataset.json"
     with open(json_file_path, "w") as f:
         data = [x.to_dict() for x in benchmark_datasets]
@@ -339,18 +340,21 @@ def publish_results_cli():
             f"You may now edit the file {json_file_path} to change meta data. Press Enter to continue after reviewing the json ..."
         )
 
-    # reload json
     with open(json_file_path, "r") as f:
         benchmark_datasets = [BenchmarkData(**x) for x in json.load(f)]
 
     if not args.non_interactive:
         benchmark_datasets = prompt_for_updates(benchmark_datasets)
 
-    for benchmark_data in benchmark_datasets:
+    return benchmark_datasets
 
+
+def submit_results(benchmark_datasets, args, submit_url, api_token):
+    """Submit benchmark results to the database."""
+    for benchmark_data in benchmark_datasets:
         print("Publishing...")
 
-        if api_token is not None:
+        if api_token:
             success = submit_benchmark_result_token_auth(
                 benchmark_data, submit_url, api_token
             )
@@ -362,3 +366,17 @@ def publish_results_cli():
         if not success:
             print("Submission failed. Exiting...")
             break
+
+
+def publish_results_cli():
+    """Main function that coordinates the publishing of results."""
+
+    args = parse_arguments()
+    submit_endpoint = "/benchmarks/submit/"
+    submit_url = args.database_url + submit_endpoint
+
+    api_token = handle_token_pw_user(args)
+
+    benchmark_datasets = read_and_enrich_benchmark_data(args)
+
+    submit_results(benchmark_datasets, args, submit_url, api_token)

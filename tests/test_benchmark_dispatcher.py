@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+
 from simple_ai_benchmarking.entrypoints import BenchmarkDispatcher
 from simple_ai_benchmarking.config_structures import AIFramework
 
@@ -26,6 +27,9 @@ def test_pt_benchmark() -> None:
     dispatcher.NUM_BATCHES_INFERENCE = 2
     dispatcher.NUM_BATCHES_TRAINING = 2
     dispatcher.BATCH_SIZE = 2
+    dispatcher.REPETITIONS = 1
+    dispatcher.NUM_BATCHES_INFERENCE = 5
+    dispatcher.NUM_BATCHES_TRAINING = 3
     dispatcher.run()
 
 
@@ -35,4 +39,12 @@ def test_tf_benchmark() -> None:
     dispatcher.NUM_BATCHES_INFERENCE = 2
     dispatcher.NUM_BATCHES_TRAINING = 2
     dispatcher.BATCH_SIZE = 2
+    dispatcher.REPETITIONS = 1
+    dispatcher.NUM_BATCHES_INFERENCE = 5
+    dispatcher.NUM_BATCHES_TRAINING = 3
     dispatcher.run()
+
+
+if __name__ == "__main__":
+    test_pt_benchmark()
+    test_tf_benchmark()
