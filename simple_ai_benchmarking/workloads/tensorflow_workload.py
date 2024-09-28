@@ -146,6 +146,7 @@ class TensorFlowTraining(AIWorkload):
         return tf.__version__
 
     def _get_ai_framework_extra_info(self) -> str:
+        # TODO: improve automatic logging here similar to pytorch
         return "N/A"
 
     def _get_model_parameters(self) -> int:

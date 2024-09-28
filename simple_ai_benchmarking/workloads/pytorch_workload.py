@@ -19,6 +19,8 @@
 
 import platform
 from copy import deepcopy
+import subprocess
+import re
 
 from loguru import logger
 
@@ -196,11 +198,38 @@ class PyTorchTraining(AIWorkload):
     def _get_ai_framework_extra_info(self) -> str:
         version = torch.__version__
 
+        extra_info = "N/A"
+
         if "cu" in version and "git" not in version:
             cuda_short_str = version.split("+")[1]
-            return cuda_short_str
-        else:
-            return "N/A"
+            extra_info = cuda_short_str.replace("cu", "cuda")
+
+        # Try to use nvcc to get the exact CUDA version
+        try:
+            # Run 'nvcc --version' command
+            output = subprocess.check_output(
+                ["nvcc", "--version"], stderr=subprocess.STDOUT, universal_newlines=True
+            )
+
+            # Parse the output to extract the CUDA version
+            # Example output:
+            # nvcc: NVIDIA (R) Cuda compiler driver
+            # Copyright (c) 2005-2024 NVIDIA Corporation
+            # Built on Wed_Aug_14_10:26:51_Pacific_Daylight_Time_2024
+            # Cuda compilation tools, release 12.6, V12.6.68
+            # Build cuda_12.6.r12.6/compiler.34714021_0
+
+            for line in output.split("\n"):
+                if "Cuda compilation tools" in line and "release" in line:
+                    match = re.search(r"release (\d+\.\d+)", line)
+                    if match:
+                        cuda_version = match.group(1)
+                        extra_info = f"cuda{cuda_version}"
+                        break
+        except Exception:
+            logger.warn("Failed to get CUDA version using nvcc")
+
+        return extra_info
 
     def _get_ai_stage(self) -> AIStage:
         return AIStage.TRAINING
