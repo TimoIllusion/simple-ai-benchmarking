@@ -230,9 +230,7 @@ class PyTorchTraining(AIWorkload):
             logger.warning("Failed to get CUDA version using nvcc")
 
         if extra_info == "N/A":
-            logger.warning(
-                "Failed to get CUDA version using nvcc. Trying rocm instead..."
-            )
+            logger.warning("Trying ROCm version gathering...")
             extra_info = self._get_rocm_version()
 
         return extra_info
@@ -259,12 +257,19 @@ class PyTorchTraining(AIWorkload):
                 if "rocm-core" in line:
                     fields = line.split()
                     version = fields[2]  # The version is in the 3rd column
-                    return version
 
+                    if "~" in version:
+                        version = version.split("~")[0]
+
+                    return "rocm" + version
+
+            logger.warning("Failed to get ROCm version using dpkg.")
             return "N/A"
 
         except Exception as e:
-            logger.error(f"Error occurred: {str(e)}")
+            logger.warning(
+                f"Exception occurred during ROCm version gathering: {str(e)}"
+            )
             return "N/A"
 
     def _get_ai_stage(self) -> AIStage:
