@@ -227,10 +227,10 @@ class PyTorchTraining(AIWorkload):
                         extra_info = f"cuda{cuda_version}"
                         break
         except Exception:
-            logger.warning("Failed to get CUDA version using nvcc")
+            logger.warning("Failed to get CUDA version using nvcc and package parsing.")
 
         if extra_info == "N/A":
-            logger.warning("Trying ROCm version gathering...")
+            logger.warning("Trying ROCm version retrieval...")
             extra_info = self._get_rocm_version()
 
         return extra_info
@@ -268,7 +268,7 @@ class PyTorchTraining(AIWorkload):
 
         except Exception as e:
             logger.warning(
-                f"Exception occurred during ROCm version gathering: {str(e)}"
+                f"Exception occurred during ROCm version retrieval: {str(e)}"
             )
             return "N/A"
 
