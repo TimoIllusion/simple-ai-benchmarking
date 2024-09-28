@@ -30,7 +30,7 @@ from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 
 class BenchmarkDispatcher:
     REPETITIONS = 3
-    BATCH_SIZE = 1
+    BATCH_SIZE = 32
     NUM_BATCHES_INFERENCE = 150
     NUM_BATCHES_TRAINING = 50
     LOG_FILE_PATH = "benchmark.log"
