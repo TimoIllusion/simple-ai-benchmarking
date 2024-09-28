@@ -229,7 +229,43 @@ class PyTorchTraining(AIWorkload):
         except Exception:
             logger.warn("Failed to get CUDA version using nvcc")
 
+        if extra_info == "N/A":
+            logger.warning(
+                "Failed to get CUDA version using nvcc. Trying rocm instead..."
+            )
+            extra_info = self._get_rocm_version()
+
         return extra_info
+
+    def _get_rocm_version() -> str:
+        try:
+            # Try Debian/Ubuntu method (dpkg)
+            result = subprocess.run(
+                [
+                    "dpkg",
+                    "-l",
+                    "|",
+                    "grep",
+                    "rocm-core",
+                ],  # Adjusted to directly list installed packages
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+            # Filter for 'rocm-core' in the output
+            output = result.stdout
+            for line in output.splitlines():
+                if "rocm-core" in line:
+                    fields = line.split()
+                    version = fields[2]  # The version is in the 3rd column
+                    return version
+
+            return "N/A"
+
+        except Exception as e:
+            logger.error(f"Error occurred: {str(e)}")
+            return "N/A"
 
     def _get_ai_stage(self) -> AIStage:
         return AIStage.TRAINING
