@@ -10,17 +10,15 @@ I develop this application in my free time as a hobby.
 
 1. Install pytorch and/or tensorflow
 
-2. Install SAIB and run pt and/or tf benchmark:
+2. Install SAIB and run pytorch benchmark:
 
    ```bash
    pip install git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
    saib-pt
-   saib-tf
    ```  
 
 **Notes**:
-- The results **are** comparable, since the same model architectures are used per default.
-- To publish the results to the [AI Benchmark Database](https://timoillusion.pythonanywhere.com/benchmarks), cloning of the repo is required, see [Setup & Usage](https://github.com/TimoIllusion/simple-ai-benchmarking/tree/main#setup--usage).
+- The model implementations for pytorch and tensorflow in this benchmark are very similar, but here might be small differences. 
 - To install tensorflow and pytorch directly when installing SAIB, you can also install using the following commands:
   
   `pip install simple-ai-benchmarking[tf]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git` (installs tensorflow)
@@ -64,7 +62,7 @@ I develop this application in my free time as a hobby.
 
 ## Publish to AI Benchmark Database
 
-Currently results can only published by authenticated users, but user creation is not possible currently. 
+Currently results can only published by authenticated users, but user creation is manually handled currently. Contact me if you want to publish results.
 
 To publish results to [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks), execute these commands:
 
@@ -96,7 +94,7 @@ This section shows how to use various GPUs for training and inference benchmarki
 
 **PyTorch for NVIDIA GPUs**
 
-1. Run `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
+1. Run `pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124` inside your environment (or check https://pytorch.org/get-started/locally/ for more instructions and options). This already comes with CUDA, only NVIDIA drivers are needed to run with gpu.
 
    Note: Newer versions of PyTorch on Linux automatically install CUDA packages as dependencies.
 
