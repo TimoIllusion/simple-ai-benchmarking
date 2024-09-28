@@ -29,6 +29,8 @@ from copy import deepcopy
 
 from dataclasses import dataclass
 
+from simple_ai_benchmarking.version import VERSION
+
 
 @dataclass
 class BenchmarkData:
@@ -56,11 +58,6 @@ class BenchmarkData:
     def to_dict(self) -> dict:
         """Converts the data class instance to a dictionary."""
         return self.__dict__
-
-
-def read_version():
-    with open(os.path.join("simple_ai_benchmarking", "VERSION"), encoding="utf-8") as f:
-        return f.read().strip()
 
 
 def get_git_commit_hash():
@@ -214,7 +211,7 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
                 extra_info = row["sw_info_ai_framework_extra_info"]
 
             benchmark_data = BenchmarkData(
-                ai_framework_name=row['sw_info_ai_framework_name'],
+                ai_framework_name=row["sw_info_ai_framework_name"],
                 ai_framework_version=row["sw_info_ai_framework_version"],
                 ai_framework_extra_info=extra_info,
                 python_version=row["sw_info_python_version"],
@@ -228,7 +225,7 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
                 batch_size=int(row["bench_info_batch_size"]),
                 operating_system=row["sw_info_os_version"],
                 benchmark_github_repo_url=get_git_repository_url(),
-                benchmark_version=read_version(),
+                benchmark_version=VERSION,
                 benchmark_commit_id=get_git_commit_hash(),
                 benchmark_date=row["bench_info_date"],
                 input_shape=row["bench_info_sample_shape"],
@@ -317,7 +314,9 @@ def publish_results_cli():
     else:
         print("API Token:", "*" * (len(api_token) - 3) + api_token[-3:])
 
-    benchmark_datasets = read_csv_and_create_benchmark_dataset(args.results_csv_path, args.extra_info)
+    benchmark_datasets = read_csv_and_create_benchmark_dataset(
+        args.results_csv_path, args.extra_info
+    )
 
     # write data to json for review
     json_file_path = "benchmark_dataset.json"

@@ -18,18 +18,13 @@
 
 
 import setuptools
-import os
+
+from simple_ai_benchmarking.version import VERSION
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-
-def read_version():
-    with open(os.path.join("simple_ai_benchmarking", "VERSION"), encoding="utf-8") as f:
-        return f.read().strip()
-
-
-version = read_version()
+version = VERSION
 
 # get version from VERSION file
 setuptools.setup(
