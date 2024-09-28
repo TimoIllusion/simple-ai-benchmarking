@@ -35,7 +35,7 @@ class BenchmarkDispatcher:
     NUM_BATCHES_TRAINING = 50
     LOG_FILE_PATH = "benchmark.log"
 
-    def __init__(self, framework: AIFramework, results_name: str = "benchmark_results"):
+    def __init__(self, framework: AIFramework, results_name: str = "results"):
 
         self.parser = self._setup_parser()
         self.framework = framework
@@ -113,12 +113,12 @@ class BenchmarkDispatcher:
 
 
 def run_pt_benchmarks():
-    dispatcher = BenchmarkDispatcher(AIFramework.PYTORCH, "benchmark_results_pt")
+    dispatcher = BenchmarkDispatcher(AIFramework.PYTORCH, "results_pt")
     dispatcher.run()
 
 
 def run_tf_benchmarks():
-    dispatcher = BenchmarkDispatcher(AIFramework.TENSORFLOW, "benchmark_results_tf")
+    dispatcher = BenchmarkDispatcher(AIFramework.TENSORFLOW, "results_tf")
     dispatcher.run()
 
 
