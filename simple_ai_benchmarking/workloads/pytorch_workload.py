@@ -227,7 +227,7 @@ class PyTorchTraining(AIWorkload):
                         extra_info = f"cuda{cuda_version}"
                         break
         except Exception:
-            logger.warn("Failed to get CUDA version using nvcc")
+            logger.warning("Failed to get CUDA version using nvcc")
 
         if extra_info == "N/A":
             logger.warning(
