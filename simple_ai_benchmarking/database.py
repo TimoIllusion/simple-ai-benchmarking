@@ -18,18 +18,17 @@
 
 
 import csv
-import requests
-from requests.auth import HTTPBasicAuth
 import os
-import subprocess
 import argparse
 import pprint
 import json
-from copy import deepcopy
+
+import requests
+from requests.auth import HTTPBasicAuth
 
 from dataclasses import dataclass
 
-from simple_ai_benchmarking.version import VERSION
+from simple_ai_benchmarking.version_and_metadata import VERSION, REPO_URL
 
 
 @dataclass
@@ -60,36 +59,15 @@ class BenchmarkData:
         return self.__dict__
 
 
-def get_git_commit_hash():
-    try:
-        commit_hash = (
-            subprocess.check_output(["git", "rev-parse", "HEAD"])
-            .decode("ascii")
-            .strip()
-        )
-        return commit_hash
-    except subprocess.CalledProcessError:
-        print("An error occurred while trying to fetch the commit ID.")
-        return "N/A"
-    except FileNotFoundError:
-        print("Git is not installed or not found in PATH.")
-        return "N/A"
+def get_git_commit_hash_from_package_version():
+    from simple_ai_benchmarking import __version__
 
+    if "git" in __version__:
+        git_commit_hash = __version__.split("+")[1].split(".")[1]
+    else:
+        git_commit_hash = "N/A"
 
-def get_git_repository_url():
-    try:
-        repo_url = (
-            subprocess.check_output(["git", "config", "--get", "remote.origin.url"])
-            .decode("ascii")
-            .strip()
-        )
-        return repo_url
-    except subprocess.CalledProcessError:
-        print("An error occurred while trying to fetch the repository URL.")
-        return "N/A"
-    except FileNotFoundError:
-        print("Git is not installed or not found in PATH.")
-        return "N/A"
+    return git_commit_hash
 
 
 def submit_benchmark_result_user_pw_auth(
@@ -224,9 +202,9 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
                 power_usage_watts=-1.0,
                 batch_size=int(row["bench_info_batch_size"]),
                 operating_system=row["sw_info_os_version"],
-                benchmark_github_repo_url=get_git_repository_url(),
+                benchmark_github_repo_url=REPO_URL,
                 benchmark_version=VERSION,
-                benchmark_commit_id=get_git_commit_hash(),
+                benchmark_commit_id=get_git_commit_hash_from_package_version(),
                 benchmark_date=row["bench_info_date"],
                 input_shape=row["bench_info_sample_shape"],
                 model_params=int(row["bench_info_num_parameters"]),

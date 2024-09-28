@@ -16,15 +16,32 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-
+import subprocess
 import setuptools
 
-from simple_ai_benchmarking.version import VERSION
+from simple_ai_benchmarking.version_and_metadata import VERSION
+
+
+def get_git_revision_short_hash():
+    try:
+        return (
+            subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
+            .decode("ascii")
+            .strip()
+        )
+    except Exception:
+        return None
+
+
+git_revision = get_git_revision_short_hash()
+
+if git_revision:
+    version = f"{VERSION}+git.{git_revision}"
+else:
+    version = VERSION
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
-
-version = VERSION
 
 # get version from VERSION file
 setuptools.setup(
