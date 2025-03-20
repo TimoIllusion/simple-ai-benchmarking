@@ -18,6 +18,17 @@ I develop this application in my free time as a hobby.
    ```  
 
 **Notes**:
+- When using a docker container, actual available cpu threads might differ from automatically detected thread counts from math libraries like BLAS, OpenMP, MKL etc. that are used in numpy and pytorch. This can especially happen when limiting available cpu resources with `--cpus` argument during docker container creation. This might cause performance issues and bad benchmark results. That's why it might be necessary to limit the thread counts used by the libraries via:
+   ```bash
+   export NUM_THREADS=16 # change depending on your system and environment
+   ```
+   ```bash
+   OMP_NUM_THREADS=$NUM_THREADS \
+   OPENBLAS_NUM_THREADS=$NUM_THREADS \
+   MKL_NUM_THREADS=$NUM_THREADS \
+   NUMEXPR_NUM_THREADS=$NUM_THREADS \
+   saib-pt
+   ```
 - The model implementations for pytorch and tensorflow in this benchmark are very similar, but here might be small differences. 
 - To install tensorflow and pytorch directly when installing SAIB, you can also install using the following commands:
   
