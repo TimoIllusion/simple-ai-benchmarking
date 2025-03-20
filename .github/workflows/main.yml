@@ -17,7 +17,7 @@ jobs:
     - name: Set Up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.7.5'
+        python-version: '3.9'
 
     - name: Install Dependencies
       run: |
@@ -28,7 +28,7 @@ jobs:
       run: |
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-  test_py_3_7_linux:
+  test_py_3_9_linux:
     runs-on: ubuntu-latest
 
     steps:
@@ -38,7 +38,7 @@ jobs:
     - name: Set Up Python
       uses: actions/setup-python@v2
       with:
-        python-version: '3.7.5'
+        python-version: '3.9'
 
     - name: Install Dependencies
       run: |
