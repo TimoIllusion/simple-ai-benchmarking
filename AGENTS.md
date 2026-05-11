@@ -58,9 +58,9 @@ Workflow: GitHub Flow. Branch off `main`, open a PR, squash-merge back. `main` s
 
 Branch names: `<type>/<short-kebab-description>`, lowercase, no more than 50 characters. Types: `feat/`, `fix/`, `refactor/`, `docs/`, `chore/`, `test/`, `ci/`, `hotfix/`.
 
-Commit subject: plain imperative, sentence case, no trailing period, no more than 72 characters.
+Feature-branch commit subjects should be plain imperative, sentence case, no trailing period, and no more than 72 characters.
 
-PR title: same rules as commit subject.
+PR titles and final squash commits to `main` should use lightweight Conventional Commit format: `<type>: <imperative subject>`. Use common types such as `feat`, `fix`, `docs`, `test`, `refactor`, `chore`, and `ci`.
 
 PR description:
 ```markdown
