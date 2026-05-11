@@ -86,6 +86,7 @@ setuptools.setup(
             "saib-tf = simple_ai_benchmarking.entrypoints:run_tf_benchmarks",
             "saib-pt = simple_ai_benchmarking.entrypoints:run_pt_benchmarks",
             "saib-pub = simple_ai_benchmarking.entrypoints:publish",
+            "saib-pub-llm = simple_ai_benchmarking.entrypoints:publish_llm",
         ]
     },
 )

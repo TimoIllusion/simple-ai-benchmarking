@@ -126,3 +126,9 @@ def publish():
     from simple_ai_benchmarking.database import publish_results_cli
 
     publish_results_cli()
+
+
+def publish_llm():
+    from simple_ai_benchmarking.llm_database import publish_llm_results_cli
+
+    publish_llm_results_cli()
