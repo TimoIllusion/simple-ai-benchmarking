@@ -31,6 +31,10 @@ SUPPORTED_LLM_BACKENDS = (
 )
 
 
+def _print_progress(message: str) -> None:
+    print(message, flush=True)
+
+
 @dataclass
 class LLMInferenceConfig:
     backend: str
@@ -203,9 +207,17 @@ class LLMInferenceBenchmark:
         self.client = client or LLMBackendClient(config)
 
     def run(self) -> LLMBenchmarkResult:
+        _print_progress(
+            "Starting LLM benchmark: "
+            f"backend={self.config.backend}, model={self.config.model}, "
+            f"requests={self.config.requests}, concurrency={self.config.concurrency}, "
+            f"prompt_tokens={self.config.prompt_tokens}, generated_tokens={self.config.generated_tokens}, "
+            f"device={self.config.device}"
+        )
         prompt = self._build_prompt()
         self._run_warmup(prompt)
         request_results = self._run_requests(prompt)
+        _print_progress("Finished LLM benchmark execution.")
         return self._build_result(request_results)
 
     def _build_prompt(self) -> str:
@@ -214,12 +226,21 @@ class LLMInferenceBenchmark:
         return " ".join(words)
 
     def _run_warmup(self, prompt: str) -> None:
-        for _ in range(self.config.warmup_requests):
+        if self.config.warmup_requests <= 0:
+            _print_progress("Skipping warmup.")
+            return
+
+        _print_progress(f"Running warmup requests: {self.config.warmup_requests}")
+        for request_index in range(self.config.warmup_requests):
             self.client.generate(prompt)
+            _print_progress(
+                f"Warmup request {request_index + 1}/{self.config.warmup_requests} complete."
+            )
 
     def _run_requests(self, prompt: str) -> List[LLMRequestResult]:
         request_results = []
         start = time.perf_counter()
+        _print_progress(f"Running measured requests: {self.config.requests}")
         with ThreadPoolExecutor(max_workers=self.config.concurrency) as executor:
             futures = [
                 executor.submit(self.client.generate, prompt)
@@ -227,7 +248,11 @@ class LLMInferenceBenchmark:
             ]
             for future in as_completed(futures):
                 request_results.append(future.result())
+                _print_progress(
+                    f"Completed request {len(request_results)}/{self.config.requests}."
+                )
         self.duration_s = time.perf_counter() - start
+        _print_progress(f"Measured requests completed in {self.duration_s:.3f} s.")
         return request_results
 
     def _build_result(self, request_results: List[LLMRequestResult]) -> LLMBenchmarkResult:
@@ -386,8 +411,12 @@ def run_llm_inference_cli() -> None:
     logger = LLMBenchmarkLogger()
     logger.add_result(result)
     logger.pretty_print_summary()
-    logger.export_to_csv(args.out_file_base + ".csv")
+    csv_path = args.out_file_base + ".csv"
+    xlsx_path = args.out_file_base + ".xlsx"
+    logger.export_to_csv(csv_path)
+    _print_progress(f"Wrote CSV results to {csv_path}")
     try:
-        logger.export_to_excel(args.out_file_base + ".xlsx")
+        logger.export_to_excel(xlsx_path)
+        _print_progress(f"Wrote Excel results to {xlsx_path}")
     except ModuleNotFoundError:
-        pass
+        _print_progress("Skipped Excel export because openpyxl is not installed.")
