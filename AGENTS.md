@@ -79,6 +79,8 @@ Agent workflow: when a feature branch is ready, draft the PR title and body in t
 
 Commits, pushes, and PR merges always require explicit user confirmation, even in full auto mode. Never run `git commit`, `git push`, `gh pr merge`, or equivalent merge/push commands until the user has confirmed that exact action.
 
+When a task or feature is complete, automatically propose the files to include and a commit message. If the user approves the commit, create it. If the user also asks to push, push immediately after committing; otherwise ask for separate push confirmation after the commit succeeds.
+
 Before pushing:
 1. Run the relevant tests and static checks.
 2. Commit only intentional source, test, migration, and documentation files.

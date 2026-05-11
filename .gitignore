@@ -1,5 +1,6 @@
 # Additional ignores
 benchmark_dataset.json
+llm_benchmark_dataset.json
 log.json
 *.csv
 *.xlsx
