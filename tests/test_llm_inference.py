@@ -166,6 +166,7 @@ def test_build_config_uses_backend_default_base_urls(monkeypatch):
         ai_framework_version = ""
         ai_framework_extra_info = ""
         accelerator = "cpu"
+        weight_source = ""
         device = "cpu"
         vocab_size = 32000
         embedding_dim = 256
@@ -177,3 +178,41 @@ def test_build_config_uses_backend_default_base_urls(monkeypatch):
     config = build_config_from_args(Args())
 
     assert config.base_url == "http://ollama.test"
+
+
+def test_pytorch_simple_transformer_metadata_separates_quant_and_weights():
+    import pytest
+
+    pytest.importorskip("torch")
+
+    class Args:
+        backend = PYTORCH_SIMPLE_TRANSFORMER_BACKEND
+        base_url = None
+        model = "SimpleTransformerLM"
+        requests = 1
+        warmup_requests = 0
+        concurrency = 1
+        prompt_tokens = 1
+        generated_tokens = 1
+        context_length = 8
+        timeout_s = 1.0
+        api_key = None
+        api_key_env = "OPENAI_API_KEY"
+        compute_precision = ""
+        quantization = ""
+        model_params = 0
+        ai_framework_version = ""
+        ai_framework_extra_info = ""
+        accelerator = "cpu"
+        weight_source = ""
+        device = "cpu"
+        vocab_size = 128
+        embedding_dim = 32
+        transformer_layers = 1
+        attention_heads = 4
+
+    config = build_config_from_args(Args())
+
+    assert config.compute_precision == "FP32"
+    assert config.quantization == "none"
+    assert config.weight_source == "random_weights"

@@ -54,6 +54,7 @@ class LLMInferenceConfig:
     ai_framework_version: str = ""
     ai_framework_extra_info: str = ""
     accelerator: str = "unknown"
+    weight_source: str = ""
     device: str = "cpu"
     vocab_size: int = 32000
     embedding_dim: int = 256
@@ -288,6 +289,7 @@ class LLMInferenceBenchmark:
             generated_tokens=self.config.generated_tokens,
             concurrency=self.config.concurrency,
             date=datetime.datetime.now().isoformat(),
+            weight_source=self.config.weight_source,
         )
         performance = LLMPerformanceResult(
             requests=self.config.requests,
@@ -333,6 +335,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ai-framework-version", default="")
     parser.add_argument("--ai-framework-extra-info", default="")
     parser.add_argument("--accelerator", default="unknown")
+    parser.add_argument("--weight-source", default="")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--vocab-size", type=int, default=32000)
     parser.add_argument("--embedding-dim", type=int, default=256)
@@ -358,13 +361,15 @@ def build_config_from_args(args: argparse.Namespace) -> LLMInferenceConfig:
     ai_framework_version = args.ai_framework_version
     ai_framework_extra_info = args.ai_framework_extra_info
     accelerator = args.accelerator
+    weight_source = args.weight_source
     if args.backend == PYTORCH_SIMPLE_TRANSFORMER_BACKEND:
         import torch
 
         ai_framework_version = ai_framework_version or torch.__version__
         ai_framework_extra_info = ai_framework_extra_info or args.device
         compute_precision = args.compute_precision or "FP32"
-        quantization = args.quantization or "random_weights"
+        quantization = args.quantization or "none"
+        weight_source = weight_source or "random_weights"
         if accelerator == "unknown":
             if args.device.startswith("cuda") and torch.cuda.is_available():
                 accelerator = torch.cuda.get_device_name(None)
@@ -394,6 +399,7 @@ def build_config_from_args(args: argparse.Namespace) -> LLMInferenceConfig:
         ai_framework_version=ai_framework_version,
         ai_framework_extra_info=ai_framework_extra_info,
         accelerator=accelerator,
+        weight_source=weight_source,
         device=args.device,
         vocab_size=args.vocab_size,
         embedding_dim=args.embedding_dim,

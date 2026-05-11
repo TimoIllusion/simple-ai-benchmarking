@@ -117,6 +117,7 @@ def test_llm_csv_export_contains_benchmark_metadata():
                 generated_tokens=256,
                 concurrency=1,
                 date="2026-05-11T12:00:00",
+                weight_source="random_weights",
             ),
             performance=LLMPerformanceResult(
                 requests=10,
@@ -132,5 +133,6 @@ def test_llm_csv_export_contains_benchmark_metadata():
     row = logger.to_dataframe().iloc[0].to_dict()
 
     assert row["bench_info_benchmark_family"] == "llm"
+    assert row["bench_info_weight_source"] == "random_weights"
     assert row["bench_info_benchmark_profile_hash"]
     assert row["bench_info_benchmark_payload_hash"]

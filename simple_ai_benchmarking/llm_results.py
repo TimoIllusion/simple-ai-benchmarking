@@ -34,6 +34,7 @@ class LLMBenchInfo:
     generated_tokens: int
     concurrency: int
     date: str
+    weight_source: str = ""
     benchmark_family: str = field(init=False)
     benchmark_spec_name: str = field(init=False)
     benchmark_spec_version: str = field(init=False)
@@ -118,7 +119,9 @@ class LLMBenchmarkLogger:
             "Backend",
             "Model",
             "Accelerator",
+            "Precision",
             "Quant",
+            "Weights",
             "Ctx",
             "Conc",
             "Gen tok/s",
@@ -133,7 +136,9 @@ class LLMBenchmarkLogger:
                     result.bench_info.backend,
                     result.bench_info.model,
                     result.hw_info.accelerator,
-                    result.bench_info.quantization,
+                    result.bench_info.compute_precision,
+                    result.bench_info.quantization or "none",
+                    result.bench_info.weight_source,
                     result.bench_info.context_length,
                     result.bench_info.concurrency,
                     round(result.performance.generated_tokens_per_second, 2),
