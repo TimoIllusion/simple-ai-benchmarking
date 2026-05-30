@@ -16,6 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
+import os
 import unittest
 from tempfile import NamedTemporaryFile
 
@@ -48,10 +49,15 @@ class TestPublishDatabase(unittest.TestCase):
             "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc,"
             "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\n"
         )
-        with NamedTemporaryFile(mode="w", suffix=".csv") as csv_file:
+        # Use delete=False and close the handle before reading: Windows does not
+        # allow reopening a NamedTemporaryFile by path while its handle is open.
+        with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as csv_file:
             csv_file.write(csv_content)
-            csv_file.flush()
-            benchmark_data = read_csv_and_create_llm_benchmark_dataset(csv_file.name)
+            csv_path = csv_file.name
+        try:
+            benchmark_data = read_csv_and_create_llm_benchmark_dataset(csv_path)
+        finally:
+            os.remove(csv_path)
 
         self.assertEqual(len(benchmark_data), 1)
         self.assertEqual(benchmark_data[0].backend, "llama.cpp")
