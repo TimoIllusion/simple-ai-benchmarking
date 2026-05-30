@@ -220,3 +220,7 @@ Copyright (C) 2024 Timo Leitritz
 
 This project (simple-ai-benchmarking) is licensed under the GNU General Public License v3.0. See the [LICENSE](LICENSE) file for the full license text.
 
+## AI Assistance
+
+Development of this project was supported by AI agents (Claude, ChatGPT).
+
