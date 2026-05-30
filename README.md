@@ -71,6 +71,47 @@ I develop this application in my free time as a hobby.
    For advanced users: Use `saib-pt -h` for advanced options like selecting specific benchmarks and batch sizes.
    
 
+## LLM Inference Benchmarking
+
+In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point:
+
+```bash
+saib-llm --backend ollama --model llama3
+```
+
+Three backends are supported:
+
+- `openai-compatible` (default) — benchmark any server exposing the OpenAI `/v1/chat/completions` API (e.g. vLLM, llama.cpp server, LM Studio, OpenAI itself):
+
+  ```bash
+  saib-llm --backend openai-compatible --base-url http://localhost:8000 --model my-model --api-key-env OPENAI_API_KEY
+  ```
+
+- `ollama` — benchmark a local [Ollama](https://ollama.com) server (defaults to `http://127.0.0.1:11434`, override with `--base-url` or `OLLAMA_BASE_URL`):
+
+  ```bash
+  saib-llm --backend ollama --model llama3
+  ```
+
+- `pytorch-simple-transformer` — run a self-contained synthetic PyTorch transformer locally, requiring no external server or model weights (handy for quick hardware comparisons):
+
+  ```bash
+  saib-llm --backend pytorch-simple-transformer --model simple-transformer --device cuda
+  ```
+
+The benchmark performs configurable warmup and measured requests (optionally concurrent) and reports prompt, generated, and total tokens per second, time to first token, and total duration. Results are written to `llm_results.csv` (and `.xlsx` if `openpyxl` is installed).
+
+Common options (see `saib-llm -h` for the full list):
+
+- `--requests` / `--warmup-requests` — number of measured / warmup requests (default `10` / `1`)
+- `--concurrency` — number of concurrent requests (default `1`)
+- `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `128` / `256`)
+- `--context-length` — model context window (default `4096`)
+- `--device` — torch device for the local backend, e.g. `cpu`, `cuda`, `mps` (default `cpu`)
+- `--compute-precision`, `--quantization`, `--model-params`, `--weight-source`, `--accelerator` — metadata recorded with the result
+- `--out-file-base` — output file name base (default `llm_results`)
+
+
 ## Publish to AI Benchmark Database
 
 Currently results can only published by authenticated users, but user creation is manually handled currently. Contact me if you want to publish results.
@@ -96,6 +137,13 @@ saib-pub benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
 ```
 
 Note: The arg --token can be used to pass the token directly to the script.
+
+To publish LLM inference results, use `saib-pub-llm` with the CSV produced by `saib-llm`:
+
+```bash
+export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN
+saib-pub-llm llm_results.csv
+```
 
 Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
 
@@ -148,6 +196,7 @@ For all DirectX 12 capable GPUs, DirectML on Windows and WSL can be used. This i
 - [ ] Validate, possibly fix MIXED_PRECISION options or remove them
 - [ ] Add support for more datatypes (FP16, INT8, FP8, ...)
 - [ ] Add user dialogue for device selection and/or optimize automatic device deduction
+- [x] Add LLM inference benchmarking (Ollama, OpenAI-compatible, local PyTorch transformer)
 - [x] Create website with database to publish results to
 - [x] Refactor code structure with more object orientation and interfaces
 - [x] Implement unified architecture for inference/train to use any tf/pytorch model with the same API
