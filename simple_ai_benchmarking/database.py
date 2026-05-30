@@ -53,6 +53,15 @@ class BenchmarkData:
     input_shape: str
     model_params: int
     model_num_classes: int
+    benchmark_family: str
+    benchmark_spec_name: str
+    benchmark_spec_version: str
+    benchmark_profile_id: str
+    benchmark_profile_hash: str
+    benchmark_config_hash: str
+    benchmark_runner_id: str
+    benchmark_runner_hash: str
+    benchmark_payload_hash: str
 
     def to_dict(self) -> dict:
         """Converts the data class instance to a dictionary."""
@@ -241,6 +250,15 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
                 input_shape=row["bench_info_sample_shape"],
                 model_params=int(row["bench_info_num_parameters"]),
                 model_num_classes=int(row["bench_info_num_classes"]),
+                benchmark_family=row["bench_info_benchmark_family"],
+                benchmark_spec_name=row["bench_info_benchmark_spec_name"],
+                benchmark_spec_version=row["bench_info_benchmark_spec_version"],
+                benchmark_profile_id=row["bench_info_benchmark_profile_id"],
+                benchmark_profile_hash=row["bench_info_benchmark_profile_hash"],
+                benchmark_config_hash=row["bench_info_benchmark_config_hash"],
+                benchmark_runner_id=row["bench_info_benchmark_runner_id"],
+                benchmark_runner_hash=row["bench_info_benchmark_runner_hash"],
+                benchmark_payload_hash=row["bench_info_benchmark_payload_hash"],
             )
 
             benchmark_datasets.append(benchmark_data)

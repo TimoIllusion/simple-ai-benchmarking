@@ -26,6 +26,18 @@ from loguru import logger
 import pandas as pd
 from tabulate import tabulate
 
+from simple_ai_benchmarking.benchmark_metadata import (
+    CV_BENCHMARK_FAMILY,
+    CV_RUNNER_ID,
+    CV_SPEC_NAME,
+    SPEC_VERSION,
+    build_cv_profile,
+    build_cv_profile_id,
+    build_payload_hash,
+    build_runner_hash,
+    canonical_hash,
+)
+
 
 def initialize_logger(log_file: str) -> None:
     logger.remove()
@@ -82,6 +94,33 @@ class BenchInfo:
     sample_shape: List[int]
     num_classes: int
     num_parameters: int
+    benchmark_family: str = field(init=False)
+    benchmark_spec_name: str = field(init=False)
+    benchmark_spec_version: str = field(init=False)
+    benchmark_profile_id: str = field(init=False)
+    benchmark_profile_hash: str = field(init=False)
+    benchmark_config_hash: str = field(init=False)
+    benchmark_runner_id: str = field(init=False)
+    benchmark_runner_hash: str = field(init=False)
+    benchmark_payload_hash: str = field(default="", init=False)
+
+    def __post_init__(self) -> None:
+        profile = build_cv_profile(
+            workload_type=self.workload_type,
+            model=self.model,
+            compute_precision=self.compute_precision,
+            batch_size=self.batch_size,
+            sample_shape=self.sample_shape,
+            num_classes=self.num_classes,
+        )
+        self.benchmark_family = CV_BENCHMARK_FAMILY
+        self.benchmark_spec_name = CV_SPEC_NAME
+        self.benchmark_spec_version = SPEC_VERSION
+        self.benchmark_profile_id = build_cv_profile_id(profile)
+        self.benchmark_profile_hash = canonical_hash(profile)
+        self.benchmark_config_hash = canonical_hash(profile)
+        self.benchmark_runner_id = CV_RUNNER_ID
+        self.benchmark_runner_hash = build_runner_hash(CV_RUNNER_ID)
 
 
 @dataclass
@@ -158,6 +197,9 @@ class BenchmarkLogger:
                         flat_dict[f"{key}_{sub_key}"] = sub_value
                 else:
                     flat_dict[key] = value
+            flat_dict["bench_info_benchmark_payload_hash"] = build_payload_hash(
+                flat_dict
+            )
             flat_dicts.append(flat_dict)
 
         return pd.DataFrame(flat_dicts)
