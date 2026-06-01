@@ -10,29 +10,40 @@ from simple_ai_benchmarking.llm_inference import (
 
 
 class FakeResponse:
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, lines):
+        self.lines = lines
 
     def raise_for_status(self):
         pass
 
-    def json(self):
-        return self.data
+    def iter_lines(self):
+        return iter(self.lines)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
 
 
 class FakeSession:
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, lines):
+        self.lines = lines
         self.calls = []
 
     def post(self, url, **kwargs):
         self.calls.append((url, kwargs))
-        return FakeResponse(self.data)
+        return FakeResponse(self.lines)
 
 
 def test_openai_compatible_backend_posts_chat_completion_request():
     session = FakeSession(
-        {"usage": {"prompt_tokens": 17, "completion_tokens": 23}}
+        [
+            'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+            'data: {"choices":[{"delta":{"content":" world"}}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":17,"completion_tokens":23}}',
+            "data: [DONE]",
+        ]
     )
     config = LLMInferenceConfig(
         backend=OPENAI_COMPATIBLE_BACKEND,
@@ -48,12 +59,20 @@ def test_openai_compatible_backend_posts_chat_completion_request():
     assert session.calls[0][0] == "https://example.test/v1/chat/completions"
     assert session.calls[0][1]["headers"]["Authorization"] == "Bearer token"
     assert session.calls[0][1]["json"]["model"] == "test-model"
+    assert session.calls[0][1]["json"]["stream"] is True
     assert result.prompt_tokens == 17
     assert result.generated_tokens == 23
+    assert 0 < result.time_to_first_token_s <= result.duration_s
 
 
 def test_ollama_backend_posts_generate_request():
-    session = FakeSession({"prompt_eval_count": 11, "eval_count": 19})
+    session = FakeSession(
+        [
+            '{"response":"Hel"}',
+            '{"response":"lo"}',
+            '{"done":true,"eval_count":19,"prompt_eval_count":11}',
+        ]
+    )
     config = LLMInferenceConfig(
         backend=OLLAMA_BACKEND,
         base_url="http://localhost:11434",
@@ -66,12 +85,20 @@ def test_ollama_backend_posts_generate_request():
 
     assert session.calls[0][0] == "http://localhost:11434/api/generate"
     assert session.calls[0][1]["json"]["options"]["num_predict"] == 19
+    assert session.calls[0][1]["json"]["stream"] is True
     assert result.prompt_tokens == 11
     assert result.generated_tokens == 19
+    assert 0 < result.time_to_first_token_s <= result.duration_s
 
 
 def test_llm_inference_benchmark_builds_exportable_result():
-    session = FakeSession({"usage": {"prompt_tokens": 10, "completion_tokens": 20}})
+    session = FakeSession(
+        [
+            'data: {"choices":[{"delta":{"content":"a"}}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":20}}',
+            "data: [DONE]",
+        ]
+    )
     config = LLMInferenceConfig(
         backend=OPENAI_COMPATIBLE_BACKEND,
         base_url="https://example.test",
@@ -144,6 +171,11 @@ def test_pytorch_simple_transformer_backend_builds_result():
     assert result.bench_info.model == "SimpleTransformerLM"
     assert result.bench_info.model_params > 0
     assert result.performance.generated_tokens_per_second > 0
+    assert (
+        0
+        < result.performance.time_to_first_token_s
+        <= result.performance.duration_s
+    )
 
 
 def test_build_config_uses_backend_default_base_urls(monkeypatch):

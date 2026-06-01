@@ -9,9 +9,13 @@ LLM_BENCHMARK_FAMILY = "llm"
 CV_SPEC_NAME = "saib_cv_classification"
 LLM_SPEC_NAME = "saib_llm_generation"
 SPEC_VERSION = "1.0"
+# LLM generation moved to a v2 spec when real time-to-first-token replaced the
+# v1 aggregate-only latency. v2 results carry their own profile/runner hashes and
+# never mix with v1 rows.
+LLM_SPEC_VERSION = "2.0"
 
 CV_RUNNER_ID = "saib.cv.classification.v1"
-LLM_RUNNER_ID = "saib.llm.generation.v1"
+LLM_RUNNER_ID = "saib.llm.generation.v2"
 
 
 def canonical_json(data: Mapping[str, Any]) -> str:
@@ -72,7 +76,7 @@ def build_llm_profile(
     return {
         "benchmark_family": LLM_BENCHMARK_FAMILY,
         "benchmark_spec_name": LLM_SPEC_NAME,
-        "benchmark_spec_version": SPEC_VERSION,
+        "benchmark_spec_version": LLM_SPEC_VERSION,
         "backend_protocol_class": backend,
         "model": model,
         "benchmark_type": benchmark_type,
@@ -82,7 +86,8 @@ def build_llm_profile(
         "concurrency": int(concurrency),
         "request_semantics": "requests_are_completed_generation_calls",
         "warmup_semantics": "not_encoded_in_result",
-        "streaming_policy": "aggregate_token_rates",
+        "streaming_policy": "measure_first_token_latency",
+        "ttft_semantics": "first_generated_token_latency_including_prefill",
         "counting_policy": "prompt_and_generated_tokens_counted_separately",
         "sampling_policy": "implementation_default",
         "precision_policy": compute_precision,
@@ -95,7 +100,7 @@ def build_llm_profile_id(profile: Mapping[str, Any]) -> str:
         f"llm_{profile['backend_protocol_class']}_{profile['model']}_"
         f"{profile['benchmark_type']}_p{profile['prompt_token_target']}_"
         f"g{profile['generated_token_target']}_ctx{profile['context_length']}_"
-        f"c{profile['concurrency']}_v1"
+        f"c{profile['concurrency']}_v2"
     ).lower().replace(" ", "_")
 
 
