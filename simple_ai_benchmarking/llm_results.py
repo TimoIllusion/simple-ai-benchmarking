@@ -11,7 +11,7 @@ from simple_ai_benchmarking.benchmark_metadata import (
     LLM_BENCHMARK_FAMILY,
     LLM_RUNNER_ID,
     LLM_SPEC_NAME,
-    SPEC_VERSION,
+    LLM_SPEC_VERSION,
     build_llm_profile,
     build_llm_profile_id,
     build_payload_hash,
@@ -59,7 +59,7 @@ class LLMBenchInfo:
         )
         self.benchmark_family = LLM_BENCHMARK_FAMILY
         self.benchmark_spec_name = LLM_SPEC_NAME
-        self.benchmark_spec_version = SPEC_VERSION
+        self.benchmark_spec_version = LLM_SPEC_VERSION
         self.benchmark_profile_id = build_llm_profile_id(profile)
         self.benchmark_profile_hash = canonical_hash(profile)
         self.benchmark_config_hash = canonical_hash(profile)

@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import json
 import os
 import platform
 import threading
@@ -81,6 +82,7 @@ class LLMBackendClient:
         self._local_lock = threading.Lock()
         self._local_model = None
         self._torch = None
+        self._local_device = None
 
         if self.config.backend == PYTORCH_SIMPLE_TRANSFORMER_BACKEND:
             self._setup_pytorch_simple_transformer()
@@ -93,6 +95,18 @@ class LLMBackendClient:
         if self.config.backend == PYTORCH_SIMPLE_TRANSFORMER_BACKEND:
             return self._generate_pytorch_simple_transformer()
         raise ValueError(f"Unsupported LLM backend: {self.config.backend}")
+
+    def _sync_device(self) -> None:
+        """Block until queued accelerator work has finished so timing is real.
+
+        MPS and CUDA dispatch kernels asynchronously; without a sync the
+        perf_counter delta would under-measure first-token and total latency."""
+        if self._torch is None or self._local_device is None:
+            return
+        if self._local_device.type == "mps":
+            self._torch.mps.synchronize()
+        elif self._local_device.type == "cuda":
+            self._torch.cuda.synchronize()
 
     def _setup_pytorch_simple_transformer(self) -> None:
         import torch
@@ -124,28 +138,58 @@ class LLMBackendClient:
             "messages": [{"role": "user", "content": prompt}],
             "max_tokens": self.config.generated_tokens,
             "temperature": 0,
-            "stream": False,
+            "stream": True,
+            "stream_options": {"include_usage": True},
         }
 
+        prompt_tokens = self.config.prompt_tokens
+        generated_tokens = 0
+        time_to_first_token_s = None
+
         start = time.perf_counter()
-        response = self.session.post(
+        with self.session.post(
             url,
             json=payload,
             headers=headers,
             timeout=self.config.timeout_s,
-        )
+            stream=True,
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8")
+                if line.startswith("data:"):
+                    line = line[len("data:") :].strip()
+                if line == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                choices = chunk.get("choices") or []
+                if choices:
+                    content = (choices[0].get("delta") or {}).get("content")
+                    if content:
+                        if time_to_first_token_s is None:
+                            time_to_first_token_s = time.perf_counter() - start
+                        generated_tokens += 1
+                usage = chunk.get("usage")
+                if usage:
+                    prompt_tokens = int(usage.get("prompt_tokens", prompt_tokens))
+                    generated_tokens = int(
+                        usage.get("completion_tokens", generated_tokens)
+                    )
         duration_s = time.perf_counter() - start
-        response.raise_for_status()
-        data = response.json()
-        usage = data.get("usage", {})
 
         return LLMRequestResult(
             duration_s=duration_s,
-            prompt_tokens=int(usage.get("prompt_tokens", self.config.prompt_tokens)),
-            generated_tokens=int(
-                usage.get("completion_tokens", self.config.generated_tokens)
-            ),
-            time_to_first_token_s=duration_s,
+            prompt_tokens=prompt_tokens,
+            generated_tokens=generated_tokens or self.config.generated_tokens,
+            time_to_first_token_s=time_to_first_token_s
+            if time_to_first_token_s is not None
+            else duration_s,
         )
 
     def _generate_ollama(self, prompt: str) -> LLMRequestResult:
@@ -153,7 +197,7 @@ class LLMBackendClient:
         payload = {
             "model": self.config.model,
             "prompt": prompt,
-            "stream": False,
+            "stream": True,
             "options": {
                 "num_predict": self.config.generated_tokens,
                 "num_ctx": self.config.context_length,
@@ -161,17 +205,42 @@ class LLMBackendClient:
             },
         }
 
+        prompt_tokens = self.config.prompt_tokens
+        generated_tokens = 0
+        time_to_first_token_s = None
+
         start = time.perf_counter()
-        response = self.session.post(url, json=payload, timeout=self.config.timeout_s)
+        with self.session.post(
+            url, json=payload, timeout=self.config.timeout_s, stream=True
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8")
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if data.get("response"):
+                    if time_to_first_token_s is None:
+                        time_to_first_token_s = time.perf_counter() - start
+                    generated_tokens += 1
+                if data.get("done"):
+                    generated_tokens = int(data.get("eval_count", generated_tokens))
+                    prompt_tokens = int(
+                        data.get("prompt_eval_count", prompt_tokens)
+                    )
         duration_s = time.perf_counter() - start
-        response.raise_for_status()
-        data = response.json()
 
         return LLMRequestResult(
             duration_s=duration_s,
-            prompt_tokens=int(data.get("prompt_eval_count", self.config.prompt_tokens)),
-            generated_tokens=int(data.get("eval_count", self.config.generated_tokens)),
-            time_to_first_token_s=duration_s,
+            prompt_tokens=prompt_tokens,
+            generated_tokens=generated_tokens or self.config.generated_tokens,
+            time_to_first_token_s=time_to_first_token_s
+            if time_to_first_token_s is not None
+            else duration_s,
         )
 
     def _generate_pytorch_simple_transformer(self) -> LLMRequestResult:
@@ -185,16 +254,28 @@ class LLMBackendClient:
         ).unsqueeze(0)
         input_ids = input_ids % self.config.vocab_size
 
+        generated_tokens = max(1, self.config.generated_tokens)
+
+        # Time the first generated token (prefill + one decode step) separately so
+        # time-to-first-token is a real measurement, not the full-generation latency.
         start = time.perf_counter()
         with self._local_lock:
-            self._local_model.generate(input_ids, self.config.generated_tokens)
+            sequence = self._local_model.generate(input_ids, 1)
+            self._sync_device()
+        time_to_first_token_s = time.perf_counter() - start
+
+        remaining_tokens = generated_tokens - 1
+        if remaining_tokens > 0:
+            with self._local_lock:
+                self._local_model.generate(sequence, remaining_tokens)
+                self._sync_device()
         duration_s = time.perf_counter() - start
 
         return LLMRequestResult(
             duration_s=duration_s,
             prompt_tokens=self.config.prompt_tokens,
-            generated_tokens=self.config.generated_tokens,
-            time_to_first_token_s=duration_s,
+            generated_tokens=generated_tokens,
+            time_to_first_token_s=time_to_first_token_s,
         )
 
 
