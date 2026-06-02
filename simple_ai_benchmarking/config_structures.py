@@ -17,7 +17,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from typing import Tuple, Sequence
+from typing import Optional, Tuple, Sequence
 from enum import Enum
 from dataclasses import dataclass, field
 
@@ -123,12 +123,16 @@ class GenerationModelConfig:
 
 @dataclass
 class LLMGenerationConfig:
-    """Config for local generation workloads (sibling to the CV configs).
+    """Config for generation workloads (sibling to the CV configs).
 
     Standalone rather than an AIWorkloadBaseConfig subclass: generation has no
-    dataset/batch/num_classes notion. Concurrency is the batch size processed in
-    a single batched forward pass."""
+    dataset/batch/num_classes notion. `backend` selects the workload (local
+    pytorch transformer vs an HTTP serving backend). For the local backend
+    concurrency is the batch size of a single forward pass; for HTTP backends it
+    is the number of in-flight concurrent requests. `model_cfg`/`device_name`
+    apply to the local backend; `base_url`/`api_key`/`timeout_s` apply to HTTP."""
 
+    backend: str = "pytorch-simple-transformer"
     device_name: str = "cpu"
     model: str = "SimpleTransformerLM"
     requests: int = 10
@@ -136,6 +140,7 @@ class LLMGenerationConfig:
     concurrency: int = 1
     prompt_tokens: int = 128
     generated_tokens: int = 256
+    context_length: int = 4096
     precision: NumericalPrecision = NumericalPrecision.DEFAULT_PRECISION
     compute_precision: str = "FP32"
     quantization: str = "none"
@@ -144,12 +149,15 @@ class LLMGenerationConfig:
     ai_framework_version: str = ""
     ai_framework_extra_info: str = ""
     model_params: int = 0
+    base_url: str = ""
+    api_key: Optional[str] = None
+    timeout_s: float = 120.0
     model_cfg: GenerationModelConfig = field(
         default_factory=lambda: GenerationModelConfig()
     )
 
     def __str__(self):
         return (
-            f"{self.model} (gen) p{self.prompt_tokens}/g{self.generated_tokens} "
-            f"c{self.concurrency} on {self.device_name}"
+            f"{self.model} (gen/{self.backend}) "
+            f"p{self.prompt_tokens}/g{self.generated_tokens} c{self.concurrency}"
         )

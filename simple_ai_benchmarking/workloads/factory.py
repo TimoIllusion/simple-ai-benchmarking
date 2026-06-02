@@ -46,15 +46,27 @@ class WorkloadFactory:
     def _create_generation_workload(
         workload_cfg: LLMGenerationConfig, framework: AIFramework
     ) -> AIWorkload:
-        if framework is AIFramework.PYTORCH:
-            from simple_ai_benchmarking.workloads.llm_workload import (
-                PyTorchLocalGeneration,
-            )
-
-            return PyTorchLocalGeneration(workload_cfg)
-        raise ValueError(
-            f"Generation workloads are not supported for framework {framework}"
+        from simple_ai_benchmarking.workloads.llm_workload import (
+            OLLAMA_BACKEND,
+            OPENAI_COMPATIBLE_BACKEND,
+            PYTORCH_GENERATION_BACKEND,
+            OllamaGeneration,
+            OpenAICompatibleGeneration,
+            PyTorchLocalGeneration,
         )
+
+        backend = workload_cfg.backend
+        if backend == OPENAI_COMPATIBLE_BACKEND:
+            return OpenAICompatibleGeneration(workload_cfg)
+        if backend == OLLAMA_BACKEND:
+            return OllamaGeneration(workload_cfg)
+        if backend == PYTORCH_GENERATION_BACKEND:
+            if framework is AIFramework.PYTORCH:
+                return PyTorchLocalGeneration(workload_cfg)
+            raise ValueError(
+                f"Local generation backend requires PyTorch, got {framework}"
+            )
+        raise ValueError(f"Unsupported generation backend: {backend}")
 
     @staticmethod
     def _create_pytorch_workload(workload_cfg: AIWorkloadBaseConfig) -> AIWorkload:

@@ -7,6 +7,39 @@ from simple_ai_benchmarking.config_structures import (
     LLMGenerationConfig,
 )
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
+from simple_ai_benchmarking.workloads.llm_workload import (
+    OLLAMA_BACKEND,
+    OPENAI_COMPATIBLE_BACKEND,
+    OllamaGeneration,
+    OpenAICompatibleGeneration,
+)
+
+
+class FakeResponse:
+    def __init__(self, lines):
+        self.lines = lines
+
+    def raise_for_status(self):
+        pass
+
+    def iter_lines(self):
+        return iter(self.lines)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+class FakeSession:
+    def __init__(self, lines):
+        self.lines = lines
+        self.calls = []
+
+    def post(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return FakeResponse(self.lines)
 
 
 def _tiny_config(**overrides) -> LLMGenerationConfig:
@@ -86,6 +119,84 @@ def test_generation_concurrency_is_batch_size():
     assert len(request_results) == 5
     assert all(isinstance(r, GenerationRequestResult) for r in request_results)
     assert duration_s > 0
+
+
+def test_factory_dispatches_http_backends_without_torch():
+    openai_cfg = LLMGenerationConfig(
+        backend=OPENAI_COMPATIBLE_BACKEND, base_url="https://example.test"
+    )
+    ollama_cfg = LLMGenerationConfig(
+        backend=OLLAMA_BACKEND, base_url="http://localhost:11434"
+    )
+
+    openai_workload = WorkloadFactory.create_workload(openai_cfg, AIFramework.PYTORCH)
+    ollama_workload = WorkloadFactory.create_workload(ollama_cfg, AIFramework.PYTORCH)
+
+    assert isinstance(openai_workload, OpenAICompatibleGeneration)
+    assert isinstance(ollama_workload, OllamaGeneration)
+
+
+def test_openai_compatible_generation_workload_streams_and_counts_tokens():
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="test-model",
+            api_key="token",
+            requests=1,
+            warmup_requests=0,
+            concurrency=1,
+            generated_tokens=23,
+        )
+    )
+    workload._session = FakeSession(
+        [
+            'data: {"choices":[{"delta":{"content":"Hello"}}]}',
+            'data: {"choices":[{"delta":{"content":" world"}}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":17,"completion_tokens":23}}',
+            "data: [DONE]",
+        ]
+    )
+    workload.setup()
+    workload.warmup()
+    workload.execute()
+    result = workload.build_result_log()
+
+    assert workload._session.calls[0][0] == "https://example.test/v1/chat/completions"
+    assert workload._session.calls[0][1]["headers"]["Authorization"] == "Bearer token"
+    assert result.bench_info.backend == OPENAI_COMPATIBLE_BACKEND
+    assert result.performance.generated_tokens_per_second > 0
+    assert 0 < result.performance.time_to_first_token_s <= result.performance.duration_s
+
+
+def test_ollama_generation_workload_streams_and_counts_tokens():
+    workload = OllamaGeneration(
+        LLMGenerationConfig(
+            backend=OLLAMA_BACKEND,
+            base_url="http://localhost:11434",
+            model="llama3",
+            requests=1,
+            warmup_requests=0,
+            concurrency=1,
+            generated_tokens=19,
+        )
+    )
+    workload._session = FakeSession(
+        [
+            '{"response":"Hel"}',
+            '{"response":"lo"}',
+            '{"done":true,"eval_count":19,"prompt_eval_count":11}',
+        ]
+    )
+    workload.setup()
+    workload.warmup()
+    workload.execute()
+    result = workload.build_result_log()
+
+    assert workload._session.calls[0][0] == "http://localhost:11434/api/generate"
+    assert workload._session.calls[0][1]["json"]["options"]["num_predict"] == 19
+    assert result.bench_info.backend == OLLAMA_BACKEND
+    assert result.performance.generated_tokens_per_second > 0
 
 
 def test_generation_workload_result_is_exportable():
