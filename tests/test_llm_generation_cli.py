@@ -2,11 +2,32 @@ import argparse
 
 from simple_ai_benchmarking.llm_generation import (
     build_generation_config_from_args,
+    parse_arguments,
 )
 from simple_ai_benchmarking.workloads.llm_workload import (
     OLLAMA_BACKEND,
     PYTORCH_GENERATION_BACKEND,
 )
+
+
+def test_saib_llm_runs_local_pytorch_with_no_args(monkeypatch):
+    # Bare `saib-llm` should run a self-contained local PyTorch LM benchmark
+    # (no server, no required --model), mirroring how `saib-pt` runs defaults.
+    import pytest
+
+    pytest.importorskip("torch")
+    from simple_ai_benchmarking.config_pt_tf import get_device_name_pytorch
+
+    monkeypatch.setattr("sys.argv", ["saib-llm"])
+
+    args = parse_arguments()
+    config = build_generation_config_from_args(args)
+
+    assert args.backend == PYTORCH_GENERATION_BACKEND
+    assert args.model == "SimpleTransformerLM"
+    # No --device given -> auto-detected best device, same logic as the CV benchmarks.
+    assert config.device_name == get_device_name_pytorch()
+    assert config.base_url == ""
 
 
 def _args(**overrides) -> argparse.Namespace:

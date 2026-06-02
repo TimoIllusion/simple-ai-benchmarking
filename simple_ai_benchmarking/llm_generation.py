@@ -46,10 +46,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--backend",
         choices=SUPPORTED_LLM_BACKENDS,
-        default=OPENAI_COMPATIBLE_BACKEND,
+        default=PYTORCH_GENERATION_BACKEND,
     )
     parser.add_argument("--base-url", default=None)
-    parser.add_argument("--model", required=True)
+    parser.add_argument("--model", default="SimpleTransformerLM")
     parser.add_argument("--requests", type=int, default=10)
     parser.add_argument("--warmup-requests", type=int, default=1)
     parser.add_argument("--repetitions", type=int, default=3)
@@ -67,7 +67,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ai-framework-extra-info", default="")
     parser.add_argument("--accelerator", default="unknown")
     parser.add_argument("--weight-source", default="")
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default=None)
     parser.add_argument("--vocab-size", type=int, default=32000)
     parser.add_argument("--embedding-dim", type=int, default=256)
     parser.add_argument("--transformer-layers", type=int, default=4)
@@ -91,6 +91,17 @@ def build_generation_config_from_args(
     if api_key is None and args.api_key_env:
         api_key = os.environ.get(args.api_key_env)
 
+    # Default to the best local device (cuda/mps/cpu), matching how the CV
+    # benchmarks pick their device, unless one was explicitly requested.
+    device_name = args.device
+    if device_name is None:
+        if args.backend == PYTORCH_GENERATION_BACKEND:
+            from simple_ai_benchmarking.config_pt_tf import get_device_name_pytorch
+
+            device_name = get_device_name_pytorch()
+        else:
+            device_name = "cpu"
+
     ai_framework_version = args.ai_framework_version
     ai_framework_extra_info = args.ai_framework_extra_info
     accelerator = args.accelerator
@@ -99,14 +110,14 @@ def build_generation_config_from_args(
         import torch
 
         ai_framework_version = ai_framework_version or torch.__version__
-        ai_framework_extra_info = ai_framework_extra_info or args.device
+        ai_framework_extra_info = ai_framework_extra_info or device_name
         compute_precision = args.compute_precision or "FP32"
         quantization = args.quantization or "none"
         weight_source = weight_source or "random_weights"
         if accelerator == "unknown":
-            if args.device.startswith("cuda") and torch.cuda.is_available():
+            if device_name.startswith("cuda") and torch.cuda.is_available():
                 accelerator = torch.cuda.get_device_name(None)
-            elif args.device == "mps":
+            elif device_name == "mps":
                 accelerator = "Apple MPS"
             else:
                 accelerator = "CPU"
@@ -116,7 +127,7 @@ def build_generation_config_from_args(
 
     return LLMGenerationConfig(
         backend=args.backend,
-        device_name=args.device,
+        device_name=device_name,
         model=args.model,
         requests=args.requests,
         warmup_requests=args.warmup_requests,

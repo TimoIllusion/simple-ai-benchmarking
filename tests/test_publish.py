@@ -25,8 +25,15 @@ from simple_ai_benchmarking.database import (
     build_publish_parser,
     enrich_benchmark_data,
     get_git_commit_hash_from_package_version,
+    read_csv_and_create_benchmark_dataset,
 )
 from simple_ai_benchmarking.llm_database import read_csv_and_create_llm_benchmark_dataset
+
+
+def _write_csv(content: str) -> str:
+    with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as csv_file:
+        csv_file.write(content)
+        return csv_file.name
 
 
 class TestPublishDatabase(unittest.TestCase):
@@ -68,6 +75,30 @@ class TestPublishDatabase(unittest.TestCase):
         self.assertEqual(benchmark_data[0].backend, "llama.cpp")
         self.assertEqual(benchmark_data[0].generated_tokens_per_second, 42.5)
         self.assertEqual(benchmark_data[0].benchmark_spec_name, "saib_llm_generation")
+
+    def test_cv_reader_rejects_llm_csv_with_clear_error(self):
+        # An LLM CSV (has bench_info_backend, no bench_info_workload_type).
+        csv_path = _write_csv(
+            "bench_info_backend,bench_info_model\nollama,llama3\n"
+        )
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                read_csv_and_create_benchmark_dataset(csv_path)
+        finally:
+            os.remove(csv_path)
+        self.assertIn("saib-pub-llm", str(ctx.exception))
+
+    def test_llm_reader_rejects_cv_csv_with_clear_error(self):
+        # A CV CSV (has bench_info_workload_type, no bench_info_backend).
+        csv_path = _write_csv(
+            "bench_info_workload_type,bench_info_model\nInferenceWorkload,ResNet50\n"
+        )
+        try:
+            with self.assertRaises(ValueError) as ctx:
+                read_csv_and_create_llm_benchmark_dataset(csv_path)
+        finally:
+            os.remove(csv_path)
+        self.assertIn("saib-pub", str(ctx.exception))
 
     def test_build_publish_parser_parses_common_args(self):
         parser = build_publish_parser("desc")

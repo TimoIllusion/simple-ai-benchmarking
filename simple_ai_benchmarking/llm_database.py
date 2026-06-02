@@ -64,6 +64,17 @@ def read_csv_and_create_llm_benchmark_dataset(
     benchmark_datasets = []
     with open(csv_file_path, newline="", encoding="utf-8") as csvfile:
         reader = csv.DictReader(csvfile)
+        fieldnames = reader.fieldnames or []
+        if "bench_info_backend" not in fieldnames:
+            if "bench_info_workload_type" in fieldnames:
+                raise ValueError(
+                    f"{csv_file_path} looks like a CV results CSV "
+                    "(no 'bench_info_backend' column). Use 'saib-pub' to publish CV results."
+                )
+            raise ValueError(
+                f"{csv_file_path} is missing the required 'bench_info_backend' "
+                "column; is this a SAIB LLM results CSV?"
+            )
         for row in reader:
             if extra_info is None:
                 row_extra_info = row["sw_info_ai_framework_extra_info"]
