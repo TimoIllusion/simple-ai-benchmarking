@@ -1,0 +1,245 @@
+# Project Name: simple-ai-benchmarking
+# File Name: llm_workload.py
+# Author: Timo Leitritz
+# Copyright (C) 2024 Timo Leitritz
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+
+import datetime
+import time
+from abc import abstractmethod
+from dataclasses import dataclass
+from statistics import mean
+from typing import List, Tuple
+
+from simple_ai_benchmarking.config_structures import AIStage, LLMGenerationConfig
+from simple_ai_benchmarking.llm_results import (
+    LLMBenchInfo,
+    LLMBenchmarkResult,
+    LLMPerformanceResult,
+)
+from simple_ai_benchmarking.results import collect_hw_info, collect_sw_info
+from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
+
+
+@dataclass
+class GenerationRequestResult:
+    prompt_tokens: int
+    generated_tokens: int
+    time_to_first_token_s: float
+
+
+class LLMGenerationWorkload(AIWorkload):
+    """Base for token-generation workloads (sibling family to the CV workloads).
+
+    Generation produces a token-oriented result, so build_result_log is overridden
+    to emit LLMBenchmarkResult. Where the compute happens (local torch, or an HTTP
+    server underneath) is an implementation detail of the subclass hooks."""
+
+    def __init__(self, config: LLMGenerationConfig) -> None:
+        super().__init__(config)
+        self.cfg: LLMGenerationConfig  # for type hinting
+        self._request_results: List[GenerationRequestResult] = []
+        self._duration_s: float = 0.0
+
+    def _prepare_synthetic_dataset(self):
+        return None
+
+    def prepare_execution(self) -> None:
+        pass
+
+    def _warmup(self) -> None:
+        if self.cfg.warmup_requests <= 0:
+            return
+        self._run_warmup()
+
+    def _execute(self) -> None:
+        self._request_results, self._duration_s = self._run_measured()
+
+    def _calculate_iterations(self) -> int:
+        return self.cfg.requests
+
+    def _get_ai_stage(self) -> AIStage:
+        return AIStage.GENERATION
+
+    @abstractmethod
+    def _get_backend(self) -> str:
+        pass
+
+    @abstractmethod
+    def _run_warmup(self) -> None:
+        pass
+
+    @abstractmethod
+    def _run_measured(self) -> Tuple[List[GenerationRequestResult], float]:
+        """Run the measured requests, returning per-request results and wall-clock.
+
+        Generation workloads measure their own duration (including device sync),
+        so it is returned here rather than taken from the outer benchmark timer."""
+
+    def build_result_log(self) -> LLMBenchmarkResult:
+        sw_info = collect_sw_info(
+            self._get_ai_framework_name(),
+            self._get_ai_framework_version(),
+            self._get_ai_framework_extra_info(),
+        )
+        hw_info = collect_hw_info(self._get_accelerator_info())
+
+        prompt_tokens = sum(r.prompt_tokens for r in self._request_results)
+        generated_tokens = sum(r.generated_tokens for r in self._request_results)
+        total_tokens = prompt_tokens + generated_tokens
+        duration_s = self._duration_s
+        ttft = (
+            mean(r.time_to_first_token_s for r in self._request_results)
+            if self._request_results
+            else 0.0
+        )
+
+        bench_info = LLMBenchInfo(
+            benchmark_type="inference",
+            backend=self._get_backend(),
+            model=self.cfg.model,
+            model_params=self.cfg.model_params,
+            compute_precision=self.cfg.compute_precision,
+            quantization=self.cfg.quantization,
+            context_length=self.cfg.model_cfg.context_length,
+            prompt_tokens=self.cfg.prompt_tokens,
+            generated_tokens=self.cfg.generated_tokens,
+            concurrency=self.cfg.concurrency,
+            date=datetime.datetime.now().isoformat(),
+            weight_source=self.cfg.weight_source,
+        )
+        performance = LLMPerformanceResult(
+            requests=self.cfg.requests,
+            duration_s=duration_s,
+            prompt_tokens_per_second=prompt_tokens / duration_s if duration_s else 0.0,
+            generated_tokens_per_second=generated_tokens / duration_s
+            if duration_s
+            else 0.0,
+            total_tokens_per_second=total_tokens / duration_s if duration_s else 0.0,
+            time_to_first_token_s=ttft,
+        )
+        return LLMBenchmarkResult(
+            sw_info=sw_info,
+            hw_info=hw_info,
+            bench_info=bench_info,
+            performance=performance,
+        )
+
+    def __str__(self) -> str:
+        return f"{self.__class__.__name__} | {self.cfg.model} | {self.cfg.device_name}"
+
+
+class PyTorchLocalGeneration(LLMGenerationWorkload):
+    """Local PyTorch generation: concurrency is the batch size of one forward pass."""
+
+    def setup(self) -> None:
+        import torch
+
+        from simple_ai_benchmarking.models.generation_factory import (
+            GenerationModelFactory,
+        )
+
+        self._torch = torch
+        self._device = torch.device(self.cfg.device_name)
+        self._model = GenerationModelFactory.create_pytorch_model(
+            self.cfg.model_cfg
+        ).to(self._device)
+        self._model.eval()
+        if self.cfg.model_params == 0:
+            self.cfg.model_params = sum(p.numel() for p in self._model.parameters())
+
+    def _sync_device(self) -> None:
+        """Block until queued accelerator work has finished so timing is real."""
+        if self._device.type == "mps":
+            self._torch.mps.synchronize()
+        elif self._device.type == "cuda":
+            self._torch.cuda.synchronize()
+
+    def _generate_batch(self, batch_size: int) -> List[GenerationRequestResult]:
+        prompt_tokens = self.cfg.prompt_tokens
+        input_ids = (
+            self._torch.arange(
+                prompt_tokens, device=self._device, dtype=self._torch.long
+            )
+            .unsqueeze(0)
+            .expand(batch_size, prompt_tokens)
+            .contiguous()
+        )
+        input_ids = input_ids % self.cfg.model_cfg.vocab_size
+
+        generated_tokens = max(1, self.cfg.generated_tokens)
+
+        # Time the first generated token (prefill + one decode step) separately so
+        # time-to-first-token is a real measurement, not full-generation latency.
+        start = time.perf_counter()
+        sequence = self._model.generate(input_ids, 1)
+        self._sync_device()
+        time_to_first_token_s = time.perf_counter() - start
+
+        remaining_tokens = generated_tokens - 1
+        if remaining_tokens > 0:
+            self._model.generate(sequence, remaining_tokens)
+            self._sync_device()
+
+        return [
+            GenerationRequestResult(
+                prompt_tokens=prompt_tokens,
+                generated_tokens=generated_tokens,
+                time_to_first_token_s=time_to_first_token_s,
+            )
+            for _ in range(batch_size)
+        ]
+
+    def _run_warmup(self) -> None:
+        for _ in range(self.cfg.warmup_requests):
+            self._generate_batch(self.cfg.concurrency)
+
+    def _run_measured(self) -> Tuple[List[GenerationRequestResult], float]:
+        request_results: List[GenerationRequestResult] = []
+        start = time.perf_counter()
+        remaining = self.cfg.requests
+        while remaining > 0:
+            batch_size = min(self.cfg.concurrency, remaining)
+            request_results.extend(self._generate_batch(batch_size))
+            remaining -= batch_size
+        duration_s = time.perf_counter() - start
+        return request_results, duration_s
+
+    def _get_backend(self) -> str:
+        return "pytorch-simple-transformer"
+
+    def _get_ai_framework_name(self) -> str:
+        return "pytorch-simple-transformer"
+
+    def _get_ai_framework_version(self) -> str:
+        return self.cfg.ai_framework_version or self._torch.__version__
+
+    def _get_ai_framework_extra_info(self) -> str:
+        return self.cfg.ai_framework_extra_info or self.cfg.device_name
+
+    def _get_accelerator_info(self) -> str:
+        if self.cfg.accelerator != "unknown":
+            return self.cfg.accelerator
+        if self.cfg.device_name.startswith("cuda") and self._torch.cuda.is_available():
+            return self._torch.cuda.get_device_name(None)
+        if self.cfg.device_name == "mps":
+            return "Apple MPS"
+        return "CPU"
+
+    def _get_model_parameters(self) -> int:
+        return self.cfg.model_params or sum(
+            p.numel() for p in self._model.parameters()
+        )

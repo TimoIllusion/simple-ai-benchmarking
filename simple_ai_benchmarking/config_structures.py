@@ -42,6 +42,7 @@ class AIFramework(Enum):
 class AIStage(Enum):
     INFERENCE = "Inference"
     TRAINING = "Training"
+    GENERATION = "Generation"
 
 
 @dataclass
@@ -109,3 +110,46 @@ class InferenceConfig(AIWorkloadBaseConfig):
 @dataclass
 class TrainingConfig(InferenceConfig):
     epochs: int = 5
+
+
+@dataclass
+class GenerationModelConfig:
+    vocab_size: int = 32000
+    context_length: int = 4096
+    embedding_dim: int = 256
+    attention_heads: int = 4
+    transformer_layers: int = 4
+
+
+@dataclass
+class LLMGenerationConfig:
+    """Config for local generation workloads (sibling to the CV configs).
+
+    Standalone rather than an AIWorkloadBaseConfig subclass: generation has no
+    dataset/batch/num_classes notion. Concurrency is the batch size processed in
+    a single batched forward pass."""
+
+    device_name: str = "cpu"
+    model: str = "SimpleTransformerLM"
+    requests: int = 10
+    warmup_requests: int = 1
+    concurrency: int = 1
+    prompt_tokens: int = 128
+    generated_tokens: int = 256
+    precision: NumericalPrecision = NumericalPrecision.DEFAULT_PRECISION
+    compute_precision: str = "FP32"
+    quantization: str = "none"
+    weight_source: str = "random_weights"
+    accelerator: str = "unknown"
+    ai_framework_version: str = ""
+    ai_framework_extra_info: str = ""
+    model_params: int = 0
+    model_cfg: GenerationModelConfig = field(
+        default_factory=lambda: GenerationModelConfig()
+    )
+
+    def __str__(self):
+        return (
+            f"{self.model} (gen) p{self.prompt_tokens}/g{self.generated_tokens} "
+            f"c{self.concurrency} on {self.device_name}"
+        )

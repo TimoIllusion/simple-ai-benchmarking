@@ -23,6 +23,7 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.config_structures import (
     AIWorkloadBaseConfig,
     InferenceConfig,
+    LLMGenerationConfig,
     TrainingConfig,
     AIFramework,
 )
@@ -32,12 +33,28 @@ class WorkloadFactory:
 
     @staticmethod
     def create_workload(workload_cfg: AIWorkloadBaseConfig, framework: AIFramework) -> AIWorkload:
+        if isinstance(workload_cfg, LLMGenerationConfig):
+            return WorkloadFactory._create_generation_workload(workload_cfg, framework)
         if framework is AIFramework.PYTORCH:
             return WorkloadFactory._create_pytorch_workload(workload_cfg)
         elif framework is AIFramework.TENSORFLOW:
             return WorkloadFactory._create_tensorflow_workload(workload_cfg)
         else:
             raise ValueError(f"Framework {framework} not supported")
+
+    @staticmethod
+    def _create_generation_workload(
+        workload_cfg: LLMGenerationConfig, framework: AIFramework
+    ) -> AIWorkload:
+        if framework is AIFramework.PYTORCH:
+            from simple_ai_benchmarking.workloads.llm_workload import (
+                PyTorchLocalGeneration,
+            )
+
+            return PyTorchLocalGeneration(workload_cfg)
+        raise ValueError(
+            f"Generation workloads are not supported for framework {framework}"
+        )
 
     @staticmethod
     def _create_pytorch_workload(workload_cfg: AIWorkloadBaseConfig) -> AIWorkload:

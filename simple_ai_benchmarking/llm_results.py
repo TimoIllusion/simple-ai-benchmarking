@@ -84,6 +84,12 @@ class LLMBenchmarkResult:
     bench_info: LLMBenchInfo
     performance: LLMPerformanceResult
 
+    def update_performance_duration(self, duration_s: float) -> None:
+        # Generation workloads measure their own wall-clock (including device
+        # synchronization) during execution, so the outer benchmark timer is
+        # redundant here and intentionally ignored.
+        pass
+
 
 class LLMBenchmarkLogger(BaseBenchmarkLogger):
     def __init__(self) -> None:
