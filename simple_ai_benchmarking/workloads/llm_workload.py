@@ -18,8 +18,10 @@
 
 
 import datetime
+import json
 import time
 from abc import abstractmethod
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from statistics import mean
 from typing import List, Tuple
@@ -32,6 +34,11 @@ from simple_ai_benchmarking.llm_results import (
 )
 from simple_ai_benchmarking.results import collect_hw_info, collect_sw_info
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
+
+
+PYTORCH_GENERATION_BACKEND = "pytorch-simple-transformer"
+OPENAI_COMPATIBLE_BACKEND = "openai-compatible"
+OLLAMA_BACKEND = "ollama"
 
 
 @dataclass
@@ -114,7 +121,7 @@ class LLMGenerationWorkload(AIWorkload):
             model_params=self.cfg.model_params,
             compute_precision=self.cfg.compute_precision,
             quantization=self.cfg.quantization,
-            context_length=self.cfg.model_cfg.context_length,
+            context_length=self.cfg.context_length,
             prompt_tokens=self.cfg.prompt_tokens,
             generated_tokens=self.cfg.generated_tokens,
             concurrency=self.cfg.concurrency,
@@ -154,6 +161,8 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
 
         self._torch = torch
         self._device = torch.device(self.cfg.device_name)
+        # Keep the model context window consistent with the recorded one.
+        self.cfg.model_cfg.context_length = self.cfg.context_length
         self._model = GenerationModelFactory.create_pytorch_model(
             self.cfg.model_cfg
         ).to(self._device)
@@ -219,10 +228,10 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
         return request_results, duration_s
 
     def _get_backend(self) -> str:
-        return "pytorch-simple-transformer"
+        return PYTORCH_GENERATION_BACKEND
 
     def _get_ai_framework_name(self) -> str:
-        return "pytorch-simple-transformer"
+        return PYTORCH_GENERATION_BACKEND
 
     def _get_ai_framework_version(self) -> str:
         return self.cfg.ai_framework_version or self._torch.__version__
@@ -242,4 +251,185 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
     def _get_model_parameters(self) -> int:
         return self.cfg.model_params or sum(
             p.numel() for p in self._model.parameters()
+        )
+
+
+class HTTPGenerationWorkload(LLMGenerationWorkload):
+    """Generation against an HTTP serving backend (which may run locally).
+
+    Concurrency here is the number of in-flight concurrent requests: the serving
+    stack does its own (server-side) batching, so this load-tests the endpoint."""
+
+    def setup(self) -> None:
+        import requests
+
+        if getattr(self, "_session", None) is None:
+            self._session = requests.Session()
+
+    def _build_prompt(self) -> str:
+        # Roughly one token per simple word for backend-independent prompt targets.
+        return " ".join(["benchmark"] * max(1, self.cfg.prompt_tokens))
+
+    def _run_warmup(self) -> None:
+        prompt = self._build_prompt()
+        for _ in range(self.cfg.warmup_requests):
+            self._generate_one(prompt)
+
+    def _run_measured(self) -> Tuple[List[GenerationRequestResult], float]:
+        prompt = self._build_prompt()
+        request_results: List[GenerationRequestResult] = []
+        start = time.perf_counter()
+        with ThreadPoolExecutor(max_workers=self.cfg.concurrency) as executor:
+            futures = [
+                executor.submit(self._generate_one, prompt)
+                for _ in range(self.cfg.requests)
+            ]
+            for future in as_completed(futures):
+                request_results.append(future.result())
+        duration_s = time.perf_counter() - start
+        return request_results, duration_s
+
+    @abstractmethod
+    def _generate_one(self, prompt: str) -> GenerationRequestResult:
+        pass
+
+    def _get_ai_framework_version(self) -> str:
+        return self.cfg.ai_framework_version
+
+    def _get_ai_framework_extra_info(self) -> str:
+        return self.cfg.ai_framework_extra_info
+
+    def _get_accelerator_info(self) -> str:
+        return self.cfg.accelerator
+
+    def _get_model_parameters(self) -> int:
+        return self.cfg.model_params
+
+
+class OpenAICompatibleGeneration(HTTPGenerationWorkload):
+
+    def _get_backend(self) -> str:
+        return OPENAI_COMPATIBLE_BACKEND
+
+    def _get_ai_framework_name(self) -> str:
+        return OPENAI_COMPATIBLE_BACKEND
+
+    def _generate_one(self, prompt: str) -> GenerationRequestResult:
+        url = self.cfg.base_url.rstrip("/") + "/v1/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self.cfg.api_key:
+            headers["Authorization"] = f"Bearer {self.cfg.api_key}"
+        payload = {
+            "model": self.cfg.model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": self.cfg.generated_tokens,
+            "temperature": 0,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+
+        prompt_tokens = self.cfg.prompt_tokens
+        generated_tokens = 0
+        time_to_first_token_s = None
+
+        start = time.perf_counter()
+        with self._session.post(
+            url,
+            json=payload,
+            headers=headers,
+            timeout=self.cfg.timeout_s,
+            stream=True,
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8")
+                if line.startswith("data:"):
+                    line = line[len("data:") :].strip()
+                if line == "[DONE]":
+                    break
+                try:
+                    chunk = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                choices = chunk.get("choices") or []
+                if choices:
+                    content = (choices[0].get("delta") or {}).get("content")
+                    if content:
+                        if time_to_first_token_s is None:
+                            time_to_first_token_s = time.perf_counter() - start
+                        generated_tokens += 1
+                usage = chunk.get("usage")
+                if usage:
+                    prompt_tokens = int(usage.get("prompt_tokens", prompt_tokens))
+                    generated_tokens = int(
+                        usage.get("completion_tokens", generated_tokens)
+                    )
+        duration_s = time.perf_counter() - start
+
+        return GenerationRequestResult(
+            prompt_tokens=prompt_tokens,
+            generated_tokens=generated_tokens or self.cfg.generated_tokens,
+            time_to_first_token_s=time_to_first_token_s
+            if time_to_first_token_s is not None
+            else duration_s,
+        )
+
+
+class OllamaGeneration(HTTPGenerationWorkload):
+
+    def _get_backend(self) -> str:
+        return OLLAMA_BACKEND
+
+    def _get_ai_framework_name(self) -> str:
+        return OLLAMA_BACKEND
+
+    def _generate_one(self, prompt: str) -> GenerationRequestResult:
+        url = self.cfg.base_url.rstrip("/") + "/api/generate"
+        payload = {
+            "model": self.cfg.model,
+            "prompt": prompt,
+            "stream": True,
+            "options": {
+                "num_predict": self.cfg.generated_tokens,
+                "num_ctx": self.cfg.context_length,
+                "temperature": 0,
+            },
+        }
+
+        prompt_tokens = self.cfg.prompt_tokens
+        generated_tokens = 0
+        time_to_first_token_s = None
+
+        start = time.perf_counter()
+        with self._session.post(
+            url, json=payload, timeout=self.cfg.timeout_s, stream=True
+        ) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                if isinstance(line, bytes):
+                    line = line.decode("utf-8")
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if data.get("response"):
+                    if time_to_first_token_s is None:
+                        time_to_first_token_s = time.perf_counter() - start
+                    generated_tokens += 1
+                if data.get("done"):
+                    generated_tokens = int(data.get("eval_count", generated_tokens))
+                    prompt_tokens = int(data.get("prompt_eval_count", prompt_tokens))
+        duration_s = time.perf_counter() - start
+
+        return GenerationRequestResult(
+            prompt_tokens=prompt_tokens,
+            generated_tokens=generated_tokens or self.cfg.generated_tokens,
+            time_to_first_token_s=time_to_first_token_s
+            if time_to_first_token_s is not None
+            else duration_s,
         )
