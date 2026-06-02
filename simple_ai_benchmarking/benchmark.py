@@ -29,12 +29,15 @@ from simple_ai_benchmarking.dataset import get_available_memory_in_bytes
 
 
 def process_workloads(
-    workloads: List[AIWorkload], out_file_base="benchmark_results", repetitions=3
+    workloads: List[AIWorkload],
+    out_file_base="benchmark_results",
+    repetitions=3,
+    result_logger=None,
 ) -> None:
 
     assert workloads, "Got empty list fo workloads."
 
-    result_logger = BenchmarkLogger()
+    result_logger = result_logger if result_logger is not None else BenchmarkLogger()
 
     for workload in workloads:
         logger.info(f"Running benchmark: {workload}")

@@ -135,6 +135,6 @@ def publish_llm():
 
 
 def run_llm_benchmarks():
-    from simple_ai_benchmarking.llm_inference import run_llm_inference_cli
+    from simple_ai_benchmarking.llm_generation import run_llm_generation_cli
 
-    run_llm_inference_cli()
+    run_llm_generation_cli()
