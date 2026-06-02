@@ -2,6 +2,7 @@
 # File Name: llm_results.py
 
 from dataclasses import dataclass, field
+from statistics import mean
 from typing import List
 
 from tabulate import tabulate
@@ -94,6 +95,33 @@ class LLMBenchmarkResult:
 class LLMBenchmarkLogger(BaseBenchmarkLogger):
     def __init__(self) -> None:
         self.results: List[LLMBenchmarkResult] = []
+
+    def _average_performance(
+        self, perf_results: List[LLMPerformanceResult]
+    ) -> LLMPerformanceResult:
+        # Pool across repetitions (sum tokens and duration, recompute rates) so the
+        # aggregate matches how a single run reports throughput; TTFT is a mean.
+        requests = sum(p.requests for p in perf_results)
+        duration_s = sum(p.duration_s for p in perf_results)
+        prompt_tokens = sum(
+            p.prompt_tokens_per_second * p.duration_s for p in perf_results
+        )
+        generated_tokens = sum(
+            p.generated_tokens_per_second * p.duration_s for p in perf_results
+        )
+        total_tokens = sum(
+            p.total_tokens_per_second * p.duration_s for p in perf_results
+        )
+        return LLMPerformanceResult(
+            requests=requests,
+            duration_s=duration_s,
+            prompt_tokens_per_second=prompt_tokens / duration_s if duration_s else 0.0,
+            generated_tokens_per_second=generated_tokens / duration_s
+            if duration_s
+            else 0.0,
+            total_tokens_per_second=total_tokens / duration_s if duration_s else 0.0,
+            time_to_first_token_s=mean(p.time_to_first_token_s for p in perf_results),
+        )
 
     def pretty_print_summary(self) -> None:
         print("\n===== LLM BENCHMARK SUMMARY =====\n")

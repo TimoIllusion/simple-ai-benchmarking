@@ -128,6 +128,12 @@ def publish():
     publish_results_cli()
 
 
+def register_profiles():
+    from simple_ai_benchmarking.database import register_profiles_cli
+
+    register_profiles_cli()
+
+
 def publish_llm():
     from simple_ai_benchmarking.llm_database import publish_llm_results_cli
 
@@ -135,6 +141,6 @@ def publish_llm():
 
 
 def run_llm_benchmarks():
-    from simple_ai_benchmarking.llm_inference import run_llm_inference_cli
+    from simple_ai_benchmarking.llm_generation import run_llm_generation_cli
 
-    run_llm_inference_cli()
+    run_llm_generation_cli()

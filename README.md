@@ -99,11 +99,12 @@ Three backends are supported:
   saib-llm --backend pytorch-simple-transformer --model simple-transformer --device cuda
   ```
 
-The benchmark performs configurable warmup and measured requests (optionally concurrent) and reports prompt, generated, and total tokens per second, time to first token, and total duration. Results are written to `llm_results.csv` (and `.xlsx` if `openpyxl` is installed).
+The benchmark performs configurable warmup and measured requests (optionally concurrent), repeats the measurement and averages the result, and reports prompt, generated, and total tokens per second, time to first token, and total duration. Each repetition runs in an isolated process. Results are written to `llm_results.csv` (and `.xlsx` if `openpyxl` is installed).
 
 Common options (see `saib-llm -h` for the full list):
 
 - `--requests` / `--warmup-requests` — number of measured / warmup requests (default `10` / `1`)
+- `--repetitions` — number of times the measurement is repeated and averaged (default `3`); for paid HTTP endpoints, lower this to reduce cost
 - `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local `pytorch-simple-transformer` backend, the batch size processed in a single batched forward pass (default `1`)
 - `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `128` / `256`)
 - `--context-length` — model context window (default `4096`)

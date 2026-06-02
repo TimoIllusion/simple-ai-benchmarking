@@ -88,6 +88,7 @@ setuptools.setup(
             "saib-llm = simple_ai_benchmarking.entrypoints:run_llm_benchmarks",
             "saib-pub = simple_ai_benchmarking.entrypoints:publish",
             "saib-pub-llm = simple_ai_benchmarking.entrypoints:publish_llm",
+            "saib-register = simple_ai_benchmarking.entrypoints:register_profiles",
         ]
     },
 )

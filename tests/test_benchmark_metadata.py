@@ -1,3 +1,5 @@
+import pytest
+
 from simple_ai_benchmarking.benchmark_metadata import (
     build_cv_profile,
     build_llm_profile,
@@ -29,6 +31,54 @@ def test_canonical_hash_is_stable_across_dict_ordering():
 def test_cv_and_llm_loggers_share_base_export_machinery():
     assert issubclass(BenchmarkLogger, BaseBenchmarkLogger)
     assert issubclass(LLMBenchmarkLogger, BaseBenchmarkLogger)
+
+
+def _llm_result(duration_s, generated_tps, ttft):
+    return LLMBenchmarkResult(
+        sw_info=SWInfo("torch", "2.4.0", "cuda", "3.11.0", "Linux"),
+        hw_info=HWInfo("AMD Ryzen", 16, 64.0, "NVIDIA RTX 4090"),
+        bench_info=LLMBenchInfo(
+            benchmark_type="inference",
+            backend="pytorch-simple-transformer",
+            model="SimpleTransformerLM",
+            model_params=1000,
+            compute_precision="FP32",
+            quantization="none",
+            context_length=8,
+            prompt_tokens=4,
+            generated_tokens=2,
+            concurrency=1,
+            date="2026-05-11T12:00:00",
+            weight_source="random_weights",
+        ),
+        performance=LLMPerformanceResult(
+            requests=10,
+            duration_s=duration_s,
+            prompt_tokens_per_second=0.0,
+            generated_tokens_per_second=generated_tps,
+            total_tokens_per_second=generated_tps,
+            time_to_first_token_s=ttft,
+        ),
+    )
+
+
+def test_llm_logger_pools_repetitions_by_tokens_and_duration():
+    # rep1: 100 tok/s * 2s = 200 tokens; rep2: 50 tok/s * 4s = 200 tokens.
+    # Pooled: 400 tokens / 6s = 66.67 tok/s; requests summed; TTFT averaged.
+    logger = LLMBenchmarkLogger()
+
+    logger.add_benchmark_result_by_averaging_multiple_results(
+        [
+            _llm_result(duration_s=2.0, generated_tps=100.0, ttft=0.2),
+            _llm_result(duration_s=4.0, generated_tps=50.0, ttft=0.4),
+        ]
+    )
+
+    perf = logger.results[0].performance
+    assert perf.requests == 20
+    assert perf.duration_s == 6.0
+    assert perf.generated_tokens_per_second == pytest.approx(400.0 / 6.0)
+    assert perf.time_to_first_token_s == pytest.approx(0.3)
 
 
 def test_collect_sw_info_populates_host_runtime_fields():

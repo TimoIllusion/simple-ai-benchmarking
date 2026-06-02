@@ -199,37 +199,32 @@ class BaseBenchmarkLogger:
     def export_to_excel(self, file_name: str) -> None:
         self.to_dataframe().to_excel(file_name, index=False)
 
+    def add_benchmark_result_by_averaging_multiple_results(self, results) -> None:
+        """Average repetitions of one workload into a single result row.
+
+        The non-performance fields are identical across repetitions, so the first
+        result is reused and only its performance is replaced by the family-specific
+        average (CV pools iterations/duration; LLM pools tokens/duration)."""
+        assert results, "Got empty list of benchmark results"
+        averaged_result = results[0]
+        averaged_result.performance = self._average_performance(
+            [result.performance for result in results]
+        )
+        self.add_result(averaged_result)
+
+    def _average_performance(self, performances):
+        raise NotImplementedError
+
+    def pretty_print_summary(self) -> None:
+        raise NotImplementedError
+
 
 class BenchmarkLogger(BaseBenchmarkLogger):
 
     def __init__(self) -> None:
         self.results: List[BenchmarkResult] = []
 
-    def add_benchmark_result_by_averaging_multiple_results(
-        self, results: List[BenchmarkResult]
-    ) -> None:
-
-        averaged_benchmark_result = self._average_benchmark_results(results)
-        self.add_result(averaged_benchmark_result)
-
-    def _average_benchmark_results(
-        self, benchmark_results: List[BenchmarkResult]
-    ) -> BenchmarkResult:
-
-        assert benchmark_results, "Got empty list of benchmark results"
-
-        performances = [result.performance for result in benchmark_results]
-
-        avg_perf = self._accumulate_and_average_performance_results(
-            performances
-        )
-
-        combined_avg_benchmark_result = benchmark_results[0]
-        combined_avg_benchmark_result.performance = avg_perf
-
-        return combined_avg_benchmark_result
-
-    def _accumulate_and_average_performance_results(
+    def _average_performance(
         self, perf_results: List[PerformanceResult]
     ) -> PerformanceResult:
 

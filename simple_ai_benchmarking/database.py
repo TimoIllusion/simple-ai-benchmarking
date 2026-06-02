@@ -410,3 +410,100 @@ def publish_results_cli():
     benchmark_datasets = read_and_enrich_benchmark_data(args)
 
     submit_results(benchmark_datasets, args, submit_url, api_token)
+
+
+def register_profiles_cli():
+    """Register benchmark profiles found in a results CSV with the database."""
+    parser = argparse.ArgumentParser(
+        description="Register benchmark profiles found in a results CSV with the AI Benchmark Database."
+    )
+    parser.add_argument(
+        "results_csv_path",
+        type=str,
+        help="Path to the CSV file containing the benchmark results.",
+    )
+    parser.add_argument(
+        "--database-url",
+        type=str,
+        default="https://timoillusion.pythonanywhere.com",
+        help="The URL of the AI Benchmark Database.",
+    )
+    parser.add_argument(
+        "-t",
+        "--token",
+        type=str,
+        default=None,
+        help="API token to authenticate with the database.",
+    )
+    parser.add_argument(
+        "-u",
+        "--user",
+        type=str,
+        default=None,
+        help="User to authenticate with the database.",
+    )
+    parser.add_argument(
+        "-p",
+        "--password",
+        type=str,
+        default=None,
+        help="Password to authenticate with the database.",
+    )
+    args = parser.parse_args()
+
+    url = args.database_url.rstrip("/") + "/benchmarks/profiles/register/"
+    
+    api_token = handle_token_pw_user(args)
+    headers = {}
+    auth = None
+    if api_token:
+        headers["Authorization"] = f"Token {api_token}"
+    elif args.user and args.password:
+        auth = HTTPBasicAuth(args.user, args.password)
+    else:
+        import sys
+        sys.exit("Provide a token or user and password.")
+
+    fields = {
+        "benchmark_family": "bench_info_benchmark_family",
+        "benchmark_spec_name": "bench_info_benchmark_spec_name",
+        "benchmark_spec_version": "bench_info_benchmark_spec_version",
+        "benchmark_profile_id": "bench_info_benchmark_profile_id",
+        "benchmark_profile_hash": "bench_info_benchmark_profile_hash",
+        "benchmark_runner_id": "bench_info_benchmark_runner_id",
+        "benchmark_runner_hash": "bench_info_benchmark_runner_hash",
+    }
+
+    seen = set()
+    failures = 0
+    
+    if not os.path.exists(args.results_csv_path):
+        import sys
+        sys.exit(f"CSV file not found: {args.results_csv_path}")
+
+    with open(args.results_csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            phash = row.get(fields["benchmark_profile_hash"])
+            if not phash or phash in seen:
+                continue
+            seen.add(phash)
+            payload = {k: row.get(src, "") for k, src in fields.items()}
+            try:
+                r = requests.post(url, json=payload, headers=headers, auth=auth, timeout=30)
+                if r.status_code in (200, 201):
+                    print(f"[{r.status_code}] {payload['benchmark_profile_id']} ({phash[:12]})")
+                else:
+                    failures += 1
+                    print(f"[{r.status_code}] FAILED {phash[:12]}: {r.text}")
+            except Exception as e:
+                failures += 1
+                print(f"FAILED {phash[:12]}: {e}")
+
+    if not seen:
+        import sys
+        sys.exit("No profile hashes found in CSV.")
+    if failures:
+        import sys
+        sys.exit(1)
+
