@@ -37,8 +37,20 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
 
 PYTORCH_GENERATION_BACKEND = "pytorch-simple-transformer"
+PYTORCH_KV_DECODER_BACKEND = "pytorch-kv-decoder"
+HF_CAUSAL_BACKEND = "huggingface-causal"
 OPENAI_COMPATIBLE_BACKEND = "openai-compatible"
 OLLAMA_BACKEND = "ollama"
+
+# Floating-point precisions applied by a plain dtype cast of the random-weight
+# model (no extra dependency). FP8 and int8/int4 are not dtype casts: they need
+# real low-precision kernels (torchao) and a recent GPU, handled separately.
+PRECISION_TO_DTYPE = {
+    "": "float32",
+    "FP32": "float32",
+    "FP16": "float16",
+    "BF16": "bfloat16",
+}
 
 
 @dataclass
@@ -252,6 +264,241 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
         return self.cfg.model_params or sum(
             p.numel() for p in self._model.parameters()
         )
+
+
+class _DtypeQuantGeneration(PyTorchLocalGeneration):
+    """Shared precision/quantization handling for the local model backends.
+
+    FP32/FP16/BF16 are plain dtype casts of the random-weight model (no extra
+    dependency). FP8 (compute_precision) and int8/int4 (quantization) use real
+    low-precision kernels via torchao and a recent GPU; without torchao they fail
+    with a clear message instead of silently running at a higher precision."""
+
+    _SUPPORTED_PRECISIONS = ("FP32", "FP16", "BF16", "FP8")
+    _SUPPORTED_QUANTIZATIONS = ("none", "int8", "int4")
+
+    def _precision(self) -> str:
+        return (self.cfg.compute_precision or "FP32").upper()
+
+    def _quantization(self) -> str:
+        return (self.cfg.quantization or "none").lower()
+
+    def _resolve_base_dtype(self):
+        precision = self._precision()
+        if precision == "FP8":
+            # The module is built in bf16; torchao casts the Linear layers to fp8.
+            return self._torch.bfloat16
+        dtype_name = PRECISION_TO_DTYPE.get(precision)
+        if dtype_name is None:
+            raise ValueError(
+                f"Unsupported compute precision '{self.cfg.compute_precision}' for "
+                f"{self._get_backend()}. Choose one of: "
+                f"{', '.join(self._SUPPORTED_PRECISIONS)}."
+            )
+        return getattr(self._torch, dtype_name)
+
+    def _apply_precision_quant(self, model):
+        """Apply FP8 / int8 / int4 via torchao when requested; otherwise no-op.
+
+        Call after the model is on its target device. Param counting should happen
+        before this, since quantization swaps in tensor-subclass weights."""
+        precision = self._precision()
+        quantization = self._quantization()
+        if quantization not in self._SUPPORTED_QUANTIZATIONS:
+            raise ValueError(
+                f"Unsupported quantization '{self.cfg.quantization}' for "
+                f"{self._get_backend()}. Choose one of: "
+                f"{', '.join(self._SUPPORTED_QUANTIZATIONS)}."
+            )
+        if precision != "FP8" and quantization == "none":
+            return model
+        try:
+            from torchao.quantization import quantize_
+
+            try:
+                # torchao >= 0.x Config-class API.
+                from torchao.quantization import (
+                    Float8DynamicActivationFloat8WeightConfig as fp8_config,
+                    Int4WeightOnlyConfig as int4_config,
+                    Int8WeightOnlyConfig as int8_config,
+                )
+            except ImportError:
+                # Older function-style API.
+                from torchao.quantization import (
+                    float8_dynamic_activation_float8_weight as fp8_config,
+                    int4_weight_only as int4_config,
+                    int8_weight_only as int8_config,
+                )
+        except ImportError as exc:
+            raise NotImplementedError(
+                f"compute_precision='{self.cfg.compute_precision}' / "
+                f"quantization='{self.cfg.quantization}' on {self._get_backend()} "
+                "needs torchao and a recent GPU: pip install torchao. "
+                "FP32/FP16/BF16 work without it."
+            ) from exc
+        if precision == "FP8":
+            quantize_(model, fp8_config())
+        if quantization == "int8":
+            quantize_(model, int8_config())
+        elif quantization == "int4":
+            quantize_(model, int4_config())
+        return model
+
+
+class PyTorchKVDecoderGeneration(_DtypeQuantGeneration):
+    """Heavier local generation on a decoder-only transformer with a KV cache.
+
+    Same measurement contract as PyTorchLocalGeneration, but the model keeps
+    per-layer key/value caches: time-to-first-token is the prompt prefill, and the
+    remaining tokens are produced one-at-a-time against the cache (O(1) per token)
+    rather than re-running the whole sequence. Precision (FP32/FP16/BF16) is set by
+    casting the random-weight model to the requested dtype."""
+
+    def setup(self) -> None:
+        import torch
+
+        from simple_ai_benchmarking.models.generation_factory import (
+            GenerationModelFactory,
+        )
+
+        self._torch = torch
+        self._device = torch.device(self.cfg.device_name)
+        self.cfg.model_cfg.context_length = self.cfg.context_length
+        dtype = self._resolve_base_dtype()
+        model = GenerationModelFactory.create_pytorch_kv_decoder_model(
+            self.cfg.model_cfg
+        )
+        model = model.to(device=self._device, dtype=dtype)
+        if self.cfg.model_params == 0:
+            self.cfg.model_params = sum(p.numel() for p in model.parameters())
+        model = self._apply_precision_quant(model)
+        self._model = model.eval()
+
+    def _generate_batch(self, batch_size: int) -> List[GenerationRequestResult]:
+        prompt_tokens = self.cfg.prompt_tokens
+        input_ids = (
+            self._torch.arange(
+                prompt_tokens, device=self._device, dtype=self._torch.long
+            )
+            .unsqueeze(0)
+            .expand(batch_size, prompt_tokens)
+            .contiguous()
+        )
+        input_ids = input_ids % self.cfg.model_cfg.vocab_size
+
+        generated_tokens = max(1, self.cfg.generated_tokens)
+
+        # Prefill (= time-to-first-token), then cached single-token decode steps.
+        start = time.perf_counter()
+        next_token, cache = self._model.prefill(input_ids)
+        self._sync_device()
+        time_to_first_token_s = time.perf_counter() - start
+
+        for _ in range(generated_tokens - 1):
+            next_token, cache = self._model.decode_step(next_token, cache)
+        self._sync_device()
+
+        return [
+            GenerationRequestResult(
+                prompt_tokens=prompt_tokens,
+                generated_tokens=generated_tokens,
+                time_to_first_token_s=time_to_first_token_s,
+            )
+            for _ in range(batch_size)
+        ]
+
+    def _get_backend(self) -> str:
+        return PYTORCH_KV_DECODER_BACKEND
+
+    def _get_ai_framework_name(self) -> str:
+        return PYTORCH_KV_DECODER_BACKEND
+
+
+class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
+    """Local generation on a real Hugging Face causal LM architecture.
+
+    Builds the model from the repo's config and randomly initialises the weights
+    (no checkpoint download), so it exercises a production architecture (e.g.
+    Llama) at its true size. `cfg.model` is the Hugging Face repo id. Uses the
+    model's built-in KV cache: prefill = time-to-first-token, then cached decode.
+    Requires the optional `transformers` dependency; if it is missing the workload
+    simply fails (and the surrounding run continues with the other workloads)."""
+
+    def setup(self) -> None:
+        import torch
+        from transformers import AutoConfig, AutoModelForCausalLM
+
+        self._torch = torch
+        self._device = torch.device(self.cfg.device_name)
+        dtype = self._resolve_base_dtype()
+
+        config = AutoConfig.from_pretrained(self.cfg.model)
+        self._vocab_size = config.vocab_size
+        try:
+            model = AutoModelForCausalLM.from_config(config, torch_dtype=dtype)
+        except TypeError:
+            # Older transformers without the torch_dtype kwarg on from_config.
+            model = AutoModelForCausalLM.from_config(config).to(dtype=dtype)
+        model = model.to(self._device)
+        if self.cfg.model_params == 0:
+            self.cfg.model_params = sum(p.numel() for p in model.parameters())
+        model = self._apply_precision_quant(model)
+        self._model = model.eval()
+
+    def _generate_batch(self, batch_size: int) -> List[GenerationRequestResult]:
+        torch = self._torch
+        prompt_tokens = self.cfg.prompt_tokens
+        input_ids = (
+            torch.arange(prompt_tokens, device=self._device, dtype=torch.long)
+            .unsqueeze(0)
+            .expand(batch_size, prompt_tokens)
+            .contiguous()
+        )
+        input_ids = input_ids % self._vocab_size
+
+        generated_tokens = max(1, self.cfg.generated_tokens)
+
+        with torch.no_grad():
+            # Prefill (= time-to-first-token), then cached single-token decode.
+            start = time.perf_counter()
+            outputs = self._model(input_ids=input_ids, use_cache=True)
+            past = outputs.past_key_values
+            next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
+            self._sync_device()
+            time_to_first_token_s = time.perf_counter() - start
+
+            for _ in range(generated_tokens - 1):
+                outputs = self._model(
+                    input_ids=next_token, past_key_values=past, use_cache=True
+                )
+                past = outputs.past_key_values
+                next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
+            self._sync_device()
+
+        return [
+            GenerationRequestResult(
+                prompt_tokens=prompt_tokens,
+                generated_tokens=generated_tokens,
+                time_to_first_token_s=time_to_first_token_s,
+            )
+            for _ in range(batch_size)
+        ]
+
+    def _get_backend(self) -> str:
+        return HF_CAUSAL_BACKEND
+
+    def _get_ai_framework_name(self) -> str:
+        return HF_CAUSAL_BACKEND
+
+    def _get_ai_framework_version(self) -> str:
+        if self.cfg.ai_framework_version:
+            return self.cfg.ai_framework_version
+        try:
+            import transformers
+
+            return transformers.__version__
+        except Exception:
+            return self._torch.__version__
 
 
 class HTTPGenerationWorkload(LLMGenerationWorkload):

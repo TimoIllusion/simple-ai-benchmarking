@@ -47,11 +47,15 @@ class WorkloadFactory:
         workload_cfg: LLMGenerationConfig, framework: AIFramework
     ) -> AIWorkload:
         from simple_ai_benchmarking.workloads.llm_workload import (
+            HF_CAUSAL_BACKEND,
             OLLAMA_BACKEND,
             OPENAI_COMPATIBLE_BACKEND,
             PYTORCH_GENERATION_BACKEND,
+            PYTORCH_KV_DECODER_BACKEND,
+            HuggingFaceCausalGeneration,
             OllamaGeneration,
             OpenAICompatibleGeneration,
+            PyTorchKVDecoderGeneration,
             PyTorchLocalGeneration,
         )
 
@@ -60,9 +64,14 @@ class WorkloadFactory:
             return OpenAICompatibleGeneration(workload_cfg)
         if backend == OLLAMA_BACKEND:
             return OllamaGeneration(workload_cfg)
-        if backend == PYTORCH_GENERATION_BACKEND:
+        local_backends = {
+            PYTORCH_GENERATION_BACKEND: PyTorchLocalGeneration,
+            PYTORCH_KV_DECODER_BACKEND: PyTorchKVDecoderGeneration,
+            HF_CAUSAL_BACKEND: HuggingFaceCausalGeneration,
+        }
+        if backend in local_backends:
             if framework is AIFramework.PYTORCH:
-                return PyTorchLocalGeneration(workload_cfg)
+                return local_backends[backend](workload_cfg)
             raise ValueError(
                 f"Local generation backend requires PyTorch, got {framework}"
             )

@@ -29,16 +29,53 @@ from simple_ai_benchmarking.config_structures import (
 from simple_ai_benchmarking.llm_results import LLMBenchmarkLogger
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 from simple_ai_benchmarking.workloads.llm_workload import (
+    HF_CAUSAL_BACKEND,
     OLLAMA_BACKEND,
     OPENAI_COMPATIBLE_BACKEND,
     PYTORCH_GENERATION_BACKEND,
+    PYTORCH_KV_DECODER_BACKEND,
 )
 
 SUPPORTED_LLM_BACKENDS = (
     OPENAI_COMPATIBLE_BACKEND,
     OLLAMA_BACKEND,
     PYTORCH_GENERATION_BACKEND,
+    PYTORCH_KV_DECODER_BACKEND,
+    HF_CAUSAL_BACKEND,
 )
+
+# Local PyTorch backends that build and run a model in-process (vs HTTP serving
+# backends). They share device auto-detection and framework metadata defaults.
+LOCAL_PYTORCH_BACKENDS = (
+    PYTORCH_GENERATION_BACKEND,
+    PYTORCH_KV_DECODER_BACKEND,
+    HF_CAUSAL_BACKEND,
+)
+
+# Backends `saib-llm` runs when no --backend is given: the lightweight reference
+# transformer, the heavier custom KV-cache decoder, and a real Hugging Face model.
+# This mirrors how the CV benchmark runs several models in a single invocation.
+DEFAULT_LLM_BACKENDS = (
+    PYTORCH_GENERATION_BACKEND,
+    PYTORCH_KV_DECODER_BACKEND,
+    HF_CAUSAL_BACKEND,
+)
+
+# Fixed ~1B-parameter geometry for the custom KV-cache decoder. Intentionally not
+# exposed as user-tunable presets: the custom LM simply defaults to ~1B. Mirrors
+# the defaults baked into KVCacheDecoderLM.
+KV_DECODER_DEFAULT_GEOMETRY = dict(
+    embedding_dim=2048,
+    transformer_layers=16,
+    attention_heads=16,
+    feedforward_dim=5632,
+)
+
+# Default Hugging Face causal LM for the huggingface-causal backend. Only the
+# model config is fetched and the weights are randomly initialised (approach B),
+# so no large checkpoint is downloaded. Qwen3 is open (Apache-2.0, ungated) and
+# recent. Override with --model <hf_repo_id>.
+DEFAULT_HF_MODEL = "Qwen/Qwen3-1.7B"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -46,7 +83,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--backend",
         choices=SUPPORTED_LLM_BACKENDS,
-        default=PYTORCH_GENERATION_BACKEND,
+        default=None,
+        help="Generation backend to run. Default: None, which runs all local "
+        "workloads (simple transformer, KV-cache decoder, Hugging Face model).",
     )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--model", default="SimpleTransformerLM")
@@ -54,7 +93,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--warmup-requests", type=int, default=1)
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--concurrency", type=int, default=1)
-    parser.add_argument("--prompt-tokens", type=int, default=128)
+    parser.add_argument("--prompt-tokens", type=int, default=2048)
     parser.add_argument("--generated-tokens", type=int, default=256)
     parser.add_argument("--context-length", type=int, default=4096)
     parser.add_argument("--timeout-s", type=float, default=120.0)
@@ -72,6 +111,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--embedding-dim", type=int, default=256)
     parser.add_argument("--transformer-layers", type=int, default=4)
     parser.add_argument("--attention-heads", type=int, default=4)
+    parser.add_argument("--feedforward-dim", type=int, default=1024)
     parser.add_argument("--out-file-base", default="llm_results")
     return parser.parse_args()
 
@@ -79,23 +119,47 @@ def parse_arguments() -> argparse.Namespace:
 def _default_base_url(backend: str) -> str:
     if backend == OLLAMA_BACKEND:
         return os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-    if backend == PYTORCH_GENERATION_BACKEND:
+    if backend in LOCAL_PYTORCH_BACKENDS:
         return ""
     return os.environ.get("OPENAI_BASE_URL", "https://api.openai.com")
 
 
 def build_generation_config_from_args(
     args: argparse.Namespace,
+    backend: str = None,
 ) -> LLMGenerationConfig:
+    # `backend` lets the caller build a config for a specific backend (used when
+    # one invocation runs several backends); falls back to the parsed --backend.
+    backend = backend or args.backend
+
     api_key = args.api_key
     if api_key is None and args.api_key_env:
         api_key = os.environ.get(args.api_key_env)
+
+    # The custom KV-cache decoder always uses its fixed ~1B geometry; other local
+    # backends take the individual geometry flags (the HF backend ignores these
+    # and builds from the model's own config).
+    if backend == PYTORCH_KV_DECODER_BACKEND:
+        geometry = dict(KV_DECODER_DEFAULT_GEOMETRY)
+    else:
+        geometry = dict(
+            embedding_dim=args.embedding_dim,
+            transformer_layers=args.transformer_layers,
+            attention_heads=args.attention_heads,
+            feedforward_dim=args.feedforward_dim,
+        )
+
+    # The HF backend takes a Hugging Face repo id via --model; substitute the
+    # default when the user left --model at its (non-HF) placeholder value.
+    model = args.model
+    if backend == HF_CAUSAL_BACKEND and model in ("", "SimpleTransformerLM"):
+        model = DEFAULT_HF_MODEL
 
     # Default to the best local device (cuda/mps/cpu), matching how the CV
     # benchmarks pick their device, unless one was explicitly requested.
     device_name = args.device
     if device_name is None:
-        if args.backend == PYTORCH_GENERATION_BACKEND:
+        if backend in LOCAL_PYTORCH_BACKENDS:
             from simple_ai_benchmarking.config_pt_tf import get_device_name_pytorch
 
             device_name = get_device_name_pytorch()
@@ -106,12 +170,19 @@ def build_generation_config_from_args(
     ai_framework_extra_info = args.ai_framework_extra_info
     accelerator = args.accelerator
     weight_source = args.weight_source
-    if args.backend == PYTORCH_GENERATION_BACKEND:
+    if backend in LOCAL_PYTORCH_BACKENDS:
         import torch
 
         ai_framework_version = ai_framework_version or torch.__version__
         ai_framework_extra_info = ai_framework_extra_info or device_name
-        compute_precision = args.compute_precision or "FP32"
+        # The heavier backends default to bf16; the lightweight reference
+        # transformer keeps fp32 so its established results stay comparable.
+        default_precision = (
+            "BF16"
+            if backend in (PYTORCH_KV_DECODER_BACKEND, HF_CAUSAL_BACKEND)
+            else "FP32"
+        )
+        compute_precision = args.compute_precision or default_precision
         quantization = args.quantization or "none"
         weight_source = weight_source or "random_weights"
         if accelerator == "unknown":
@@ -126,9 +197,9 @@ def build_generation_config_from_args(
         quantization = args.quantization
 
     return LLMGenerationConfig(
-        backend=args.backend,
+        backend=backend,
         device_name=device_name,
-        model=args.model,
+        model=model,
         requests=args.requests,
         warmup_requests=args.warmup_requests,
         concurrency=args.concurrency,
@@ -142,25 +213,40 @@ def build_generation_config_from_args(
         ai_framework_version=ai_framework_version,
         ai_framework_extra_info=ai_framework_extra_info,
         model_params=args.model_params,
-        base_url=args.base_url or _default_base_url(args.backend),
+        base_url=args.base_url or _default_base_url(backend),
         api_key=api_key,
         timeout_s=args.timeout_s,
         model_cfg=GenerationModelConfig(
             vocab_size=args.vocab_size,
             context_length=args.context_length,
-            embedding_dim=args.embedding_dim,
-            attention_heads=args.attention_heads,
-            transformer_layers=args.transformer_layers,
+            embedding_dim=geometry["embedding_dim"],
+            attention_heads=geometry["attention_heads"],
+            transformer_layers=geometry["transformer_layers"],
+            feedforward_dim=geometry["feedforward_dim"],
         ),
     )
 
 
+def build_generation_configs(args: argparse.Namespace):
+    """One config per backend to run: the explicit --backend, or all the default
+    local backends (mirrors the CV benchmark running several models at once)."""
+    if args.backend is not None:
+        return [build_generation_config_from_args(args, args.backend)]
+    return [
+        build_generation_config_from_args(args, backend)
+        for backend in DEFAULT_LLM_BACKENDS
+    ]
+
+
 def run_llm_generation_cli() -> None:
     args = parse_arguments()
-    config = build_generation_config_from_args(args)
-    workload = WorkloadFactory.create_workload(config, AIFramework.PYTORCH)
+    configs = build_generation_configs(args)
+    workloads = [
+        WorkloadFactory.create_workload(config, AIFramework.PYTORCH)
+        for config in configs
+    ]
     process_workloads(
-        [workload],
+        workloads,
         out_file_base=args.out_file_base,
         repetitions=args.repetitions,
         result_logger=LLMBenchmarkLogger(),
