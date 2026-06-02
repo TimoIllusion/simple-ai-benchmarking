@@ -1,18 +1,15 @@
 # Project Name: simple-ai-benchmarking
 # File Name: llm_database.py
 
-import argparse
 import csv
-import json
-import os
 from dataclasses import dataclass
 
 from simple_ai_benchmarking.database import (
+    build_publish_parser,
+    enrich_benchmark_data,
     get_git_commit_hash_from_package_version,
     handle_token_pw_user,
-    prompt_for_updates,
-    submit_benchmark_result_token_auth,
-    submit_benchmark_result_user_pw_auth,
+    submit_results,
 )
 from simple_ai_benchmarking.version_and_metadata import REPO_URL, VERSION
 
@@ -128,60 +125,21 @@ def read_csv_and_create_llm_benchmark_dataset(
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description="Submit LLM benchmark results to the AI Benchmark Database."
-    )
-    parser.add_argument("results_csv_path", type=str)
-    parser.add_argument(
-        "--database-url", type=str, default="https://timoillusion.pythonanywhere.com"
-    )
-    parser.add_argument("--non-interactive", action="store_true", default=False)
-    parser.add_argument("-t", "--token", type=str, default=None)
-    parser.add_argument("-p", "--password", type=str, default=None)
-    parser.add_argument("-u", "--user", type=str, default=None)
-    parser.add_argument("-e", "--extra-info", type=str, default=None)
-    return parser.parse_args()
+    return build_publish_parser(
+        "Submit LLM benchmark results to the AI Benchmark Database."
+    ).parse_args()
 
 
 def read_and_enrich_llm_benchmark_data(args):
     benchmark_datasets = read_csv_and_create_llm_benchmark_dataset(
         args.results_csv_path, args.extra_info
     )
-
-    json_file_path = "llm_benchmark_dataset.json"
-    with open(json_file_path, "w") as f:
-        json.dump([x.to_dict() for x in benchmark_datasets], f, indent=4)
-
-    if not args.non_interactive:
-        input(
-            f"You may now edit the file {json_file_path} to change meta data. Press Enter to continue after reviewing the json ..."
-        )
-
-    with open(json_file_path, "r") as f:
-        benchmark_datasets = [LLMBenchmarkData(**x) for x in json.load(f)]
-
-    if not args.non_interactive:
-        benchmark_datasets = prompt_for_updates(benchmark_datasets)
-
-    return benchmark_datasets
-
-
-def submit_llm_results(benchmark_datasets, args, submit_url, api_token):
-    for benchmark_data in benchmark_datasets:
-        print("Publishing LLM benchmark...")
-
-        if api_token:
-            success = submit_benchmark_result_token_auth(
-                benchmark_data, submit_url, api_token
-            )
-        else:
-            success = submit_benchmark_result_user_pw_auth(
-                benchmark_data, submit_url, args.user, args.password
-            )
-
-        if not success:
-            print("Submission failed. Exiting...")
-            break
+    return enrich_benchmark_data(
+        benchmark_datasets,
+        LLMBenchmarkData,
+        "llm_benchmark_dataset.json",
+        args.non_interactive,
+    )
 
 
 def publish_llm_results_cli():
@@ -190,4 +148,4 @@ def publish_llm_results_cli():
 
     api_token = handle_token_pw_user(args)
     benchmark_datasets = read_and_enrich_llm_benchmark_data(args)
-    submit_llm_results(benchmark_datasets, args, submit_url, api_token)
+    submit_results(benchmark_datasets, args, submit_url, api_token)
