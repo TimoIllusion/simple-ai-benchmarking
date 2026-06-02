@@ -104,7 +104,7 @@ The benchmark performs configurable warmup and measured requests (optionally con
 Common options (see `saib-llm -h` for the full list):
 
 - `--requests` / `--warmup-requests` — number of measured / warmup requests (default `10` / `1`)
-- `--concurrency` — number of concurrent requests (default `1`)
+- `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local `pytorch-simple-transformer` backend, the batch size processed in a single batched forward pass (default `1`)
 - `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `128` / `256`)
 - `--context-length` — model context window (default `4096`)
 - `--device` — torch device for the local backend, e.g. `cpu`, `cuda`, `mps` (default `cpu`)
