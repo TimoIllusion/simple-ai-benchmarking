@@ -148,6 +148,23 @@ saib-pub-llm llm_results.csv
 
 Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
 
+### Registering benchmark profiles
+
+Every result row carries a *benchmark profile* — the identity that makes runs comparable (`benchmark_family`, `benchmark_spec_name`/`_version`, `benchmark_profile_id`/`_hash`, `benchmark_runner_id`/`_hash`). Use `saib-register` to register the unique profiles found in a results CSV (CV or LLM) with the database, independently of submitting the measured numbers:
+
+```bash
+export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN
+saib-register llm_results.csv
+```
+
+OR
+
+```bash
+saib-register benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
+```
+
+It deduplicates by `benchmark_profile_hash` (each distinct profile is registered once), POSTs each to `/benchmarks/profiles/register/`, and uses the same token (`-t` / `AI_BENCHMARK_DATABASE_TOKEN`) or user/password authentication as the publish commands.
+
 ## Hardware Acceleration for PyTorch and TensorFlow
 
 This section shows how to use various GPUs for training and inference benchmarking.
