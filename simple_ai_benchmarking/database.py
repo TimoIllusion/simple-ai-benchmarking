@@ -268,11 +268,9 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
     return benchmark_datasets
 
 
-def parse_arguments():
-    """Parse command-line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Submit benchmark results to the AI Benchmark Database."
-    )
+def build_publish_parser(description: str) -> argparse.ArgumentParser:
+    """Build the argument parser shared by every publish CLI (CV and LLM)."""
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument(
         "results_csv_path",
         type=str,
@@ -318,7 +316,14 @@ def parse_arguments():
         default=None,
         help="Extra information to add to the benchmark results.",
     )
-    return parser.parse_args()
+    return parser
+
+
+def parse_arguments():
+    """Parse command-line arguments."""
+    return build_publish_parser(
+        "Submit benchmark results to the AI Benchmark Database."
+    ).parse_args()
 
 
 def handle_token_pw_user(args):
@@ -342,29 +347,36 @@ def handle_token_pw_user(args):
         return api_token
 
 
-def read_and_enrich_benchmark_data(args):
-    """Read and prepare benchmark data from the provided CSV."""
-    benchmark_datasets = read_csv_and_create_benchmark_dataset(
-        args.results_csv_path, args.extra_info
-    )
+def enrich_benchmark_data(benchmark_datasets, data_class, json_file_path, non_interactive):
+    """Round-trip results through an editable JSON file for optional metadata fixes.
 
-    json_file_path = "benchmark_dataset.json"
+    Shared by the CV and LLM publish flows; only the dataclass and json file name
+    differ between families."""
     with open(json_file_path, "w") as f:
-        data = [x.to_dict() for x in benchmark_datasets]
-        json.dump(data, f, indent=4)
+        json.dump([x.to_dict() for x in benchmark_datasets], f, indent=4)
 
-    if not args.non_interactive:
+    if not non_interactive:
         input(
             f"You may now edit the file {json_file_path} to change meta data. Press Enter to continue after reviewing the json ..."
         )
 
     with open(json_file_path, "r") as f:
-        benchmark_datasets = [BenchmarkData(**x) for x in json.load(f)]
+        benchmark_datasets = [data_class(**x) for x in json.load(f)]
 
-    if not args.non_interactive:
+    if not non_interactive:
         benchmark_datasets = prompt_for_updates(benchmark_datasets)
 
     return benchmark_datasets
+
+
+def read_and_enrich_benchmark_data(args):
+    """Read and prepare benchmark data from the provided CSV."""
+    benchmark_datasets = read_csv_and_create_benchmark_dataset(
+        args.results_csv_path, args.extra_info
+    )
+    return enrich_benchmark_data(
+        benchmark_datasets, BenchmarkData, "benchmark_dataset.json", args.non_interactive
+    )
 
 
 def submit_results(benchmark_datasets, args, submit_url, api_token):

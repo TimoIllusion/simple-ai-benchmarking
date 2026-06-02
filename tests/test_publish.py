@@ -18,9 +18,14 @@
 
 import os
 import unittest
+from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 
-from simple_ai_benchmarking.database import get_git_commit_hash_from_package_version
+from simple_ai_benchmarking.database import (
+    build_publish_parser,
+    enrich_benchmark_data,
+    get_git_commit_hash_from_package_version,
+)
 from simple_ai_benchmarking.llm_database import read_csv_and_create_llm_benchmark_dataset
 
 
@@ -63,6 +68,41 @@ class TestPublishDatabase(unittest.TestCase):
         self.assertEqual(benchmark_data[0].backend, "llama.cpp")
         self.assertEqual(benchmark_data[0].generated_tokens_per_second, 42.5)
         self.assertEqual(benchmark_data[0].benchmark_spec_name, "saib_llm_generation")
+
+    def test_build_publish_parser_parses_common_args(self):
+        parser = build_publish_parser("desc")
+
+        args = parser.parse_args(
+            ["results.csv", "-t", "tok", "--non-interactive"]
+        )
+
+        self.assertEqual(args.results_csv_path, "results.csv")
+        self.assertEqual(args.token, "tok")
+        self.assertTrue(args.non_interactive)
+        self.assertEqual(
+            args.database_url, "https://timoillusion.pythonanywhere.com"
+        )
+
+    def test_enrich_benchmark_data_roundtrips_non_interactively(self):
+        @dataclass
+        class Tiny:
+            a: int
+            b: str
+
+            def to_dict(self):
+                return self.__dict__
+
+        items = [Tiny(1, "x"), Tiny(2, "y")]
+        with NamedTemporaryFile(mode="w", suffix=".json", delete=False) as json_file:
+            json_path = json_file.name
+        try:
+            result = enrich_benchmark_data(
+                items, Tiny, json_path, non_interactive=True
+            )
+        finally:
+            os.remove(json_path)
+
+        self.assertEqual(result, items)
 
 
 # Entry point for running the tests
