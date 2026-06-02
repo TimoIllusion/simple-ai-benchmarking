@@ -18,21 +18,16 @@
 
 
 from abc import abstractmethod, ABC
-import platform
-import multiprocessing
 import datetime
 
 from loguru import logger
 
-import psutil
-import cpuinfo
-
 from simple_ai_benchmarking.results import (
-    SWInfo,
-    HWInfo,
     BenchInfo,
     PerformanceResult,
     BenchmarkResult,
+    collect_sw_info,
+    collect_hw_info,
 )
 from simple_ai_benchmarking.config_structures import AIWorkloadBaseConfig, AIStage
 
@@ -106,20 +101,13 @@ class AIWorkload(ABC):
 
         logger.info(f"Number of model parameters: {self._get_model_parameters()/1e6:.6f} M")
 
-        sw_info = SWInfo(
+        sw_info = collect_sw_info(
             ai_framework_name=self._get_ai_framework_name(),
             ai_framework_version=self._get_ai_framework_version(),
             ai_framework_extra_info=self._get_ai_framework_extra_info(),
-            python_version=platform.python_version(),
-            os_version=platform.platform(aliased=False, terse=False),
         )
 
-        hw_info = HWInfo(
-            cpu=cpuinfo.get_cpu_info()["brand_raw"],
-            num_cores=multiprocessing.cpu_count(),
-            ram_gb=psutil.virtual_memory().total / 1e9,
-            accelerator=self._get_accelerator_info(),
-        )
+        hw_info = collect_hw_info(self._get_accelerator_info())
 
         bench_info = BenchInfo(
             workload_type=self.__class__.__name__,

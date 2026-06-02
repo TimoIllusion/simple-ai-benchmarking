@@ -106,6 +106,33 @@ def build_llm_profile_id(profile: Mapping[str, Any]) -> str:
     ).lower().replace(" ", "_")
 
 
+def assign_benchmark_identity(
+    obj: Any,
+    *,
+    family: str,
+    spec_name: str,
+    spec_version: str,
+    runner_id: str,
+    profile: Mapping[str, Any],
+    profile_id: str,
+) -> None:
+    """Populate the shared benchmark_* identity fields on a BenchInfo dataclass.
+
+    Both the CV and LLM BenchInfo variants carry the same eight benchmark_*
+    columns derived the same way (profile/config hash of the profile, runner
+    hash of the runner id). Centralizing it keeps the two __post_init__ hooks in
+    sync instead of duplicating the hashing dance."""
+    profile_hash = canonical_hash(profile)
+    obj.benchmark_family = family
+    obj.benchmark_spec_name = spec_name
+    obj.benchmark_spec_version = spec_version
+    obj.benchmark_profile_id = profile_id
+    obj.benchmark_profile_hash = profile_hash
+    obj.benchmark_config_hash = profile_hash
+    obj.benchmark_runner_id = runner_id
+    obj.benchmark_runner_hash = build_runner_hash(runner_id)
+
+
 def build_runner_hash(runner_id: str) -> str:
     return canonical_hash(
         {

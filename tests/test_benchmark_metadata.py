@@ -10,17 +10,44 @@ from simple_ai_benchmarking.llm_results import (
     LLMPerformanceResult,
 )
 from simple_ai_benchmarking.results import (
+    BaseBenchmarkLogger,
     BenchInfo,
     BenchmarkLogger,
     BenchmarkResult,
     HWInfo,
     PerformanceResult,
     SWInfo,
+    collect_hw_info,
+    collect_sw_info,
 )
 
 
 def test_canonical_hash_is_stable_across_dict_ordering():
     assert canonical_hash({"b": 2, "a": 1}) == canonical_hash({"a": 1, "b": 2})
+
+
+def test_cv_and_llm_loggers_share_base_export_machinery():
+    assert issubclass(BenchmarkLogger, BaseBenchmarkLogger)
+    assert issubclass(LLMBenchmarkLogger, BaseBenchmarkLogger)
+
+
+def test_collect_sw_info_populates_host_runtime_fields():
+    sw_info = collect_sw_info("torch", "2.4.0", "cuda")
+
+    assert sw_info.ai_framework_name == "torch"
+    assert sw_info.ai_framework_version == "2.4.0"
+    assert sw_info.ai_framework_extra_info == "cuda"
+    assert sw_info.python_version
+    assert sw_info.os_version
+
+
+def test_collect_hw_info_uses_passed_accelerator_and_host_fields():
+    hw_info = collect_hw_info("NVIDIA RTX 4090")
+
+    assert hw_info.accelerator == "NVIDIA RTX 4090"
+    assert hw_info.cpu
+    assert hw_info.num_cores >= 1
+    assert hw_info.ram_gb > 0
 
 
 def test_cv_profile_hash_changes_for_workload_parameters_only():
