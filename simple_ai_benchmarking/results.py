@@ -20,10 +20,14 @@
 from dataclasses import dataclass, field, asdict
 from typing import List
 import sys
+import platform
+import multiprocessing
 
 from loguru import logger
 
 import pandas as pd
+import psutil
+import cpuinfo
 from tabulate import tabulate
 
 from simple_ai_benchmarking.benchmark_metadata import (
@@ -31,11 +35,10 @@ from simple_ai_benchmarking.benchmark_metadata import (
     CV_RUNNER_ID,
     CV_SPEC_NAME,
     SPEC_VERSION,
+    assign_benchmark_identity,
     build_cv_profile,
     build_cv_profile_id,
     build_payload_hash,
-    build_runner_hash,
-    canonical_hash,
 )
 
 
@@ -60,6 +63,31 @@ class HWInfo:
     num_cores: int
     ram_gb: float
     accelerator: str
+
+
+def collect_sw_info(
+    ai_framework_name: str,
+    ai_framework_version: str,
+    ai_framework_extra_info: str,
+) -> SWInfo:
+    """Gather host software info shared by every benchmark family."""
+    return SWInfo(
+        ai_framework_name=ai_framework_name,
+        ai_framework_version=ai_framework_version,
+        ai_framework_extra_info=ai_framework_extra_info,
+        python_version=platform.python_version(),
+        os_version=platform.platform(aliased=False, terse=False),
+    )
+
+
+def collect_hw_info(accelerator: str) -> HWInfo:
+    """Gather host hardware info shared by every benchmark family."""
+    return HWInfo(
+        cpu=cpuinfo.get_cpu_info().get("brand_raw", "unknown"),
+        num_cores=multiprocessing.cpu_count(),
+        ram_gb=psutil.virtual_memory().total / 1e9,
+        accelerator=accelerator,
+    )
 
 
 @dataclass
@@ -113,14 +141,15 @@ class BenchInfo:
             sample_shape=self.sample_shape,
             num_classes=self.num_classes,
         )
-        self.benchmark_family = CV_BENCHMARK_FAMILY
-        self.benchmark_spec_name = CV_SPEC_NAME
-        self.benchmark_spec_version = SPEC_VERSION
-        self.benchmark_profile_id = build_cv_profile_id(profile)
-        self.benchmark_profile_hash = canonical_hash(profile)
-        self.benchmark_config_hash = canonical_hash(profile)
-        self.benchmark_runner_id = CV_RUNNER_ID
-        self.benchmark_runner_hash = build_runner_hash(CV_RUNNER_ID)
+        assign_benchmark_identity(
+            self,
+            family=CV_BENCHMARK_FAMILY,
+            spec_name=CV_SPEC_NAME,
+            spec_version=SPEC_VERSION,
+            runner_id=CV_RUNNER_ID,
+            profile=profile,
+            profile_id=build_cv_profile_id(profile),
+        )
 
 
 @dataclass
@@ -134,7 +163,44 @@ class BenchmarkResult:
         self.performance.update_duration_and_calc_throughput(duration_s)
 
 
-class BenchmarkLogger:
+class BaseBenchmarkLogger:
+    """Shared result collection and export for all benchmark families.
+
+    Holds the family-agnostic machinery: collecting results, flattening nested
+    dataclasses into a dataframe (with the per-row payload hash), and CSV/Excel
+    export. Subclasses add family-specific result averaging and summary tables."""
+
+    def __init__(self) -> None:
+        self.results: list = []
+
+    def add_result(self, result) -> None:
+        self.results.append(result)
+
+    def to_dataframe(self) -> pd.DataFrame:
+        flat_dicts = []
+        for result in self.results:
+            flat_dict = {}
+            for key, value in asdict(result).items():
+                if isinstance(value, dict):
+                    for sub_key, sub_value in value.items():
+                        flat_dict[f"{key}_{sub_key}"] = sub_value
+                else:
+                    flat_dict[key] = value
+            flat_dict["bench_info_benchmark_payload_hash"] = build_payload_hash(
+                flat_dict
+            )
+            flat_dicts.append(flat_dict)
+
+        return pd.DataFrame(flat_dicts)
+
+    def export_to_csv(self, file_name: str) -> None:
+        self.to_dataframe().to_csv(file_name, index=False)
+
+    def export_to_excel(self, file_name: str) -> None:
+        self.to_dataframe().to_excel(file_name, index=False)
+
+
+class BenchmarkLogger(BaseBenchmarkLogger):
 
     def __init__(self) -> None:
         self.results: List[BenchmarkResult] = []
@@ -179,31 +245,6 @@ class BenchmarkLogger:
 
         return avg_result
 
-    def add_result(self, result: BenchmarkResult) -> None:
-        self.results.append(result)
-
-    def to_dataframe(self) -> pd.DataFrame:
-
-        # Convert each BenchmarkResult to a nested dictionary
-        nested_dicts = [asdict(result) for result in self.results]
-
-        # Flatten the nested dictionaries for Pandas
-        flat_dicts = []
-        for nested_dict in nested_dicts:
-            flat_dict = {}
-            for key, value in nested_dict.items():
-                if isinstance(value, dict):
-                    for sub_key, sub_value in value.items():
-                        flat_dict[f"{key}_{sub_key}"] = sub_value
-                else:
-                    flat_dict[key] = value
-            flat_dict["bench_info_benchmark_payload_hash"] = build_payload_hash(
-                flat_dict
-            )
-            flat_dicts.append(flat_dict)
-
-        return pd.DataFrame(flat_dicts)
-
     def pretty_print_summary(self) -> None:
 
         print("\n===== BENCHMARK SUMMARY =====\n")
@@ -243,13 +284,3 @@ class BenchmarkLogger:
             table_data.append(row_data)
 
         print(tabulate(table_data, headers=header, tablefmt="pretty"))
-
-    def export_to_csv(self, file_name: str) -> None:
-
-        df = self.to_dataframe()
-        df.to_csv(file_name, index=False)
-
-    def export_to_excel(self, file_name: str) -> None:
-
-        df = self.to_dataframe()
-        df.to_excel(file_name, index=False)

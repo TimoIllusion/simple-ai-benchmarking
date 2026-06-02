@@ -1,10 +1,9 @@
 # Project Name: simple-ai-benchmarking
 # File Name: llm_results.py
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from typing import List
 
-import pandas as pd
 from tabulate import tabulate
 
 from simple_ai_benchmarking.benchmark_metadata import (
@@ -12,13 +11,11 @@ from simple_ai_benchmarking.benchmark_metadata import (
     LLM_RUNNER_ID,
     LLM_SPEC_NAME,
     LLM_SPEC_VERSION,
+    assign_benchmark_identity,
     build_llm_profile,
     build_llm_profile_id,
-    build_payload_hash,
-    build_runner_hash,
-    canonical_hash,
 )
-from simple_ai_benchmarking.results import HWInfo, SWInfo
+from simple_ai_benchmarking.results import BaseBenchmarkLogger, HWInfo, SWInfo
 
 
 @dataclass
@@ -57,14 +54,15 @@ class LLMBenchInfo:
             generated_tokens=self.generated_tokens,
             concurrency=self.concurrency,
         )
-        self.benchmark_family = LLM_BENCHMARK_FAMILY
-        self.benchmark_spec_name = LLM_SPEC_NAME
-        self.benchmark_spec_version = LLM_SPEC_VERSION
-        self.benchmark_profile_id = build_llm_profile_id(profile)
-        self.benchmark_profile_hash = canonical_hash(profile)
-        self.benchmark_config_hash = canonical_hash(profile)
-        self.benchmark_runner_id = LLM_RUNNER_ID
-        self.benchmark_runner_hash = build_runner_hash(LLM_RUNNER_ID)
+        assign_benchmark_identity(
+            self,
+            family=LLM_BENCHMARK_FAMILY,
+            spec_name=LLM_SPEC_NAME,
+            spec_version=LLM_SPEC_VERSION,
+            runner_id=LLM_RUNNER_ID,
+            profile=profile,
+            profile_id=build_llm_profile_id(profile),
+        )
 
 
 @dataclass
@@ -87,29 +85,9 @@ class LLMBenchmarkResult:
     performance: LLMPerformanceResult
 
 
-class LLMBenchmarkLogger:
+class LLMBenchmarkLogger(BaseBenchmarkLogger):
     def __init__(self) -> None:
         self.results: List[LLMBenchmarkResult] = []
-
-    def add_result(self, result: LLMBenchmarkResult) -> None:
-        self.results.append(result)
-
-    def to_dataframe(self) -> pd.DataFrame:
-        flat_dicts = []
-        for result in self.results:
-            flat_dict = {}
-            for key, value in asdict(result).items():
-                if isinstance(value, dict):
-                    for sub_key, sub_value in value.items():
-                        flat_dict[f"{key}_{sub_key}"] = sub_value
-                else:
-                    flat_dict[key] = value
-            flat_dict["bench_info_benchmark_payload_hash"] = build_payload_hash(
-                flat_dict
-            )
-            flat_dicts.append(flat_dict)
-
-        return pd.DataFrame(flat_dicts)
 
     def pretty_print_summary(self) -> None:
         print("\n===== LLM BENCHMARK SUMMARY =====\n")
@@ -147,9 +125,3 @@ class LLMBenchmarkLogger:
             )
 
         print(tabulate(table_data, headers=header, tablefmt="pretty"))
-
-    def export_to_csv(self, file_name: str) -> None:
-        self.to_dataframe().to_csv(file_name, index=False)
-
-    def export_to_excel(self, file_name: str) -> None:
-        self.to_dataframe().to_excel(file_name, index=False)

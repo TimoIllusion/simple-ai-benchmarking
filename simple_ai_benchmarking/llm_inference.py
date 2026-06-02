@@ -2,14 +2,11 @@ import argparse
 import datetime
 import json
 import os
-import platform
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
-import cpuinfo
-import psutil
 import requests
 
 from simple_ai_benchmarking.llm_results import (
@@ -18,7 +15,7 @@ from simple_ai_benchmarking.llm_results import (
     LLMBenchmarkResult,
     LLMPerformanceResult,
 )
-from simple_ai_benchmarking.results import HWInfo, SWInfo
+from simple_ai_benchmarking.results import collect_hw_info, collect_sw_info
 
 
 OPENAI_COMPATIBLE_BACKEND = "openai-compatible"
@@ -389,19 +386,12 @@ class LLMInferenceBenchmark:
         duration_s = self.duration_s
         ttft_values = [result.time_to_first_token_s for result in request_results]
 
-        sw_info = SWInfo(
+        sw_info = collect_sw_info(
             ai_framework_name=self.config.backend,
             ai_framework_version=self.config.ai_framework_version,
             ai_framework_extra_info=self.config.ai_framework_extra_info,
-            python_version=platform.python_version(),
-            os_version=platform.platform(aliased=False, terse=False),
         )
-        hw_info = HWInfo(
-            cpu=cpuinfo.get_cpu_info().get("brand_raw", "unknown"),
-            num_cores=os.cpu_count() or 0,
-            ram_gb=psutil.virtual_memory().total / 1e9,
-            accelerator=self.config.accelerator,
-        )
+        hw_info = collect_hw_info(self.config.accelerator)
         bench_info = LLMBenchInfo(
             benchmark_type="inference",
             backend=self.config.backend,
