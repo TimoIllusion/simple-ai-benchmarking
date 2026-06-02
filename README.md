@@ -73,15 +73,15 @@ I develop this application in my free time as a hobby.
 
 ## LLM Inference Benchmarking
 
-In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point:
+In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs a self-contained local PyTorch transformer benchmark (no server or model weights required), just like `saib-pt` runs sensible defaults:
 
 ```bash
-saib-llm --backend ollama --model llama3
+saib-llm
 ```
 
 Three backends are supported:
 
-- `openai-compatible` (default) — benchmark any server exposing the OpenAI `/v1/chat/completions` API (e.g. vLLM, llama.cpp server, LM Studio, OpenAI itself):
+- `openai-compatible` — benchmark any server exposing the OpenAI `/v1/chat/completions` API (e.g. vLLM, llama.cpp server, LM Studio, OpenAI itself):
 
   ```bash
   saib-llm --backend openai-compatible --base-url http://localhost:8000 --model my-model --api-key-env OPENAI_API_KEY
