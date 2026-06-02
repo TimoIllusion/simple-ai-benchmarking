@@ -104,6 +104,46 @@ class TestPublishDatabase(unittest.TestCase):
 
         self.assertEqual(result, items)
 
+    def test_register_profiles_cli_mocked(self):
+        from unittest.mock import patch, MagicMock
+        from simple_ai_benchmarking.database import register_profiles_cli
+
+        csv_content = (
+            "bench_info_benchmark_family,bench_info_benchmark_spec_name,bench_info_benchmark_spec_version,"
+            "bench_info_benchmark_profile_id,bench_info_benchmark_profile_hash,bench_info_benchmark_runner_id,"
+            "bench_info_benchmark_runner_hash\n"
+            "cv,saib_cv_classification,1.0,cv_resnet50_v1,hash123,runner_id,runner_hash\n"
+        )
+
+        with NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as csv_file:
+            csv_file.write(csv_content)
+            csv_path = csv_file.name
+
+        try:
+            with patch("argparse.ArgumentParser.parse_args") as mock_args, \
+                 patch("requests.post") as mock_post:
+                
+                mock_args.return_value = MagicMock(
+                    results_csv_path=csv_path,
+                    database_url="https://timoillusion.pythonanywhere.com",
+                    token="test_token",
+                    user=None,
+                    password=None
+                )
+                
+                mock_response = MagicMock()
+                mock_response.status_code = 201
+                mock_post.return_value = mock_response
+
+                register_profiles_cli()
+                
+                self.assertEqual(mock_post.call_count, 1)
+                args, kwargs = mock_post.call_args
+                self.assertEqual(kwargs["json"]["benchmark_profile_hash"], "hash123")
+                self.assertEqual(kwargs["headers"]["Authorization"], "Token test_token")
+        finally:
+            os.remove(csv_path)
+
 
 # Entry point for running the tests
 if __name__ == "__main__":

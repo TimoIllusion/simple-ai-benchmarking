@@ -128,6 +128,12 @@ def publish():
     publish_results_cli()
 
 
+def register_profiles():
+    from simple_ai_benchmarking.database import register_profiles_cli
+
+    register_profiles_cli()
+
+
 def publish_llm():
     from simple_ai_benchmarking.llm_database import publish_llm_results_cli
 
