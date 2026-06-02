@@ -3,7 +3,6 @@ import datetime
 import json
 import os
 import platform
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -79,7 +78,6 @@ class LLMBackendClient:
     ) -> None:
         self.config = config
         self.session = session or requests.Session()
-        self._local_lock = threading.Lock()
         self._local_model = None
         self._torch = None
         self._local_device = None
@@ -244,14 +242,31 @@ class LLMBackendClient:
         )
 
     def _generate_pytorch_simple_transformer(self) -> LLMRequestResult:
+        return self.generate_pytorch_batch(1)[0]
+
+    def generate_pytorch_batch(self, batch_size: int) -> List[LLMRequestResult]:
+        """Generate ``batch_size`` sequences in a single batched forward pass.
+
+        For local hardware, concurrency is modelled as batch size (like the CV
+        inference workloads), not as competing threads: the accelerator runs the
+        whole batch at once, so this measures real throughput scaling. Every
+        sequence in the batch shares the batch's wall-clock duration, which is
+        what aggregate tokens/s is computed against in ``_build_result``."""
         assert self._torch is not None
         assert self._local_model is not None
+        assert batch_size > 0
 
-        input_ids = self._torch.arange(
-            self.config.prompt_tokens,
-            device=self._local_device,
-            dtype=self._torch.long,
-        ).unsqueeze(0)
+        prompt_tokens = self.config.prompt_tokens
+        input_ids = (
+            self._torch.arange(
+                prompt_tokens,
+                device=self._local_device,
+                dtype=self._torch.long,
+            )
+            .unsqueeze(0)
+            .expand(batch_size, prompt_tokens)
+            .contiguous()
+        )
         input_ids = input_ids % self.config.vocab_size
 
         generated_tokens = max(1, self.config.generated_tokens)
@@ -259,24 +274,25 @@ class LLMBackendClient:
         # Time the first generated token (prefill + one decode step) separately so
         # time-to-first-token is a real measurement, not the full-generation latency.
         start = time.perf_counter()
-        with self._local_lock:
-            sequence = self._local_model.generate(input_ids, 1)
-            self._sync_device()
+        sequence = self._local_model.generate(input_ids, 1)
+        self._sync_device()
         time_to_first_token_s = time.perf_counter() - start
 
         remaining_tokens = generated_tokens - 1
         if remaining_tokens > 0:
-            with self._local_lock:
-                self._local_model.generate(sequence, remaining_tokens)
-                self._sync_device()
+            self._local_model.generate(sequence, remaining_tokens)
+            self._sync_device()
         duration_s = time.perf_counter() - start
 
-        return LLMRequestResult(
-            duration_s=duration_s,
-            prompt_tokens=self.config.prompt_tokens,
-            generated_tokens=generated_tokens,
-            time_to_first_token_s=time_to_first_token_s,
-        )
+        return [
+            LLMRequestResult(
+                duration_s=duration_s,
+                prompt_tokens=prompt_tokens,
+                generated_tokens=generated_tokens,
+                time_to_first_token_s=time_to_first_token_s,
+            )
+            for _ in range(batch_size)
+        ]
 
 
 class LLMInferenceBenchmark:
@@ -320,6 +336,35 @@ class LLMInferenceBenchmark:
             )
 
     def _run_requests(self, prompt: str) -> List[LLMRequestResult]:
+        if self.config.backend == PYTORCH_SIMPLE_TRANSFORMER_BACKEND:
+            return self._run_requests_batched()
+        return self._run_requests_threaded(prompt)
+
+    def _run_requests_batched(self) -> List[LLMRequestResult]:
+        """Local PyTorch path: concurrency is the batch size, not a thread count.
+
+        The requested sequences are processed in batched forward passes of up to
+        ``concurrency`` sequences each (the final batch may be smaller), so the
+        accelerator does the concurrent work instead of competing Python threads."""
+        request_results: List[LLMRequestResult] = []
+        start = time.perf_counter()
+        _print_progress(
+            f"Running measured requests: {self.config.requests} "
+            f"(batched, batch_size={self.config.concurrency})"
+        )
+        remaining = self.config.requests
+        while remaining > 0:
+            batch_size = min(self.config.concurrency, remaining)
+            request_results.extend(self.client.generate_pytorch_batch(batch_size))
+            remaining -= batch_size
+            _print_progress(
+                f"Completed request {len(request_results)}/{self.config.requests}."
+            )
+        self.duration_s = time.perf_counter() - start
+        _print_progress(f"Measured requests completed in {self.duration_s:.3f} s.")
+        return request_results
+
+    def _run_requests_threaded(self, prompt: str) -> List[LLMRequestResult]:
         request_results = []
         start = time.perf_counter()
         _print_progress(f"Running measured requests: {self.config.requests}")
@@ -338,9 +383,8 @@ class LLMInferenceBenchmark:
         return request_results
 
     def _build_result(self, request_results: List[LLMRequestResult]) -> LLMBenchmarkResult:
-        completed_requests = len(request_results)
-        prompt_tokens = self.config.prompt_tokens * completed_requests
-        generated_tokens = self.config.generated_tokens * completed_requests
+        prompt_tokens = sum(result.prompt_tokens for result in request_results)
+        generated_tokens = sum(result.generated_tokens for result in request_results)
         total_tokens = prompt_tokens + generated_tokens
         duration_s = self.duration_s
         ttft_values = [result.time_to_first_token_s for result in request_results]

@@ -178,6 +178,74 @@ def test_pytorch_simple_transformer_backend_builds_result():
     )
 
 
+def test_pytorch_simple_transformer_generate_batch_returns_per_sequence_results():
+    import pytest
+
+    pytest.importorskip("torch")
+    config = LLMInferenceConfig(
+        backend=PYTORCH_SIMPLE_TRANSFORMER_BACKEND,
+        base_url="",
+        model="SimpleTransformerLM",
+        prompt_tokens=4,
+        generated_tokens=3,
+        context_length=8,
+        device="cpu",
+        vocab_size=128,
+        embedding_dim=32,
+        transformer_layers=1,
+        attention_heads=4,
+    )
+    client = LLMBackendClient(config)
+
+    results = client.generate_pytorch_batch(3)
+
+    assert len(results) == 3
+    assert all(r.prompt_tokens == 4 for r in results)
+    assert all(r.generated_tokens == 3 for r in results)
+    # A single batched forward pass: every sequence shares the batch duration.
+    assert len({r.duration_s for r in results}) == 1
+
+
+def test_pytorch_simple_transformer_models_concurrency_as_batch_size():
+    import pytest
+
+    pytest.importorskip("torch")
+    config = LLMInferenceConfig(
+        backend=PYTORCH_SIMPLE_TRANSFORMER_BACKEND,
+        base_url="",
+        model="SimpleTransformerLM",
+        requests=5,
+        warmup_requests=0,
+        concurrency=2,
+        prompt_tokens=4,
+        generated_tokens=2,
+        context_length=8,
+        device="cpu",
+        vocab_size=128,
+        embedding_dim=32,
+        transformer_layers=1,
+        attention_heads=4,
+    )
+    client = LLMBackendClient(config)
+
+    batch_sizes = []
+    original_generate_batch = client.generate_pytorch_batch
+
+    def spy(batch_size):
+        batch_sizes.append(batch_size)
+        return original_generate_batch(batch_size)
+
+    client.generate_pytorch_batch = spy
+    benchmark = LLMInferenceBenchmark(config, client)
+
+    result = benchmark.run()
+
+    # 5 requests with batch size (concurrency) 2 -> batches of 2, 2, 1.
+    assert batch_sizes == [2, 2, 1]
+    assert result.performance.requests == 5
+    assert result.performance.generated_tokens_per_second > 0
+
+
 def test_build_config_uses_backend_default_base_urls(monkeypatch):
     class Args:
         backend = OLLAMA_BACKEND

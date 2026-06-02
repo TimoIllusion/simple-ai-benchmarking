@@ -11,8 +11,10 @@ LLM_SPEC_NAME = "saib_llm_generation"
 SPEC_VERSION = "1.0"
 # LLM generation moved to a v2 spec when real time-to-first-token replaced the
 # v1 aggregate-only latency. v2 results carry their own profile/runner hashes and
-# never mix with v1 rows.
-LLM_SPEC_VERSION = "2.0"
+# never mix with v1 rows. Bumped to 2.1 when local-backend concurrency became a
+# batched forward pass (concurrency = batch size) instead of competing threads,
+# changing throughput methodology for the pytorch backend.
+LLM_SPEC_VERSION = "2.1"
 
 CV_RUNNER_ID = "saib.cv.classification.v1"
 LLM_RUNNER_ID = "saib.llm.generation.v2"
