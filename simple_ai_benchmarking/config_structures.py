@@ -119,6 +119,7 @@ class GenerationModelConfig:
     embedding_dim: int = 256
     attention_heads: int = 4
     transformer_layers: int = 4
+    feedforward_dim: int = 1024
 
 
 @dataclass
@@ -138,7 +139,7 @@ class LLMGenerationConfig:
     requests: int = 10
     warmup_requests: int = 1
     concurrency: int = 1
-    prompt_tokens: int = 128
+    prompt_tokens: int = 2048
     generated_tokens: int = 256
     context_length: int = 4096
     precision: NumericalPrecision = NumericalPrecision.DEFAULT_PRECISION

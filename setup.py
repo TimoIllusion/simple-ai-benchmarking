@@ -76,7 +76,10 @@ setuptools.setup(
             "torch>=1.0.0",
             "torchvision",
             "torchaudio",
+            "transformers",
         ],
+        # Optional: real FP8 / int8 / int4 low-precision kernels (recent GPU).
+        "lowbit": ["torchao"],
         "tfdml": ["tensorflow-cpu==2.10.0", "tensorflow-directml-plugin"],
         "tf": ["tensorflow>=2.3.0"],
         "xlsx": ["openpyxl"],

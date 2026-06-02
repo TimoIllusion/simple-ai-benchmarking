@@ -10,24 +10,38 @@ from simple_ai_benchmarking.workloads.llm_workload import (
 )
 
 
-def test_saib_llm_runs_local_pytorch_with_no_args(monkeypatch):
-    # Bare `saib-llm` should run a self-contained local PyTorch LM benchmark
-    # (no server, no required --model), mirroring how `saib-pt` runs defaults.
+def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
+    # Bare `saib-llm` should build all local LM workloads (simple transformer,
+    # KV-cache decoder, Hugging Face), mirroring how `saib-pt` runs several models.
     import pytest
 
     pytest.importorskip("torch")
     from simple_ai_benchmarking.config_pt_tf import get_device_name_pytorch
+    from simple_ai_benchmarking.llm_generation import build_generation_configs
+    from simple_ai_benchmarking.workloads.llm_workload import (
+        HF_CAUSAL_BACKEND,
+        PYTORCH_KV_DECODER_BACKEND,
+    )
 
     monkeypatch.setattr("sys.argv", ["saib-llm"])
 
     args = parse_arguments()
-    config = build_generation_config_from_args(args)
+    assert args.backend is None
+    configs = build_generation_configs(args)
 
-    assert args.backend == PYTORCH_GENERATION_BACKEND
-    assert args.model == "SimpleTransformerLM"
-    # No --device given -> auto-detected best device, same logic as the CV benchmarks.
-    assert config.device_name == get_device_name_pytorch()
-    assert config.base_url == ""
+    assert [c.backend for c in configs] == [
+        PYTORCH_GENERATION_BACKEND,
+        PYTORCH_KV_DECODER_BACKEND,
+        HF_CAUSAL_BACKEND,
+    ]
+    # Reference transformer keeps its defaults (self-contained, no server).
+    assert configs[0].model == "SimpleTransformerLM"
+    assert configs[0].device_name == get_device_name_pytorch()
+    assert configs[0].base_url == ""
+    # HF backend gets a real repo id; heavier backends default to bf16.
+    assert configs[2].model
+    assert configs[1].compute_precision == "BF16"
+    assert configs[2].compute_precision == "BF16"
 
 
 def _args(**overrides) -> argparse.Namespace:
@@ -56,6 +70,7 @@ def _args(**overrides) -> argparse.Namespace:
         embedding_dim=256,
         transformer_layers=4,
         attention_heads=4,
+        feedforward_dim=1024,
     )
     defaults.update(overrides)
     return argparse.Namespace(**defaults)

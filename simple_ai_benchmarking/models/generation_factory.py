@@ -38,4 +38,18 @@ class GenerationModelFactory:
             embedding_dim=model_cfg.embedding_dim,
             num_heads=model_cfg.attention_heads,
             num_layers=model_cfg.transformer_layers,
+            feedforward_dim=model_cfg.feedforward_dim,
+        )
+
+    @staticmethod
+    def create_pytorch_kv_decoder_model(model_cfg: GenerationModelConfig):
+        from simple_ai_benchmarking.models.pt.kv_decoder_lm import KVCacheDecoderLM
+
+        return KVCacheDecoderLM(
+            vocab_size=model_cfg.vocab_size,
+            context_length=model_cfg.context_length,
+            embedding_dim=model_cfg.embedding_dim,
+            num_heads=model_cfg.attention_heads,
+            num_layers=model_cfg.transformer_layers,
+            feedforward_dim=model_cfg.feedforward_dim,
         )
