@@ -21,30 +21,31 @@ from simple_ai_benchmarking.entrypoints import BenchmarkDispatcher
 from simple_ai_benchmarking.config_structures import AIFramework
 
 
-def test_pt_benchmark() -> None:
+# Smallest possible smoke test of the full dispatch pipeline. The default config
+# builds 3 models x (inference + training); ResNet50/ViT-B-16 are heavy and may
+# download weights, so restrict to the lightweight SIMPLE_CLASSIFICATION_CNN via
+# "-w 0 1" (index 0 = inference, 1 = training) and run a single tiny batch.
+_FAST_ARGS = ["-w", "0", "1"]
 
-    dispatcher = BenchmarkDispatcher(AIFramework.PYTORCH)
-    dispatcher.NUM_BATCHES_INFERENCE = 2
-    dispatcher.NUM_BATCHES_TRAINING = 2
-    dispatcher.BATCH_SIZE = 2
+
+def _make_fast_dispatcher(framework: AIFramework) -> BenchmarkDispatcher:
+    dispatcher = BenchmarkDispatcher(framework)
+    dispatcher.BATCH_SIZE = 1
     dispatcher.REPETITIONS = 1
-    dispatcher.NUM_BATCHES_INFERENCE = 5
-    dispatcher.NUM_BATCHES_TRAINING = 3
-    dispatcher.run(args=[])
+    dispatcher.NUM_BATCHES_INFERENCE = 1
+    dispatcher.NUM_BATCHES_TRAINING = 1
+    return dispatcher
+
+
+def test_pt_benchmark() -> None:
+    _make_fast_dispatcher(AIFramework.PYTORCH).run(args=_FAST_ARGS)
 
 
 def test_tf_benchmark() -> None:
-
-    dispatcher = BenchmarkDispatcher(AIFramework.TENSORFLOW)
-    dispatcher.NUM_BATCHES_INFERENCE = 2
-    dispatcher.NUM_BATCHES_TRAINING = 2
-    dispatcher.BATCH_SIZE = 2
-    dispatcher.REPETITIONS = 1
-    dispatcher.NUM_BATCHES_INFERENCE = 5
-    dispatcher.NUM_BATCHES_TRAINING = 3
-    dispatcher.run(args=[])
+    _make_fast_dispatcher(AIFramework.TENSORFLOW).run(args=_FAST_ARGS)
 
 
 if __name__ == "__main__":
     test_pt_benchmark()
     test_tf_benchmark()
+
