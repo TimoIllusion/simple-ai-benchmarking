@@ -84,6 +84,9 @@ setuptools.setup(
         ],
         # Optional: real FP8 / int8 / int4 low-precision kernels (recent GPU).
         "lowbit": ["torchao"],
+        # Optional: experimental one-shot benchmarking on a RunPod GPU pod.
+        # (SSH uses the system OpenSSH client, so only the RunPod SDK is needed.)
+        "runpod": ["runpod"],
         "tfdml": ["tensorflow-cpu==2.10.0", "tensorflow-directml-plugin"],
         "tf": ["tensorflow>=2.3.0"],
         "xlsx": ["openpyxl"],
@@ -96,6 +99,7 @@ setuptools.setup(
             "saib-pub = simple_ai_benchmarking.entrypoints:publish",
             "saib-pub-llm = simple_ai_benchmarking.entrypoints:publish_llm",
             "saib-register = simple_ai_benchmarking.entrypoints:register_profiles",
+            "saib-runpod = simple_ai_benchmarking.experimental.runpod_runner:main",
         ]
     },
 )

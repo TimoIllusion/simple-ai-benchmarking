@@ -222,6 +222,37 @@ saib-register benchmark_results_pt.csv --user YOUR_USER --password YOUR_PASSWORD
 
 It deduplicates by `benchmark_profile_hash` (each distinct profile is registered once), POSTs each to `/benchmarks/profiles/register/`, and uses the same token (`-t` / `AI_BENCHMARK_DATABASE_TOKEN`) or user/password authentication as the publish commands.
 
+### Experimental: run on a throwaway RunPod GPU pod
+
+`saib-runpod` runs the whole loop on a rented [RunPod](https://www.runpod.io/) GPU and **always terminates the pod afterwards** (even on error or Ctrl-C): it creates an on-demand pod, connects over SSH, installs SAIB, runs the benchmark, registers + publishes the results, then tears the pod down. This is experimental and unsupported — capacity is best-effort and you are billed per second while a pod runs.
+
+It uses your system OpenSSH client (no extra SSH library), so the only optional dependency is the RunPod SDK:
+
+```bash
+pip install simple-ai-benchmarking[runpod]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
+```
+
+Prerequisites:
+
+- A **RunPod API key** (`RUNPOD_API_KEY`).
+- An **SSH key registered in your RunPod account** (Account → Settings → SSH Public Keys). RunPod injects that key into the pod. Point `--ssh-key` at the matching private key.
+- If that private key is **passphrase-protected, load it into ssh-agent first** (`ssh-add ~/.ssh/your_key`) — otherwise SSH can't authenticate non-interactively and the run aborts (the tool preflight-checks this *before* creating a pod, so it won't waste money).
+
+Then:
+
+```bash
+export RUNPOD_API_KEY=YOUR_RUNPOD_KEY
+export AI_BENCHMARK_DATABASE_TOKEN=YOUR_DATABASE_TOKEN
+ssh-add ~/.ssh/id_ed25519              # if your key has a passphrase
+saib-runpod --ssh-key ~/.ssh/id_ed25519 --gpu "NVIDIA GeForce RTX 4090" --cloud-type COMMUNITY
+```
+
+If `RUNPOD_API_KEY` or `AI_BENCHMARK_DATABASE_TOKEN` are not set (and not passed via `--api-key`/`--db-token`), you are prompted to paste them interactively (hidden input). In a non-interactive shell (e.g. CI or a background job) it errors instead of hanging, so supply them via env/flags there.
+
+**GPU names** are the RunPod GPU *ids*, e.g. `NVIDIA GeForce RTX 4090`, `NVIDIA H100 80GB HBM3` (H100 SXM), `NVIDIA H200` (H200 SXM) — not the short display names. The runner connects over the pod's direct public IP, which **community cloud** provides reliably (secure cloud often has no public IP); prefer `--cloud-type COMMUNITY`.
+
+Useful flags: `--workload pt|tf|llm`, `--gpu "A,B,C"` (comma-separated fallback list tried in order), `--cloud-type COMMUNITY|SECURE|ALL`, `--capacity-wait SECONDS` (keep retrying the requested GPU(s) with backoff while RunPod has no capacity), `--ssh-timeout`/`--run-timeout SECONDS`, `--extra-args "-w 0 1"` (passed to the benchmark command), `--no-publish`, `--keep` (leave the pod running for debugging — you must then terminate it yourself), and `--dry-run` (print the plan and the exact remote script without creating anything — no API key needed). The database token is sent to the pod over the encrypted SSH channel, not baked into any image or argument string.
+
 ## Hardware Acceleration for PyTorch and TensorFlow
 
 This section shows how to use various GPUs for training and inference benchmarking.
