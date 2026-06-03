@@ -87,6 +87,7 @@ class DatasetConfig:
     batch_size: int = 1
     input_shape_without_batch: Sequence[int] = ()
     target_shape_without_batch: Sequence[int] = ()
+    num_classes: int = 2
 
 
 @dataclass

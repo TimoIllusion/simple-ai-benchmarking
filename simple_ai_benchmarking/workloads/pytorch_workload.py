@@ -71,7 +71,7 @@ class PyTorchTraining(AIWorkload):
         major_version = int(version_str.split(".")[0])
 
         if major_version >= 2 and platform.system() != "Windows":
-            torch.compile(self.model)
+            self.model = torch.compile(self.model)
 
     def _assign_numerical_precision(self) -> None:
 
@@ -89,6 +89,13 @@ class PyTorchTraining(AIWorkload):
     # TODO: what happens if device is other than cuda?
     def _assign_autocast_device_type(self) -> None:
         self.autocast_device_type = "cuda" if "cuda" in self.cfg.device_name else "cpu"
+
+    def sync_device(self) -> None:
+        if hasattr(self, "device"):
+            if self.device.type == "cuda" and torch.cuda.is_available():
+                torch.cuda.synchronize(self.device)
+            elif self.device.type == "mps" and hasattr(torch, "mps") and torch.backends.mps.is_available():
+                torch.mps.synchronize()
 
     def _get_model_parameters(self) -> int:
         return sum(p.numel() for p in self.model.parameters())
@@ -304,13 +311,13 @@ class PyTorchInference(PyTorchTraining):
             ):
                 self._infer_loop(dataloader)
 
-    # TODO: use loop that is similar to real world usage (no dataloader, more like webcam image stream etc.)
     def _infer_loop(self, dataloader: DataLoader) -> None:
         self.model.eval()
 
-        for inputs, labels in dataloader:
-            inputs, labels = inputs.to(self.device), labels.to(self.device)
-            outputs = self.model(inputs)
+        with torch.inference_mode():
+            for inputs, labels in dataloader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs = self.model(inputs)
 
     def _calculate_iterations(self) -> int:
         return self.cfg.dataset_cfg.num_batches * self.cfg.dataset_cfg.batch_size

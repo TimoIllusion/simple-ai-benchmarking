@@ -71,7 +71,7 @@ class BenchmarkDispatcher:
         print("############## SIMPLE AI BENCHMARKING ##############")
         print()
 
-    def run(self):
+    def run(self, args: List[str] = None):
         self._header()
         initialize_logger(self.LOG_FILE_PATH)
         workload_configs = build_default_pt_workload_configs(
@@ -80,34 +80,34 @@ class BenchmarkDispatcher:
             num_batches_inference=self.NUM_BATCHES_INFERENCE,
             num_batches_training=self.NUM_BATCHES_TRAINING,
         )
-        workload_configs = self._override_workload_cfg(workload_configs)
+        workload_configs = self._override_workload_cfg(workload_configs, args=args)
         workloads = WorkloadFactory.build_multiple_workloads(
             workload_configs, self.framework
         )
         process_workloads(workloads, self.results_name, repetitions=self.REPETITIONS)
 
-    def _override_workload_cfg(self, workload_cfgs: List[AIWorkloadBaseConfig]):
-        args = self.parser.parse_args()
+    def _override_workload_cfg(self, workload_cfgs: List[AIWorkloadBaseConfig], args: List[str] = None):
+        parsed_args = self.parser.parse_args(args)
         workload_info = [f"[{i}] {w}" for i, w in enumerate(workload_cfgs)]
         logger.info("Available workloads:")
         for x in workload_info:
             logger.info(x)
 
-        if args.workload_id_selection_override is not None:
+        if parsed_args.workload_id_selection_override is not None:
             workload_cfgs = [
-                workload_cfgs[i] for i in args.workload_id_selection_override
+                workload_cfgs[i] for i in parsed_args.workload_id_selection_override
             ]
             logger.warning("Selected workloads: {}", [str(x) for x in workload_cfgs])
 
-        if args.batch_size_override is not None:
+        if parsed_args.batch_size_override is not None:
             for cfg in workload_cfgs:
-                cfg.dataset_cfg.batch_size = args.batch_size_override
-            logger.warning("Batch size override: {}", args.batch_size_override)
+                cfg.dataset_cfg.batch_size = parsed_args.batch_size_override
+            logger.warning("Batch size override: {}", parsed_args.batch_size_override)
 
-        if args.num_batches_override is not None:
+        if parsed_args.num_batches_override is not None:
             for cfg in workload_cfgs:
-                cfg.dataset_cfg.num_batches = args.num_batches_override
-            logger.warning("Num batches override: {}", args.num_batches_override)
+                cfg.dataset_cfg.num_batches = parsed_args.num_batches_override
+            logger.warning("Num batches override: {}", parsed_args.num_batches_override)
 
         return workload_cfgs
 

@@ -61,6 +61,10 @@ class AIWorkload(ABC):
     def prepare_execution(self) -> None:
         pass
 
+    def sync_device(self) -> None:
+        """Synchronize the hardware accelerator device (no-op by default)."""
+        pass
+
     def execute(self) -> None:
         assert self.warmup_done, "Warmup not done before execution."
         self._execute()

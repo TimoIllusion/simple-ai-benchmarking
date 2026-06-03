@@ -30,7 +30,7 @@ def test_pt_benchmark() -> None:
     dispatcher.REPETITIONS = 1
     dispatcher.NUM_BATCHES_INFERENCE = 5
     dispatcher.NUM_BATCHES_TRAINING = 3
-    dispatcher.run()
+    dispatcher.run(args=[])
 
 
 def test_tf_benchmark() -> None:
@@ -42,7 +42,7 @@ def test_tf_benchmark() -> None:
     dispatcher.REPETITIONS = 1
     dispatcher.NUM_BATCHES_INFERENCE = 5
     dispatcher.NUM_BATCHES_TRAINING = 3
-    dispatcher.run()
+    dispatcher.run(args=[])
 
 
 if __name__ == "__main__":

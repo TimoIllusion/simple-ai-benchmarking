@@ -65,8 +65,8 @@ def process_workloads(
 def _repeat_benchmark_n_times(
     workload: AIWorkload, n_repetitions: int
 ) -> List[BenchmarkResult]:
-    set_start_method('spawn', force=True)
-    
+    set_start_method("spawn", force=True)
+
     benchmark_repetition_results = []
     for i in range(n_repetitions):
         logger.info(f"Repetition ({i+1}/{n_repetitions})")
@@ -74,8 +74,19 @@ def _repeat_benchmark_n_times(
         p = Process(target=_benchmark_process, args=(workload, result_queue))
         p.start()
         p.join()  # Wait for the process to complete
-        benchmark_result = result_queue.get()  # Retrieve the result from the process
-        
+
+        if p.exitcode != 0:
+            err_msg = f"Benchmark process crashed with exit code {p.exitcode}."
+            logger.error(err_msg)
+            benchmark_result = RuntimeError(err_msg)
+        else:
+            try:
+                benchmark_result = result_queue.get(timeout=2.0)
+            except Exception as e:
+                err_msg = f"Failed to retrieve benchmark result from queue: {e}"
+                logger.error(err_msg)
+                benchmark_result = RuntimeError(err_msg)
+
         if isinstance(benchmark_result, Exception):
             logger.error(f"Error in benchmark repetition {i+1}: {benchmark_result}")
         else:
@@ -104,8 +115,10 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
     logger.info(f"EXECUTION: {workload.__class__.__name__}")
     workload.prepare_execution()
     check_memory("after EXECUTION PREPARATION")
+    workload.sync_device()
     with Timer() as t:
         workload.execute()
+        workload.sync_device()
     training_duration_s = t.duration_s
 
     result_log = workload.build_result_log()
