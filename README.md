@@ -73,13 +73,55 @@ I develop this application in my free time as a hobby.
 
 ## LLM Inference Benchmarking
 
-In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs a self-contained local PyTorch transformer benchmark (no server or model weights required), just like `saib-pt` runs sensible defaults:
+In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs **all three local PyTorch backends** (simple transformer, ~1B KV-cache decoder, and a Hugging Face architecture), requiring no server, just like `saib-pt` runs several models with sensible defaults:
 
 ```bash
 saib-llm
 ```
 
-Three backends are supported:
+### Install requirements
+
+The local backends need PyTorch, and the `huggingface-causal` backend additionally needs `transformers`. The `pt` extra installs both (plus torchvision/torchaudio):
+
+```bash
+pip install simple-ai-benchmarking[pt]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
+```
+
+- **`transformers`** is required for the `huggingface-causal` backend. If it is missing, that workload fails with `Could not import module 'AutoModelForCausalLM'` while the other workloads still run (each workload runs in an isolated process). Quick check:
+
+  ```bash
+  python -c "from transformers import AutoModelForCausalLM; import transformers; print('OK transformers', transformers.__version__)"
+  ```
+
+  Install it on its own with `pip install transformers`.
+
+- **`torchao`** is only needed for real low-precision kernels (`--compute-precision FP8` or `--quantization int8`/`int4`) and a recent GPU. Install via the `lowbit` extra (`pip install simple-ai-benchmarking[lowbit]@git+...`) or `pip install torchao`. Without it, those options raise `NotImplementedError`; plain `FP32`/`FP16`/`BF16` casts need no extra dependency. Quick check:
+
+  ```bash
+  python -c "import torchao; print('OK torchao', torchao.__version__)"
+  ```
+
+### Backends
+
+Five backends are supported — three self-contained local PyTorch backends and two HTTP backends:
+
+- `pytorch-simple-transformer` — a small synthetic PyTorch transformer, requiring no external server or model weights (handy for quick hardware comparisons):
+
+  ```bash
+  saib-llm --backend pytorch-simple-transformer --device cuda
+  ```
+
+- `pytorch-kv-decoder` — a self-contained ~1B-parameter decoder with RoPE, SwiGLU and a real KV cache (so time-to-first-token reflects a meaningful prefill). Random weights, no server, defaults to BF16:
+
+  ```bash
+  saib-llm --backend pytorch-kv-decoder --device cuda
+  ```
+
+- `huggingface-causal` — a real model architecture built **random-initialized from its config** (only `config.json` is fetched, no weight download), default `Qwen/Qwen3-1.7B`, defaults to BF16. Requires `transformers`:
+
+  ```bash
+  saib-llm --backend huggingface-causal --model Qwen/Qwen3-1.7B --device cuda
+  ```
 
 - `openai-compatible` — benchmark any server exposing the OpenAI `/v1/chat/completions` API (e.g. vLLM, llama.cpp server, LM Studio, OpenAI itself):
 
@@ -93,23 +135,19 @@ Three backends are supported:
   saib-llm --backend ollama --model llama3
   ```
 
-- `pytorch-simple-transformer` — run a self-contained synthetic PyTorch transformer locally, requiring no external server or model weights (handy for quick hardware comparisons):
-
-  ```bash
-  saib-llm --backend pytorch-simple-transformer --model simple-transformer --device cuda
-  ```
-
 The benchmark performs configurable warmup and measured requests (optionally concurrent), repeats the measurement and averages the result, and reports prompt, generated, and total tokens per second, time to first token, and total duration. Each repetition runs in an isolated process. Results are written to `llm_results.csv` (and `.xlsx` if `openpyxl` is installed).
 
 Common options (see `saib-llm -h` for the full list):
 
 - `--requests` / `--warmup-requests` — number of measured / warmup requests (default `10` / `1`)
 - `--repetitions` — number of times the measurement is repeated and averaged (default `3`); for paid HTTP endpoints, lower this to reduce cost
-- `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local `pytorch-simple-transformer` backend, the batch size processed in a single batched forward pass (default `1`)
-- `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `128` / `256`)
+- `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local PyTorch backends, the batch size processed in a single batched forward pass (default `1`)
+- `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `2048` / `256`)
 - `--context-length` — model context window (default `4096`)
-- `--device` — torch device for the local backend, e.g. `cpu`, `cuda`, `mps` (default `cpu`)
-- `--compute-precision`, `--quantization`, `--model-params`, `--weight-source`, `--accelerator` — metadata recorded with the result
+- `--device` — torch device for the local backends, e.g. `cpu`, `cuda`, `mps` (default `cpu`)
+- `--compute-precision` — for `pytorch-kv-decoder` and `huggingface-causal`, applied to the model: `FP32`/`FP16`/`BF16` (plain casts) or `FP8` (needs `torchao` + recent GPU). Recorded as metadata for other backends
+- `--quantization` — for `pytorch-kv-decoder` and `huggingface-causal`: `none` (default), `int8`, or `int4` (the latter two need `torchao` + recent GPU). Recorded as metadata for other backends
+- `--model-params`, `--weight-source`, `--accelerator` — metadata recorded with the result
 - `--out-file-base` — output file name base (default `llm_results`)
 
 
