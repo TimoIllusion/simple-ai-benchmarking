@@ -1,7 +1,9 @@
 import pytest
 
 from simple_ai_benchmarking.benchmark_metadata import (
+    SPEC_VERSION,
     build_cv_profile,
+    build_cv_profile_id,
     build_llm_profile,
     canonical_hash,
 )
@@ -121,6 +123,20 @@ def test_cv_profile_hash_changes_for_workload_parameters_only():
     assert canonical_hash(base) == canonical_hash(
         {key: with_runtime_noise[key] for key in base}
     )
+
+
+def test_cv_profile_id_matches_spec_major_version():
+    profile = build_cv_profile(
+        workload_type="InferenceWorkload",
+        model="ResNet50",
+        compute_precision="DEFAULT_PRECISION",
+        batch_size=32,
+        sample_shape=[224, 224, 3],
+        num_classes=1000,
+    )
+
+    spec_major = SPEC_VERSION.split(".", 1)[0]
+    assert build_cv_profile_id(profile).endswith(f"_v{spec_major}")
 
 
 def test_llm_profile_hash_changes_for_comparability_parameters():

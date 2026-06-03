@@ -65,8 +65,8 @@ def process_workloads(
 def _repeat_benchmark_n_times(
     workload: AIWorkload, n_repetitions: int
 ) -> List[BenchmarkResult]:
-    set_start_method('spawn', force=True)
-    
+    set_start_method("spawn", force=True)
+
     benchmark_repetition_results = []
     for i in range(n_repetitions):
         logger.info(f"Repetition ({i+1}/{n_repetitions})")
@@ -74,14 +74,33 @@ def _repeat_benchmark_n_times(
         p = Process(target=_benchmark_process, args=(workload, result_queue))
         p.start()
         p.join()  # Wait for the process to complete
-        benchmark_result = result_queue.get()  # Retrieve the result from the process
-        
+
+        benchmark_result = _extract_repetition_result(p.exitcode, result_queue)
+
         if isinstance(benchmark_result, Exception):
             logger.error(f"Error in benchmark repetition {i+1}: {benchmark_result}")
         else:
             benchmark_repetition_results.append(benchmark_result)
 
     return benchmark_repetition_results
+
+
+def _extract_repetition_result(exitcode, result_queue, queue_timeout: float = 2.0):
+    """Return the child's BenchmarkResult, or a RuntimeError describing the failure.
+
+    A non-zero exit code means the child crashed (e.g. CUDA OOM, segfault) without
+    putting a result, so we never block on the queue. Otherwise we read the result
+    but cap the wait so a missing result can't hang the whole run."""
+    if exitcode != 0:
+        err_msg = f"Benchmark process crashed with exit code {exitcode}."
+        logger.error(err_msg)
+        return RuntimeError(err_msg)
+    try:
+        return result_queue.get(timeout=queue_timeout)
+    except Exception as e:
+        err_msg = f"Failed to retrieve benchmark result from queue: {e}"
+        logger.error(err_msg)
+        return RuntimeError(err_msg)
 
 
 def _benchmark_process(workload: AIWorkload, result_queue: Queue) -> None:
@@ -104,8 +123,10 @@ def benchmark(workload: AIWorkload) -> BenchmarkResult:
     logger.info(f"EXECUTION: {workload.__class__.__name__}")
     workload.prepare_execution()
     check_memory("after EXECUTION PREPARATION")
+    workload.sync_device()
     with Timer() as t:
         workload.execute()
+        workload.sync_device()
     training_duration_s = t.duration_s
 
     result_log = workload.build_result_log()

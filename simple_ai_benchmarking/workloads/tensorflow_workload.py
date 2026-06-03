@@ -114,6 +114,10 @@ class TensorFlowTraining(AIWorkload):
             self.cfg.dataset_cfg
         )
 
+    def sync_device(self) -> None:
+        """Keras fit/predict calls used here block before returning."""
+        pass
+
     def _execute(self) -> None:
         self._train_loop(self.tf_dataset_execution, self.cfg.epochs)
 

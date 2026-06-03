@@ -187,8 +187,12 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
         if self.cfg.model_params == 0:
             self.cfg.model_params = sum(p.numel() for p in self._model.parameters())
 
-    def _sync_device(self) -> None:
-        """Block until queued accelerator work has finished so timing is real."""
+    def sync_device(self) -> None:
+        """Block until queued accelerator work has finished so timing is real.
+
+        Overrides the base ``AIWorkload.sync_device`` no-op; the generic
+        benchmark loop calls this on the public name, and the LLM timing paths
+        call it internally too, so both share one mechanism."""
         if self._device.type == "mps":
             self._torch.mps.synchronize()
         elif self._device.type == "cuda":
@@ -212,13 +216,13 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
         # time-to-first-token is a real measurement, not full-generation latency.
         start = time.perf_counter()
         sequence = self._model.generate(input_ids, 1)
-        self._sync_device()
+        self.sync_device()
         time_to_first_token_s = time.perf_counter() - start
 
         remaining_tokens = generated_tokens - 1
         if remaining_tokens > 0:
             self._model.generate(sequence, remaining_tokens)
-            self._sync_device()
+            self.sync_device()
 
         return [
             GenerationRequestResult(
@@ -410,12 +414,12 @@ class PyTorchKVDecoderGeneration(_DtypeQuantGeneration):
         # Prefill (= time-to-first-token), then cached single-token decode steps.
         start = time.perf_counter()
         next_token, cache = self._model.prefill(input_ids)
-        self._sync_device()
+        self.sync_device()
         time_to_first_token_s = time.perf_counter() - start
 
         for _ in range(generated_tokens - 1):
             next_token, cache = self._model.decode_step(next_token, cache)
-        self._sync_device()
+        self.sync_device()
 
         return [
             GenerationRequestResult(
@@ -496,7 +500,7 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
             outputs = self._model(input_ids=input_ids, use_cache=True)
             past = outputs.past_key_values
             next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
-            self._sync_device()
+            self.sync_device()
             time_to_first_token_s = time.perf_counter() - start
 
             for _ in range(generated_tokens - 1):
@@ -505,7 +509,7 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
                 )
                 past = outputs.past_key_values
                 next_token = outputs.logits[:, -1:, :].argmax(dim=-1)
-            self._sync_device()
+            self.sync_device()
 
         return [
             GenerationRequestResult(

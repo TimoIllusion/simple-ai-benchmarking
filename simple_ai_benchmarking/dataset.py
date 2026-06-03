@@ -146,7 +146,7 @@ class SyntheticPytorchDataset(SyntheticDataset):
 
         self.inputs = torch.rand(self.dataset_inputs_shape, dtype=torch.float32).cpu()
         self.targets = torch.randint(
-            low=0, high=2, size=self.dataset_targets_shape, dtype=torch.int64
+            low=0, high=self.cfg.num_classes, size=self.dataset_targets_shape, dtype=torch.int64
         ).cpu()
 
 
@@ -163,7 +163,7 @@ class SyntheticTensorFlowDataset(SyntheticDataset):
 
         self.inputs = tf.random.uniform(self.dataset_inputs_shape, dtype=tf.float32)
         self.targets = tf.random.uniform(
-            self.dataset_targets_shape, minval=0, maxval=2, dtype=tf.int64
+            self.dataset_targets_shape, minval=0, maxval=self.cfg.num_classes, dtype=tf.int64
         )
 
 

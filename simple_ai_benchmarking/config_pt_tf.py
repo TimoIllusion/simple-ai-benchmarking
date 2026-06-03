@@ -88,6 +88,7 @@ def create_standard_configs_for_all_models(
                 batch_size=batch_size,
                 input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches_inference,
+                num_classes=NUM_CLASSES,
             ),
             model_cfg=ClassificationModelConfig(
                 model_identifier=model_identifier,
@@ -104,6 +105,7 @@ def create_standard_configs_for_all_models(
                 batch_size=batch_size,
                 input_shape_without_batch=dataset_sample_shape,
                 num_batches=num_batches_training,
+                num_classes=NUM_CLASSES,
             ),
             model_cfg=ClassificationModelConfig(
                 model_identifier=model_identifier,

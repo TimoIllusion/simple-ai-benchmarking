@@ -8,7 +8,7 @@ LLM_BENCHMARK_FAMILY = "llm"
 
 CV_SPEC_NAME = "saib_cv_classification"
 LLM_SPEC_NAME = "saib_llm_generation"
-SPEC_VERSION = "1.0"
+SPEC_VERSION = "2.0"
 # LLM generation moved to a v2 spec when real time-to-first-token replaced the
 # v1 aggregate-only latency. v2 results carry their own profile/runner hashes and
 # never mix with v1 rows. Bumped to 2.1 when local-backend concurrency became a
@@ -19,7 +19,7 @@ SPEC_VERSION = "1.0"
 # backend_protocol_class in the profile, so existing backends stay comparable.
 LLM_SPEC_VERSION = "2.1"
 
-CV_RUNNER_ID = "saib.cv.classification.v1"
+CV_RUNNER_ID = "saib.cv.classification.v2"
 LLM_RUNNER_ID = "saib.llm.generation.v2"
 
 
@@ -60,9 +60,10 @@ def build_cv_profile(
 
 def build_cv_profile_id(profile: Mapping[str, Any]) -> str:
     shape = "x".join(str(x) for x in profile["input_shape"])
+    spec_major = str(profile["benchmark_spec_version"]).split(".", 1)[0]
     return (
         f"cv_{profile['model']}_{profile['workload_type']}_bs{profile['batch_size']}_"
-        f"{shape}_c{profile['num_classes']}_v1"
+        f"{shape}_c{profile['num_classes']}_v{spec_major}"
     ).lower().replace(" ", "_")
 
 
