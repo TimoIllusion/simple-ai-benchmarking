@@ -39,6 +39,11 @@ from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 PYTORCH_GENERATION_BACKEND = "pytorch-simple-transformer"
 PYTORCH_KV_DECODER_BACKEND = "pytorch-kv-decoder"
 HF_CAUSAL_BACKEND = "huggingface-causal"
+# Low-bit variants of the Hugging Face backend: the same random-init architecture
+# quantized to FP8 / FP4 (NVFP4) via torchao. They carry their own backend identity
+# (and precision_policy) so results stay comparable per precision.
+HF_CAUSAL_FP8_BACKEND = "huggingface-causal-fp8"
+HF_CAUSAL_FP4_BACKEND = "huggingface-causal-fp4"
 OPENAI_COMPATIBLE_BACKEND = "openai-compatible"
 OLLAMA_BACKEND = "ollama"
 
@@ -270,11 +275,11 @@ class _DtypeQuantGeneration(PyTorchLocalGeneration):
     """Shared precision/quantization handling for the local model backends.
 
     FP32/FP16/BF16 are plain dtype casts of the random-weight model (no extra
-    dependency). FP8 (compute_precision) and int8/int4 (quantization) use real
+    dependency). FP8/FP4 (compute_precision) and int8/int4 (quantization) use real
     low-precision kernels via torchao and a recent GPU; without torchao they fail
     with a clear message instead of silently running at a higher precision."""
 
-    _SUPPORTED_PRECISIONS = ("FP32", "FP16", "BF16", "FP8")
+    _SUPPORTED_PRECISIONS = ("FP32", "FP16", "BF16", "FP8", "FP4")
     _SUPPORTED_QUANTIZATIONS = ("none", "int8", "int4")
 
     def _precision(self) -> str:
@@ -285,8 +290,9 @@ class _DtypeQuantGeneration(PyTorchLocalGeneration):
 
     def _resolve_base_dtype(self):
         precision = self._precision()
-        if precision == "FP8":
-            # The module is built in bf16; torchao casts the Linear layers to fp8.
+        if precision in ("FP8", "FP4"):
+            # The module is built in bf16; torchao casts the Linear layers to the
+            # low-bit float format (fp8 / nvfp4).
             return self._torch.bfloat16
         dtype_name = PRECISION_TO_DTYPE.get(precision)
         if dtype_name is None:
@@ -310,7 +316,7 @@ class _DtypeQuantGeneration(PyTorchLocalGeneration):
                 f"{self._get_backend()}. Choose one of: "
                 f"{', '.join(self._SUPPORTED_QUANTIZATIONS)}."
             )
-        if precision != "FP8" and quantization == "none":
+        if precision not in ("FP8", "FP4") and quantization == "none":
             return model
         try:
             from torchao.quantization import quantize_
@@ -338,6 +344,19 @@ class _DtypeQuantGeneration(PyTorchLocalGeneration):
             ) from exc
         if precision == "FP8":
             quantize_(model, fp8_config())
+        elif precision == "FP4":
+            # NVFP4 is a torchao prototype and needs an NVIDIA Blackwell (SM100)
+            # GPU; a missing/older torchao surfaces as the same NotImplementedError.
+            try:
+                from torchao.prototype.mx_formats import NVFP4InferenceConfig
+            except ImportError as exc:
+                raise NotImplementedError(
+                    f"compute_precision='FP4' on {self._get_backend()} needs a "
+                    "torchao build with NVFP4 support and an NVIDIA Blackwell "
+                    "(SM100) GPU: pip install -U torchao. "
+                    "FP32/FP16/BF16 work without it."
+                ) from exc
+            quantize_(model, NVFP4InferenceConfig())
         if quantization == "int8":
             quantize_(model, int8_config())
         elif quantization == "int4":
@@ -426,7 +445,20 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
 
     def setup(self) -> None:
         import torch
-        from transformers import AutoConfig, AutoModelForCausalLM
+
+        # ImportError also covers transformers being present but incompatible with
+        # the installed torch (e.g. transformers 5.x needs torch>=2.5), which
+        # otherwise surfaces as a cryptic "Could not import module ...".
+        try:
+            from transformers import AutoConfig, AutoModelForCausalLM
+        except ImportError as exc:
+            raise NotImplementedError(
+                f"The {self._get_backend()} backend needs a `transformers` install "
+                "compatible with your torch version. transformers 5.x requires "
+                "torch>=2.5; SAIB pins transformers<5 for broader compatibility "
+                "(pip install 'transformers<5', or upgrade torch). "
+                f"Original import error: {exc}"
+            ) from exc
 
         self._torch = torch
         self._device = torch.device(self.cfg.device_name)
@@ -499,6 +531,33 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
             return transformers.__version__
         except Exception:
             return self._torch.__version__
+
+
+class HuggingFaceCausalFP8Generation(HuggingFaceCausalGeneration):
+    """huggingface-causal quantized to FP8 weights/activations via torchao.
+
+    Identical build/measurement path to the bf16 HF backend; the FP8 precision is
+    carried on the config (compute_precision='FP8') and applied by torchao after
+    the model is on device. Needs torchao + a recent GPU (CUDA SM 8.9+)."""
+
+    def _get_backend(self) -> str:
+        return HF_CAUSAL_FP8_BACKEND
+
+    def _get_ai_framework_name(self) -> str:
+        return HF_CAUSAL_FP8_BACKEND
+
+
+class HuggingFaceCausalFP4Generation(HuggingFaceCausalGeneration):
+    """huggingface-causal quantized to FP4 (NVFP4) weights/activations via torchao.
+
+    Same path as the bf16 HF backend with compute_precision='FP4'. NVFP4 is a
+    torchao prototype and needs an NVIDIA Blackwell (SM100) GPU."""
+
+    def _get_backend(self) -> str:
+        return HF_CAUSAL_FP4_BACKEND
+
+    def _get_ai_framework_name(self) -> str:
+        return HF_CAUSAL_FP4_BACKEND
 
 
 class HTTPGenerationWorkload(LLMGenerationWorkload):

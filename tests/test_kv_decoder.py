@@ -11,7 +11,11 @@ from simple_ai_benchmarking.config_structures import (
 from simple_ai_benchmarking.models.pt.kv_decoder_lm import KVCacheDecoderLM
 from simple_ai_benchmarking.workloads.llm_workload import (
     HF_CAUSAL_BACKEND,
+    HF_CAUSAL_FP4_BACKEND,
+    HF_CAUSAL_FP8_BACKEND,
     PYTORCH_KV_DECODER_BACKEND,
+    HuggingFaceCausalFP4Generation,
+    HuggingFaceCausalFP8Generation,
     HuggingFaceCausalGeneration,
     PyTorchKVDecoderGeneration,
 )
@@ -218,3 +222,85 @@ def test_hf_workload_integer_quantization_requires_torchao(monkeypatch):
     )
     with pytest.raises(NotImplementedError):
         HuggingFaceCausalGeneration(config).setup()
+
+
+def test_hf_workload_clear_error_when_transformers_unusable(monkeypatch):
+    # Simulate transformers being importable but lacking the names (the same
+    # ImportError class raised when transformers 5.x is incompatible with torch):
+    # the backend should fail with an actionable NotImplementedError, not a cryptic
+    # "Could not import module 'AutoModelForCausalLM'".
+    import types
+
+    monkeypatch.setitem(sys.modules, "transformers", types.ModuleType("transformers"))
+    config = LLMGenerationConfig(
+        backend=HF_CAUSAL_BACKEND,
+        device_name="cpu",
+        model="dummy/model",
+        compute_precision="FP32",
+    )
+    with pytest.raises(NotImplementedError, match="transformers"):
+        HuggingFaceCausalGeneration(config).setup()
+
+
+def _mock_tiny_hf_config(monkeypatch):
+    transformers = pytest.importorskip("transformers")
+    from transformers import LlamaConfig
+
+    monkeypatch.setattr(
+        transformers.AutoConfig,
+        "from_pretrained",
+        lambda *a, **k: LlamaConfig(
+            vocab_size=32, hidden_size=16, num_hidden_layers=1, num_attention_heads=2
+        ),
+    )
+
+
+def test_hf_fp8_low_bit_backend_identity_and_requires_torchao(monkeypatch):
+    _mock_tiny_hf_config(monkeypatch)
+    config = LLMGenerationConfig(
+        backend=HF_CAUSAL_FP8_BACKEND,
+        device_name="cpu",
+        model="dummy/model",
+        compute_precision="FP8",
+    )
+    workload = HuggingFaceCausalFP8Generation(config)
+    # Distinct backend identity so FP8 results are comparable on their own.
+    assert workload._get_backend() == HF_CAUSAL_FP8_BACKEND
+    _skip_if_torchao_available()
+    with pytest.raises(NotImplementedError):
+        workload.setup()
+
+
+def test_hf_fp4_low_bit_backend_identity_and_requires_torchao(monkeypatch):
+    _mock_tiny_hf_config(monkeypatch)
+    config = LLMGenerationConfig(
+        backend=HF_CAUSAL_FP4_BACKEND,
+        device_name="cpu",
+        model="dummy/model",
+        compute_precision="FP4",
+    )
+    workload = HuggingFaceCausalFP4Generation(config)
+    assert workload._get_backend() == HF_CAUSAL_FP4_BACKEND
+    _skip_if_torchao_available()
+    with pytest.raises(NotImplementedError):
+        workload.setup()
+
+
+def test_saib_llm_low_bit_workloads_pin_precision_and_share_model(monkeypatch):
+    from simple_ai_benchmarking.llm_generation import (
+        build_generation_config_from_args,
+        parse_arguments,
+    )
+
+    for backend, expected_precision in (
+        (HF_CAUSAL_FP8_BACKEND, "FP8"),
+        (HF_CAUSAL_FP4_BACKEND, "FP4"),
+    ):
+        monkeypatch.setattr(
+            sys, "argv", ["saib-llm", "--backend", backend, "--device", "cpu"]
+        )
+        config = build_generation_config_from_args(parse_arguments())
+        # Low-bit variants reuse the HF default repo and pin their precision.
+        assert config.backend == backend
+        assert config.model  # substituted to the default HF repo id
+        assert config.compute_precision == expected_precision
