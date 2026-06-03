@@ -12,14 +12,20 @@ from simple_ai_benchmarking.workloads.llm_workload import (
 
 def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
     # Bare `saib-llm` should build all local LM workloads (simple transformer,
-    # KV-cache decoder, Hugging Face), mirroring how `saib-pt` runs several models.
+    # KV-cache decoder, Hugging Face, and the FP8/FP4 low-bit HF variants),
+    # mirroring how `saib-pt` runs several models.
     import pytest
 
     pytest.importorskip("torch")
     from simple_ai_benchmarking.config_pt_tf import get_device_name_pytorch
-    from simple_ai_benchmarking.llm_generation import build_generation_configs
+    from simple_ai_benchmarking.llm_generation import (
+        KV_DECODER_DEFAULT_MODEL,
+        build_generation_configs,
+    )
     from simple_ai_benchmarking.workloads.llm_workload import (
         HF_CAUSAL_BACKEND,
+        HF_CAUSAL_FP4_BACKEND,
+        HF_CAUSAL_FP8_BACKEND,
         PYTORCH_KV_DECODER_BACKEND,
     )
 
@@ -33,15 +39,81 @@ def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
         PYTORCH_GENERATION_BACKEND,
         PYTORCH_KV_DECODER_BACKEND,
         HF_CAUSAL_BACKEND,
+        HF_CAUSAL_FP8_BACKEND,
+        HF_CAUSAL_FP4_BACKEND,
     ]
     # Reference transformer keeps its defaults (self-contained, no server).
     assert configs[0].model == "SimpleTransformerLM"
     assert configs[0].device_name == get_device_name_pytorch()
     assert configs[0].base_url == ""
-    # HF backend gets a real repo id; heavier backends default to bf16.
-    assert configs[2].model
+    # KV-cache decoder gets its own model label (not the simple transformer's).
+    assert configs[1].model == KV_DECODER_DEFAULT_MODEL
     assert configs[1].compute_precision == "BF16"
+    # All HF backends get a real repo id; bf16 default, low-bit variants pinned.
+    assert configs[2].model
     assert configs[2].compute_precision == "BF16"
+    assert configs[3].model == configs[2].model
+    assert configs[3].compute_precision == "FP8"
+    assert configs[4].model == configs[2].model
+    assert configs[4].compute_precision == "FP4"
+
+
+def test_saib_llm_w_flag_selects_subset_of_default_workloads(monkeypatch):
+    import pytest
+
+    pytest.importorskip("torch")
+    from simple_ai_benchmarking.llm_generation import build_generation_configs
+    from simple_ai_benchmarking.workloads.llm_workload import (
+        HF_CAUSAL_BACKEND,
+        PYTORCH_KV_DECODER_BACKEND,
+    )
+
+    # `-w 1 2` should run only the second and third default workloads.
+    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "1", "2", "--device", "cpu"])
+    configs = build_generation_configs(parse_arguments())
+
+    assert [c.backend for c in configs] == [
+        PYTORCH_KV_DECODER_BACKEND,
+        HF_CAUSAL_BACKEND,
+    ]
+
+
+def test_saib_llm_w_flag_single_workload(monkeypatch):
+    import pytest
+
+    pytest.importorskip("torch")
+    from simple_ai_benchmarking.llm_generation import build_generation_configs
+    from simple_ai_benchmarking.workloads.llm_workload import (
+        PYTORCH_KV_DECODER_BACKEND,
+    )
+
+    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "1", "--device", "cpu"])
+    configs = build_generation_configs(parse_arguments())
+
+    assert [c.backend for c in configs] == [PYTORCH_KV_DECODER_BACKEND]
+
+
+def test_saib_llm_w_flag_rejects_out_of_range(monkeypatch):
+    import pytest
+
+    from simple_ai_benchmarking.llm_generation import build_generation_configs
+
+    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "99"])
+    with pytest.raises(SystemExit):
+        build_generation_configs(parse_arguments())
+
+
+def test_saib_llm_w_flag_conflicts_with_backend(monkeypatch):
+    import pytest
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["saib-llm", "--backend", PYTORCH_GENERATION_BACKEND, "-w", "0"],
+    )
+    from simple_ai_benchmarking.llm_generation import build_generation_configs
+
+    with pytest.raises(SystemExit):
+        build_generation_configs(parse_arguments())
 
 
 def _args(**overrides) -> argparse.Namespace:

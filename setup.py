@@ -76,7 +76,11 @@ setuptools.setup(
             "torch>=1.0.0",
             "torchvision",
             "torchaudio",
-            "transformers",
+            # transformers 5.x imports torch.distributed.tensor.device_mesh, which
+            # only exists in torch>=2.5; cap at <5 so the huggingface-causal backend
+            # works across the wide torch range SAIB targets. Use torch>=2.5 if you
+            # want transformers 5.x.
+            "transformers<5",
         ],
         # Optional: real FP8 / int8 / int4 low-precision kernels (recent GPU).
         "lowbit": ["torchao"],

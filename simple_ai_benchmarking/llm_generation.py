@@ -30,10 +30,20 @@ from simple_ai_benchmarking.llm_results import LLMBenchmarkLogger
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 from simple_ai_benchmarking.workloads.llm_workload import (
     HF_CAUSAL_BACKEND,
+    HF_CAUSAL_FP4_BACKEND,
+    HF_CAUSAL_FP8_BACKEND,
     OLLAMA_BACKEND,
     OPENAI_COMPATIBLE_BACKEND,
     PYTORCH_GENERATION_BACKEND,
     PYTORCH_KV_DECODER_BACKEND,
+)
+
+# The Hugging Face backends (full-precision plus the FP8/FP4 low-bit variants) all
+# build a model from a Hugging Face repo id and substitute the default repo.
+HF_BACKENDS = (
+    HF_CAUSAL_BACKEND,
+    HF_CAUSAL_FP8_BACKEND,
+    HF_CAUSAL_FP4_BACKEND,
 )
 
 SUPPORTED_LLM_BACKENDS = (
@@ -42,6 +52,8 @@ SUPPORTED_LLM_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
     PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
+    HF_CAUSAL_FP8_BACKEND,
+    HF_CAUSAL_FP4_BACKEND,
 )
 
 # Local PyTorch backends that build and run a model in-process (vs HTTP serving
@@ -50,16 +62,28 @@ LOCAL_PYTORCH_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
     PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
+    HF_CAUSAL_FP8_BACKEND,
+    HF_CAUSAL_FP4_BACKEND,
 )
 
 # Backends `saib-llm` runs when no --backend is given: the lightweight reference
-# transformer, the heavier custom KV-cache decoder, and a real Hugging Face model.
-# This mirrors how the CV benchmark runs several models in a single invocation.
+# transformer, the heavier custom KV-cache decoder, a real Hugging Face model, and
+# its FP8/FP4 low-bit variants. Mirrors how the CV benchmark runs several models in
+# a single invocation. The low-bit variants need torchao + a recent GPU (FP4 needs
+# Blackwell); where unsupported they fail in isolation and the rest still run.
 DEFAULT_LLM_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
     PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
+    HF_CAUSAL_FP8_BACKEND,
+    HF_CAUSAL_FP4_BACKEND,
 )
+
+# Precision pinned per low-bit HF backend (precision is part of their identity).
+HF_LOWBIT_PRECISION = {
+    HF_CAUSAL_FP8_BACKEND: "FP8",
+    HF_CAUSAL_FP4_BACKEND: "FP4",
+}
 
 # Fixed ~1B-parameter geometry for the custom KV-cache decoder. Intentionally not
 # exposed as user-tunable presets: the custom LM simply defaults to ~1B. Mirrors
@@ -70,6 +94,10 @@ KV_DECODER_DEFAULT_GEOMETRY = dict(
     attention_heads=16,
     feedforward_dim=5632,
 )
+
+# Display/identity name for the custom KV-cache decoder, so its results are not
+# mislabelled with the simple transformer's default --model placeholder.
+KV_DECODER_DEFAULT_MODEL = "KVCacheDecoderLM-1B"
 
 # Default Hugging Face causal LM for the huggingface-causal backend. Only the
 # model config is fetched and the weights are randomly initialised (approach B),
@@ -85,7 +113,19 @@ def parse_arguments() -> argparse.Namespace:
         choices=SUPPORTED_LLM_BACKENDS,
         default=None,
         help="Generation backend to run. Default: None, which runs all local "
-        "workloads (simple transformer, KV-cache decoder, Hugging Face model).",
+        "workloads (simple transformer, KV-cache decoder, Hugging Face model, "
+        "and its FP8/FP4 low-bit variants).",
+    )
+    parser.add_argument(
+        "-w",
+        "--workloads",
+        type=int,
+        nargs="+",
+        default=None,
+        metavar="INDEX",
+        help="Indices (0-based) of the default workloads to run, e.g. `-w 1` for "
+        "only the second or `-w 1 2` for the second and third. Default: None (run "
+        "all). Cannot be combined with --backend.",
     )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--model", default="SimpleTransformerLM")
@@ -149,11 +189,15 @@ def build_generation_config_from_args(
             feedforward_dim=args.feedforward_dim,
         )
 
-    # The HF backend takes a Hugging Face repo id via --model; substitute the
-    # default when the user left --model at its (non-HF) placeholder value.
+    # Give each local backend a meaningful model name when the user left --model at
+    # its placeholder: HF backends take a real repo id, and the KV-cache decoder
+    # gets its own name (otherwise it inherits the simple transformer's label).
     model = args.model
-    if backend == HF_CAUSAL_BACKEND and model in ("", "SimpleTransformerLM"):
+    placeholder = ("", "SimpleTransformerLM")
+    if backend in HF_BACKENDS and model in placeholder:
         model = DEFAULT_HF_MODEL
+    elif backend == PYTORCH_KV_DECODER_BACKEND and model in placeholder:
+        model = KV_DECODER_DEFAULT_MODEL
 
     # Default to the best local device (cuda/mps/cpu), matching how the CV
     # benchmarks pick their device, unless one was explicitly requested.
@@ -175,14 +219,19 @@ def build_generation_config_from_args(
 
         ai_framework_version = ai_framework_version or torch.__version__
         ai_framework_extra_info = ai_framework_extra_info or device_name
-        # The heavier backends default to bf16; the lightweight reference
-        # transformer keeps fp32 so its established results stay comparable.
-        default_precision = (
-            "BF16"
-            if backend in (PYTORCH_KV_DECODER_BACKEND, HF_CAUSAL_BACKEND)
-            else "FP32"
-        )
-        compute_precision = args.compute_precision or default_precision
+        # The low-bit HF backends pin their precision (it is part of their
+        # identity); the heavier backends default to bf16; the lightweight
+        # reference transformer keeps fp32 so its established results stay
+        # comparable.
+        if backend in HF_LOWBIT_PRECISION:
+            compute_precision = HF_LOWBIT_PRECISION[backend]
+        else:
+            default_precision = (
+                "BF16"
+                if backend in (PYTORCH_KV_DECODER_BACKEND, HF_CAUSAL_BACKEND)
+                else "FP32"
+            )
+            compute_precision = args.compute_precision or default_precision
         quantization = args.quantization or "none"
         weight_source = weight_source or "random_weights"
         if accelerator == "unknown":
@@ -227,20 +276,47 @@ def build_generation_config_from_args(
     )
 
 
+def select_default_backends(selection):
+    """Resolve the default backends to run from optional 0-based `-w` indices."""
+    if selection is None:
+        return list(DEFAULT_LLM_BACKENDS)
+    try:
+        return [DEFAULT_LLM_BACKENDS[i] for i in selection]
+    except IndexError:
+        raise SystemExit(
+            f"--workloads indices {list(selection)} out of range; valid indices "
+            f"are 0..{len(DEFAULT_LLM_BACKENDS) - 1}."
+        )
+
+
 def build_generation_configs(args: argparse.Namespace):
-    """One config per backend to run: the explicit --backend, or all the default
-    local backends (mirrors the CV benchmark running several models at once)."""
+    """One config per backend to run: the explicit --backend, or the default local
+    backends (optionally narrowed by `-w`), mirroring how the CV benchmark runs
+    several models at once."""
     if args.backend is not None:
+        if getattr(args, "workloads", None):
+            raise SystemExit(
+                "-w/--workloads selects among the default workloads and cannot be "
+                "combined with an explicit --backend."
+            )
         return [build_generation_config_from_args(args, args.backend)]
-    return [
-        build_generation_config_from_args(args, backend)
-        for backend in DEFAULT_LLM_BACKENDS
-    ]
+    backends = select_default_backends(getattr(args, "workloads", None))
+    return [build_generation_config_from_args(args, backend) for backend in backends]
 
 
 def run_llm_generation_cli() -> None:
+    from loguru import logger
+
     args = parse_arguments()
+    if args.backend is None:
+        logger.info("Available default workloads (use -w to select a subset):")
+        for i, backend in enumerate(DEFAULT_LLM_BACKENDS):
+            logger.info(f"  [{i}] {backend}")
     configs = build_generation_configs(args)
+    if args.backend is None:
+        logger.warning(
+            "Selected workloads: {}", [c.backend for c in configs]
+        )
     workloads = [
         WorkloadFactory.create_workload(config, AIFramework.PYTORCH)
         for config in configs

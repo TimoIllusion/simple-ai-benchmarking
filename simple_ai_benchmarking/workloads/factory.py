@@ -48,10 +48,14 @@ class WorkloadFactory:
     ) -> AIWorkload:
         from simple_ai_benchmarking.workloads.llm_workload import (
             HF_CAUSAL_BACKEND,
+            HF_CAUSAL_FP4_BACKEND,
+            HF_CAUSAL_FP8_BACKEND,
             OLLAMA_BACKEND,
             OPENAI_COMPATIBLE_BACKEND,
             PYTORCH_GENERATION_BACKEND,
             PYTORCH_KV_DECODER_BACKEND,
+            HuggingFaceCausalFP4Generation,
+            HuggingFaceCausalFP8Generation,
             HuggingFaceCausalGeneration,
             OllamaGeneration,
             OpenAICompatibleGeneration,
@@ -68,6 +72,8 @@ class WorkloadFactory:
             PYTORCH_GENERATION_BACKEND: PyTorchLocalGeneration,
             PYTORCH_KV_DECODER_BACKEND: PyTorchKVDecoderGeneration,
             HF_CAUSAL_BACKEND: HuggingFaceCausalGeneration,
+            HF_CAUSAL_FP8_BACKEND: HuggingFaceCausalFP8Generation,
+            HF_CAUSAL_FP4_BACKEND: HuggingFaceCausalFP4Generation,
         }
         if backend in local_backends:
             if framework is AIFramework.PYTORCH:
