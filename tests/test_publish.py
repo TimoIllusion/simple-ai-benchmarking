@@ -176,6 +176,80 @@ class TestPublishDatabase(unittest.TestCase):
             os.remove(csv_path)
 
 
+class TestSubmissionOutcomes(unittest.TestCase):
+
+    class _Resp:
+        def __init__(self, status_code, text=""):
+            self.status_code = status_code
+            self.text = text
+
+    class _Data:
+        def to_dict(self):
+            return {"benchmark_profile_hash": "abc"}
+
+    def test_classify_submission_outcomes(self):
+        from simple_ai_benchmarking import database as db
+
+        self.assertEqual(
+            db._classify_submission(self._Data(), self._Resp(201)), db.SUBMIT_CREATED
+        )
+        self.assertEqual(
+            db._classify_submission(self._Data(), self._Resp(409)), db.SUBMIT_DUPLICATE
+        )
+        self.assertEqual(
+            db._classify_submission(self._Data(), self._Resp(400, "boom")),
+            db.SUBMIT_FAILED,
+        )
+
+    def test_unknown_profile_failure_prints_register_hint(self):
+        import io
+        from contextlib import redirect_stdout
+        from simple_ai_benchmarking import database as db
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            db._report_submission_failure(
+                self._Data(), self._Resp(400, "Unknown benchmark profile hash.")
+            )
+        self.assertIn("saib-register", buf.getvalue())
+
+    def test_submit_results_skips_duplicates_and_continues(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from simple_ai_benchmarking import database as db
+
+        outcomes = iter([db.SUBMIT_CREATED, db.SUBMIT_DUPLICATE, db.SUBMIT_CREATED])
+        attempted = []
+
+        def fake_submit(data, submit_url, api_token):
+            attempted.append(data)
+            return next(outcomes)
+
+        with patch.object(db, "submit_benchmark_result_token_auth", fake_submit):
+            db.submit_results(["a", "b", "c"], SimpleNamespace(), "http://x", "tok")
+
+        # The duplicate ("b") is skipped without aborting; "c" still gets published.
+        self.assertEqual(attempted, ["a", "b", "c"])
+
+    def test_submit_results_stops_on_hard_failure(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from simple_ai_benchmarking import database as db
+
+        outcomes = iter([db.SUBMIT_CREATED, db.SUBMIT_FAILED, db.SUBMIT_CREATED])
+        attempted = []
+
+        def fake_submit(data, submit_url, api_token):
+            attempted.append(data)
+            return next(outcomes)
+
+        with patch.object(db, "submit_benchmark_result_token_auth", fake_submit):
+            db.submit_results(["a", "b", "c"], SimpleNamespace(), "http://x", "tok")
+
+        # A genuine failure still aborts: "c" is never attempted.
+        self.assertEqual(attempted, ["a", "b"])
+
+
 # Entry point for running the tests
 if __name__ == "__main__":
     unittest.main()

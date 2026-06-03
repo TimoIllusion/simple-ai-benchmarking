@@ -75,17 +75,7 @@ def _repeat_benchmark_n_times(
         p.start()
         p.join()  # Wait for the process to complete
 
-        if p.exitcode != 0:
-            err_msg = f"Benchmark process crashed with exit code {p.exitcode}."
-            logger.error(err_msg)
-            benchmark_result = RuntimeError(err_msg)
-        else:
-            try:
-                benchmark_result = result_queue.get(timeout=2.0)
-            except Exception as e:
-                err_msg = f"Failed to retrieve benchmark result from queue: {e}"
-                logger.error(err_msg)
-                benchmark_result = RuntimeError(err_msg)
+        benchmark_result = _extract_repetition_result(p.exitcode, result_queue)
 
         if isinstance(benchmark_result, Exception):
             logger.error(f"Error in benchmark repetition {i+1}: {benchmark_result}")
@@ -93,6 +83,24 @@ def _repeat_benchmark_n_times(
             benchmark_repetition_results.append(benchmark_result)
 
     return benchmark_repetition_results
+
+
+def _extract_repetition_result(exitcode, result_queue, queue_timeout: float = 2.0):
+    """Return the child's BenchmarkResult, or a RuntimeError describing the failure.
+
+    A non-zero exit code means the child crashed (e.g. CUDA OOM, segfault) without
+    putting a result, so we never block on the queue. Otherwise we read the result
+    but cap the wait so a missing result can't hang the whole run."""
+    if exitcode != 0:
+        err_msg = f"Benchmark process crashed with exit code {exitcode}."
+        logger.error(err_msg)
+        return RuntimeError(err_msg)
+    try:
+        return result_queue.get(timeout=queue_timeout)
+    except Exception as e:
+        err_msg = f"Failed to retrieve benchmark result from queue: {e}"
+        logger.error(err_msg)
+        return RuntimeError(err_msg)
 
 
 def _benchmark_process(workload: AIWorkload, result_queue: Queue) -> None:

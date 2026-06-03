@@ -87,6 +87,12 @@ The local backends need PyTorch, and the `huggingface-causal` backend additional
 pip install simple-ai-benchmarking[pt]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
 ```
 
+To also run the low-bit workloads (FP8/FP4 and int8/int4 quantization, including the `huggingface-causal-fp8`/`-fp4` backends), add the `lowbit` extra to pull in `torchao`:
+
+```bash
+pip install simple-ai-benchmarking[pt,lowbit]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
+```
+
 - **`transformers`** is required for the `huggingface-causal` backends. If it is missing — or installed but incompatible with your torch — that workload fails with `Could not import module 'AutoModelForCausalLM'` while the other workloads still run (each workload runs in an isolated process). Note `transformers` 5.x imports `torch.distributed.tensor.device_mesh`, which only exists in **torch ≥2.5**, so on older torch you must use `transformers<5` (what the `pt` extra installs). Quick check:
 
   ```bash

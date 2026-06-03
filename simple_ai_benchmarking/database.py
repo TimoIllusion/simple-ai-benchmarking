@@ -111,45 +111,66 @@ def get_package_version(package_name):
         return get_version_pkg_resources(package_name)
 
 
+# Possible outcomes of a single submission, used to drive the publish loop.
+SUBMIT_CREATED = "created"
+SUBMIT_DUPLICATE = "duplicate"
+SUBMIT_FAILED = "failed"
+
+
+def _classify_submission(data: "BenchmarkData", response) -> str:
+    """Map an HTTP response to a submission outcome.
+
+    A 409 means the server already has this exact result; that is not a hard
+    error, so the caller can skip it and keep publishing the remaining runs."""
+    if response.status_code == 201:
+        print("Successfully added:")
+        print(data.to_dict())
+        return SUBMIT_CREATED
+    if response.status_code == 409:
+        print("Skipping duplicate (identical result already on server):")
+        print(data.to_dict())
+        return SUBMIT_DUPLICATE
+    _report_submission_failure(data, response)
+    return SUBMIT_FAILED
+
+
+def _report_submission_failure(data: "BenchmarkData", response) -> None:
+    """Print a failed submission and, when the server rejected an unregistered
+    profile, point the user at the registration step they are missing."""
+    print("Failed to add:")
+    print(data.to_dict())
+    print("Response:", response.text)
+    if "Unknown benchmark profile hash" in response.text:
+        print(
+            "Hint: this benchmark profile is not registered on the server yet. "
+            "Run 'saib-register' (or 'saib-register-llm' for LLM results) against "
+            "the same database and CSV before publishing."
+        )
+
+
 def submit_benchmark_result_user_pw_auth(
     data: BenchmarkData, submit_url: str, user: str, pw: str
-) -> bool:
-    """Submit a single benchmark result to the API."""
+) -> str:
+    """Submit a single benchmark result to the API. Returns a SUBMIT_* outcome."""
 
     response = requests.post(
         submit_url, json=data.to_dict(), auth=HTTPBasicAuth(user, pw)
     )
 
-    if response.status_code == 201:
-        print("Successfully added:")
-        print(data.to_dict())
-        return True
-    else:
-        print("Failed to add:")
-        print(data.to_dict())
-        print("Response:", response.text)
-        return False
+    return _classify_submission(data, response)
 
 
 def submit_benchmark_result_token_auth(
     data: BenchmarkData, submit_url: str, api_token: str
-) -> bool:
-    """Submit a single benchmark result to the API."""
+) -> str:
+    """Submit a single benchmark result to the API. Returns a SUBMIT_* outcome."""
     headers = {
         "Authorization": f"Token {api_token}",
         "Content-Type": "application/json",
     }
     response = requests.post(submit_url, json=data.to_dict(), headers=headers)
 
-    if response.status_code == 201:
-        print("Successfully added:")
-        print(data.to_dict())
-        return True
-    else:
-        print("Failed to add:")
-        print(data.to_dict())
-        print("Response:", response.text)
-        return False
+    return _classify_submission(data, response)
 
 
 def prompt_for_updates(
@@ -396,15 +417,18 @@ def submit_results(benchmark_datasets, args, submit_url, api_token):
         print("Publishing...")
 
         if api_token:
-            success = submit_benchmark_result_token_auth(
+            outcome = submit_benchmark_result_token_auth(
                 benchmark_data, submit_url, api_token
             )
         else:
-            success = submit_benchmark_result_user_pw_auth(
+            outcome = submit_benchmark_result_user_pw_auth(
                 benchmark_data, submit_url, args.user, args.password
             )
 
-        if not success:
+        if outcome == SUBMIT_DUPLICATE:
+            # Already on the server; skip this run and keep publishing the rest.
+            continue
+        if outcome == SUBMIT_FAILED:
             print("Submission failed. Exiting...")
             break
 
