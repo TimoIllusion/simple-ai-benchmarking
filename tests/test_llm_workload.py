@@ -215,5 +215,5 @@ def test_generation_workload_result_is_exportable():
     row = logger.to_dataframe().iloc[0].to_dict()
 
     assert row["bench_info_benchmark_family"] == "llm"
-    assert row["bench_info_benchmark_spec_version"] == "2.1"
+    assert row["bench_info_benchmark_spec_version"] == "2.2"
     assert row["bench_info_benchmark_payload_hash"]

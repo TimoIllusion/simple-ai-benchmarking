@@ -8,7 +8,10 @@ LLM_BENCHMARK_FAMILY = "llm"
 
 CV_SPEC_NAME = "saib_cv_classification"
 LLM_SPEC_NAME = "saib_llm_generation"
-SPEC_VERSION = "2.0"
+# CV spec. Bumped 2.0 -> 2.1: default thread-pool caps (OMP/BLAS/MKL=8) change
+# measured throughput, so 2.1 results carry fresh profile hashes and never mix
+# with 2.0 rows.
+SPEC_VERSION = "2.1"
 # LLM generation moved to a v2 spec when real time-to-first-token replaced the
 # v1 aggregate-only latency. v2 results carry their own profile/runner hashes and
 # never mix with v1 rows. Bumped to 2.1 when local-backend concurrency became a
@@ -17,7 +20,9 @@ SPEC_VERSION = "2.0"
 # KV-cache decoder and the Hugging Face causal-LM backend) keep this spec: they
 # follow the same measurement contract and are distinguished by their own
 # backend_protocol_class in the profile, so existing backends stay comparable.
-LLM_SPEC_VERSION = "2.1"
+# Bumped 2.1 -> 2.2 alongside the default thread-pool caps (OMP/BLAS/MKL=8), which
+# change measured throughput; 2.2 results carry fresh profile hashes.
+LLM_SPEC_VERSION = "2.2"
 
 CV_RUNNER_ID = "saib.cv.classification.v2"
 LLM_RUNNER_ID = "saib.llm.generation.v2"
