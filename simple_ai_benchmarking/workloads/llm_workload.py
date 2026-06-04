@@ -19,6 +19,7 @@
 
 import datetime
 import json
+import os
 import time
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -34,6 +35,21 @@ from simple_ai_benchmarking.llm_results import (
 )
 from simple_ai_benchmarking.results import collect_hw_info, collect_sw_info
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
+
+# Model configs bundled with the package, keyed by HF repo id with "/" -> "__".
+# Used so the default HF causal backends build their architecture fully offline
+# instead of fetching config.json from huggingface.co, which rate-limits/blocks
+# datacenter IPs (the failure that silently dropped all Qwen LLM results).
+_BUNDLED_CONFIG_DIR = os.path.join(os.path.dirname(__file__), os.pardir, "model_configs")
+
+
+def _resolve_config_source(model_id: str) -> str:
+    """Return a local bundled config directory for known model ids, else the HF
+    repo id (so custom --model values still resolve over the network)."""
+    bundled = os.path.join(_BUNDLED_CONFIG_DIR, model_id.replace("/", "__"))
+    if os.path.isfile(os.path.join(bundled, "config.json")):
+        return os.path.abspath(bundled)
+    return model_id
 
 
 PYTORCH_GENERATION_BACKEND = "pytorch-simple-transformer"
@@ -468,7 +484,7 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
         self._device = torch.device(self.cfg.device_name)
         dtype = self._resolve_base_dtype()
 
-        config = AutoConfig.from_pretrained(self.cfg.model)
+        config = AutoConfig.from_pretrained(_resolve_config_source(self.cfg.model))
         self._vocab_size = config.vocab_size
         try:
             model = AutoModelForCausalLM.from_config(config, torch_dtype=dtype)

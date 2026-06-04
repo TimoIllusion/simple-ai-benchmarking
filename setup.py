@@ -54,6 +54,9 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/TimoIllusion/simple-ai-benchmarking",
     packages=setuptools.find_packages(),
+    # Ship bundled HF model configs (e.g. Qwen3) so the LLM backends build their
+    # architecture offline instead of fetching config.json from huggingface.co.
+    package_data={"simple_ai_benchmarking": ["model_configs/*/config.json"]},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
