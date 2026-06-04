@@ -93,7 +93,9 @@ setuptools.setup(
         # instead. This extra may break as torchao evolves.
         "lowbit": ["torchao"],
         # Optional: experimental one-shot benchmarking on a RunPod GPU pod.
-        # (SSH uses the system OpenSSH client, so only the RunPod SDK is needed.)
+        # saib-runpod now talks to the RunPod REST API over stdlib urllib (no SSH,
+        # no SDK), so this extra is no longer required to use it -- kept for anyone
+        # who wants the SDK for their own scripting.
         "runpod": ["runpod"],
         "tfdml": ["tensorflow-cpu==2.10.0", "tensorflow-directml-plugin"],
         "tf": ["tensorflow>=2.3.0"],

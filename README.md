@@ -226,34 +226,57 @@ It deduplicates by `benchmark_profile_hash` (each distinct profile is registered
 
 ### Experimental: run on a throwaway RunPod GPU pod
 
-`saib-runpod` runs the whole loop on a rented [RunPod](https://www.runpod.io/) GPU and **always terminates the pod afterwards** (even on error or Ctrl-C): it creates an on-demand pod, connects over SSH, installs SAIB, runs the benchmark, registers + publishes the results, then tears the pod down. This is experimental and unsupported — capacity is best-effort and you are billed per second while a pod runs.
+`saib-runpod` runs the whole loop on a rented [RunPod](https://www.runpod.io/) GPU and the pod **self-terminates when it is done** (on success, crash, or a hung step that hits its timeout). It creates an on-demand pod whose **container start command** installs SAIB, runs the benchmark(s), registers + publishes the results, then deletes the pod. This is experimental and unsupported — capacity is best-effort and you are billed per second while a pod runs.
 
-It uses your system OpenSSH client (no extra SSH library), so the only optional dependency is the RunPod SDK:
+**No SSH.** The benchmark is driven entirely by the pod's `dockerStartCmd` (sent to the RunPod **REST API v1** as a `["bash","-lc", <script>]` array). Nothing connects back to the pod, so:
 
-```bash
-pip install simple-ai-benchmarking[runpod]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
-```
+- It works on RunPod **secure cloud** (which usually exposes no public IP) just as well as community cloud — no public IP, no SSH key, no ssh-agent needed.
+- The launch call returns immediately; your machine can disconnect while the pod runs and tears itself down on its own.
+- The only dependency is Python stdlib (`urllib`) — the RunPod SDK is **not** required. (The `[runpod]` extra still exists for your own scripting, but `saib-runpod` doesn't need it.)
 
-Prerequisites:
-
-- A **RunPod API key** (`RUNPOD_API_KEY`).
-- An **SSH key registered in your RunPod account** (Account → Settings → SSH Public Keys). RunPod injects that key into the pod. Point `--ssh-key` at the matching private key.
-- If that private key is **passphrase-protected, load it into ssh-agent first** (`ssh-add ~/.ssh/your_key`) — otherwise SSH can't authenticate non-interactively and the run aborts (the tool preflight-checks this *before* creating a pod, so it won't waste money).
-
-Then:
+The pod self-terminates via a shell `trap` that issues `DELETE /v1/pods/$RUNPOD_POD_ID` (the API key is provided to the pod as an env var for exactly this). A per-step `timeout` guard means a hung `saib-pt`/`saib-llm` can't keep the pod alive forever, and thread caps (`OMP/BLAS=8`) are set before any import to avoid host-core oversubscription.
 
 ```bash
 export RUNPOD_API_KEY=YOUR_RUNPOD_KEY
 export AI_BENCHMARK_DATABASE_TOKEN=YOUR_DATABASE_TOKEN
-ssh-add ~/.ssh/id_ed25519              # if your key has a passphrase
-saib-runpod --ssh-key ~/.ssh/id_ed25519 --gpu "NVIDIA GeForce RTX 4090" --cloud-type COMMUNITY
+saib-runpod --gpu "NVIDIA GeForce RTX 4090"          # CV + LLM, image auto-selected
+saib-runpod --gpu "NVIDIA B200" --workload llm         # Blackwell -> FP8+FP4 auto
+saib-runpod --dry-run --gpu "NVIDIA B200"              # print plan + container script, no API key
 ```
 
-If `RUNPOD_API_KEY` or `AI_BENCHMARK_DATABASE_TOKEN` are not set (and not passed via `--api-key`/`--db-token`), you are prompted to paste them interactively (hidden input). In a non-interactive shell (e.g. CI or a background job) it errors instead of hanging, so supply them via env/flags there.
+If `RUNPOD_API_KEY` or `AI_BENCHMARK_DATABASE_TOKEN` are not set (and not passed via `--api-key`/`--db-token`), you are prompted to paste them interactively (hidden input). In a non-interactive shell it errors instead of hanging, so supply them via env/flags there.
 
-**GPU names** are the RunPod GPU *ids*, e.g. `NVIDIA GeForce RTX 4090`, `NVIDIA H100 80GB HBM3` (H100 SXM), `NVIDIA H200` (H200 SXM) — not the short display names. The runner connects over the pod's direct public IP, which **community cloud** provides reliably (secure cloud often has no public IP); prefer `--cloud-type COMMUNITY`.
+**Image and low-bit are auto-selected per GPU generation** (this is "lowbit only on respective GPUs and images"):
 
-Useful flags: `--workload pt|tf|llm`, `--gpu "A,B,C"` (comma-separated fallback list tried in order), `--cloud-type COMMUNITY|SECURE|ALL`, `--capacity-wait SECONDS` (keep retrying the requested GPU(s) with backoff while RunPod has no capacity), `--ssh-timeout`/`--run-timeout SECONDS`, `--extra-args "-w 0 1"` (passed to the benchmark command), `--no-publish`, `--keep` (leave the pod running for debugging — you must then terminate it yourself), and `--dry-run` (print the plan and the exact remote script without creating anything — no API key needed). The database token is sent to the pod over the encrypted SSH channel, not baked into any image or argument string.
+| GPU generation | Image | pip extra | Default LLM `-w` | Low-bit |
+|---|---|---|---|---|
+| **Blackwell** (B200, RTX 5090, RTX PRO Blackwell) | `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (torch 2.8 / CUDA 12.8) | `[pt,lowbit]` | `0 1 2 3 4` | **FP8 + FP4** |
+| **Everything else** (Hopper, Ada, Ampere, …) | `runpod/pytorch:2.4.0-...cuda12.4.1` (torch 2.4) | `[pt]` | `0 1 2` | none |
+
+Blackwell is special-cased automatically because it *cannot* run on the torch 2.4 image at all. **FP8 on Hopper/Ada is opt-in**, not automatic: it needs the torch 2.8 image too, but that image requires a host driver ≥ 12.8 and can fail to start on older-driver non-Blackwell hosts. Enable it explicitly (prefer SECURE/datacenter hosts):
+
+```bash
+saib-runpod --gpu "NVIDIA H100 80GB HBM3" --cloud-type SECURE \
+  --image runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404 \
+  --pip-spec "simple-ai-benchmarking[pt,lowbit]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git@main" \
+  --llm-args "-w 0 1 2 3"     # FP8 yes, FP4 no (Hopper/Ada have no FP4)
+```
+
+> ⚠️ Never pair `[pt,lowbit]` with the torch 2.4 image — torchao is unpinned and won't resolve there, which **aborts the whole install** so nothing runs. The auto-selection above guarantees this pairing never happens; only override it knowingly.
+
+**GPU names** are the RunPod GPU *ids*, e.g. `NVIDIA GeForce RTX 4090`, `NVIDIA H100 80GB HBM3` (H100 SXM), `NVIDIA H200`, `NVIDIA B200` — not the short display names. List them with `python -c "import runpod,os; runpod.api_key=os.environ['RUNPOD_API_KEY']; print('\n'.join(g['id'] for g in runpod.get_gpus()))"`.
+
+Useful flags: `--workload pt|llm|both` (default `both`), `--gpu "A,B,C"` (comma-separated fallback list; RunPod picks by availability), `--cloud-type SECURE|COMMUNITY` (default `SECURE`), `--capacity-wait SECONDS` (keep retrying while RunPod has no capacity, with backoff), `--image`/`--pip-spec` (override the auto profile), `--pt-args`/`--llm-args "-w 0 1 2"` (passed to the benchmark commands), `--pt-timeout`/`--llm-timeout SECONDS` (per-step hang caps), `--no-publish`, `--keep` (do **not** self-terminate — you must delete the pod yourself), and `--dry-run` (print the plan and the exact container script without creating anything — no API key needed). The database token is provided to the pod as an env var, never baked into the image or the script string.
+
+#### Launch a whole fleet
+
+`tools/run_fleet.sh` fires a spread of GPUs in one go (each a self-terminating CV+LLM pod), with the low-bit matrix applied per generation — Blackwell auto, FP8 opt-in on Hopper/Ada, none on Ampere:
+
+```bash
+export RUNPOD_API_KEY=...  AI_BENCHMARK_DATABASE_TOKEN=...
+tools/run_fleet.sh                       # default 5-GPU spread
+FP8_ON_HOPPER_ADA=0 tools/run_fleet.sh   # skip the torch 2.8 FP8 opt-in (most reliable)
+```
 
 ## Hardware Acceleration for PyTorch and TensorFlow
 

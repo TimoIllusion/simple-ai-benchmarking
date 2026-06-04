@@ -1,8 +1,14 @@
 import simple_ai_benchmarking.experimental.runpod_runner as runner
 from simple_ai_benchmarking.experimental.runpod_runner import (
+    BLACKWELL_IMAGE,
+    DEFAULT_IMAGE,
     DONE_MARKER,
+    PIP_BASE,
+    PIP_LOWBIT,
     build_config,
-    build_remote_script,
+    build_container_script,
+    build_pod_body,
+    is_blackwell,
     main,
     parse_args,
 )
@@ -12,123 +18,160 @@ def _config(argv):
     return build_config(parse_args(argv))
 
 
-def test_remote_script_cv_publish_includes_register_then_publish():
-    cfg = _config(["--dry-run", "--workload", "pt"])
-    script = build_remote_script(cfg)
+# --------------------------------------------------------------------------- #
+# Generation-aware profile resolution
+# --------------------------------------------------------------------------- #
+def test_blackwell_detection():
+    assert is_blackwell("NVIDIA B200")
+    assert is_blackwell("NVIDIA GeForce RTX 5090")
+    assert is_blackwell("NVIDIA RTX PRO 6000 Blackwell Server Edition")
+    assert not is_blackwell("NVIDIA H100 80GB HBM3")
+    assert not is_blackwell("NVIDIA RTX A6000")
+    assert not is_blackwell("NVIDIA GeForce RTX 4090")
 
-    assert "saib-pt" in script
-    # Register must come before publish so unknown-profile rejections are avoided.
-    assert script.index("saib-register results_pt.csv") < script.index(
-        "saib-pub results_pt.csv"
+
+def test_blackwell_gpu_auto_selects_torch28_image_and_lowbit():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200"])
+    assert cfg.image == BLACKWELL_IMAGE
+    assert cfg.pip_spec == PIP_LOWBIT
+    # Blackwell runs the full LLM set incl FP8 (3) and FP4 (4).
+    assert cfg.llm_args == "-w 0 1 2 3 4"
+
+
+def test_non_blackwell_gpu_auto_selects_default_image_no_lowbit():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
+    assert cfg.image == DEFAULT_IMAGE
+    assert cfg.pip_spec == PIP_BASE
+    # No lowbit -> FP8/FP4 are skipped.
+    assert cfg.llm_args == "-w 0 1 2"
+
+
+def test_explicit_overrides_win_over_auto():
+    cfg = _config(
+        ["--dry-run", "--gpu", "NVIDIA H100 80GB HBM3",
+         "--image", BLACKWELL_IMAGE, "--pip-spec", PIP_LOWBIT, "--llm-args", "-w 0 1 2 3"]
     )
+    assert cfg.image == BLACKWELL_IMAGE
+    assert cfg.pip_spec == PIP_LOWBIT
+    assert cfg.llm_args == "-w 0 1 2 3"  # FP8 but no FP4 on Hopper
+
+
+def test_first_gpu_in_fallback_list_drives_the_profile():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200, NVIDIA H100 80GB HBM3"])
+    assert cfg.gpus == ["NVIDIA B200", "NVIDIA H100 80GB HBM3"]
+    assert cfg.image == BLACKWELL_IMAGE
+
+
+# --------------------------------------------------------------------------- #
+# Container script
+# --------------------------------------------------------------------------- #
+def test_script_both_runs_pt_then_llm_and_publishes():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000", "--workload", "both"])
+    script = build_container_script(cfg)
+    assert script.index("saib-pt") < script.index("saib-llm")
+    # Register must precede publish so unknown-profile rejections are avoided.
+    assert script.index("saib-register results_pt.csv") < script.index("saib-pub results_pt.csv")
+    assert script.index("saib-register llm_results.csv") < script.index("saib-pub-llm llm_results.csv")
     assert script.strip().splitlines()[-1] == f'echo "{DONE_MARKER}"'
 
 
-def test_remote_script_no_publish_skips_upload():
-    cfg = _config(["--dry-run", "--workload", "llm", "--no-publish"])
-    script = build_remote_script(cfg)
+def test_script_self_terminates_and_caps_threads_by_default():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
+    script = build_container_script(cfg)
+    assert "trap cleanup EXIT" in script
+    assert "RUNPOD_POD_ID" in script  # the DELETE teardown
+    assert "OMP_NUM_THREADS=8" in script
+    assert "timeout -k 60" in script
 
+
+def test_keep_disables_self_terminate():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000", "--keep"])
+    script = build_container_script(cfg)
+    assert "trap cleanup EXIT" not in script
+    assert "will NOT self-terminate" in script
+
+
+def test_workload_llm_only_skips_pt():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000", "--workload", "llm"])
+    script = build_container_script(cfg)
     assert "saib-llm" in script
+    assert "saib-pt" not in script
+
+
+def test_no_publish_skips_upload():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000", "--no-publish"])
+    script = build_container_script(cfg)
+    assert "saib-pt" in script
     assert "saib-pub" not in script
     assert "saib-register" not in script
 
 
-def test_remote_script_never_contains_the_token():
-    # The token is injected over SSH at run time, not baked into the script.
-    cfg = _config(["--dry-run", "--workload", "pt", "--db-token", "supersecret"])
-    assert "supersecret" not in build_remote_script(cfg)
+def test_script_never_contains_the_token():
+    # The token is injected via the pod env, not baked into the script text.
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000", "--db-token", "supersecret"])
+    assert "supersecret" not in build_container_script(cfg)
 
 
-def test_gpu_fallback_list_is_parsed_in_order():
-    cfg = _config(["--dry-run", "--gpu", "A100,RTX 4090 , L40S"])
-    assert cfg.gpus == ["A100", "RTX 4090", "L40S"]
+# --------------------------------------------------------------------------- #
+# Pod body
+# --------------------------------------------------------------------------- #
+def test_pod_body_no_public_ip_and_token_in_env():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--db-token", "tok"])
+    cfg.api_key = "key"
+    body = build_pod_body(cfg, "echo hi")
+    assert body["supportPublicIp"] is False  # no SSH route needed
+    assert body["dockerStartCmd"][:2] == ["bash", "-lc"]
+    assert body["gpuTypeIds"] == ["NVIDIA B200"]
+    assert body["env"]["AI_BENCHMARK_DATABASE_TOKEN"] == "tok"
 
 
+def test_pod_body_no_publish_omits_token():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--no-publish", "--db-token", "tok"])
+    cfg.api_key = "key"
+    body = build_pod_body(cfg, "echo hi")
+    assert "AI_BENCHMARK_DATABASE_TOKEN" not in body["env"]
+
+
+# --------------------------------------------------------------------------- #
+# Capacity retry
+# --------------------------------------------------------------------------- #
 def test_dry_run_exits_zero_without_api_key(capsys):
-    assert main(["--dry-run"]) == 0
+    assert main(["--dry-run", "--gpu", "NVIDIA B200"]) == 0
     out = capsys.readouterr().out
-    assert "remote script" in out
-
-
-class _FakeRunpod:
-    def __init__(self, fail_times):
-        self.calls = 0
-        self.fail_times = fail_times
-
-    def create_pod(self, **kwargs):
-        self.calls += 1
-        if self.calls <= self.fail_times:
-            raise RuntimeError("This machine does not have the resources")
-        return {"id": "pod-123"}
+    assert "container script" in out
 
 
 def test_capacity_retry_eventually_succeeds(monkeypatch):
     monkeypatch.setattr(runner.time, "sleep", lambda _s: None)
-    cfg = _config(["--dry-run", "--capacity-wait", "60"])
-    fake = _FakeRunpod(fail_times=2)
+    calls = {"n": 0}
 
-    pod = runner.create_pod_with_fallback(fake, cfg)
+    def fake_rest(method, path, key, body=None):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            return 500, "This machine does not have the resources"
+        return 201, {"id": "pod-123"}
 
-    assert pod["id"] == "pod-123"
-    assert fake.calls == 3
+    monkeypatch.setattr(runner, "rest_call", fake_rest)
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--capacity-wait", "60"])
+    cfg.api_key = "key"
+    assert runner.create_pod_with_retry(cfg, "echo hi") == "pod-123"
+    assert calls["n"] == 3
 
 
 def test_no_capacity_wait_tries_once_then_exits(monkeypatch):
     monkeypatch.setattr(runner.time, "sleep", lambda _s: None)
-    cfg = _config(["--dry-run", "--gpu", "A,B"])  # capacity_wait defaults to 0
-    fake = _FakeRunpod(fail_times=99)
 
+    def fake_rest(method, path, key, body=None):
+        return 500, "This machine does not have the resources"
+
+    monkeypatch.setattr(runner, "rest_call", fake_rest)
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200"])  # capacity_wait defaults to 0
+    cfg.api_key = "key"
     try:
-        runner.create_pod_with_fallback(fake, cfg)
+        runner.create_pod_with_retry(cfg, "echo hi")
         assert False, "expected SystemExit"
     except SystemExit:
         pass
-
-    # One pass over both GPUs, no retry loop.
-    assert fake.calls == 2
-
-
-def test_ssh_destination_direct_uses_root_and_port():
-    direct = runner._ssh_destination({"kind": "direct", "ip": "1.2.3.4", "port": 16593})
-    assert direct == ["-p", "16593", "root@1.2.3.4"]
-
-
-def test_ssh_base_pins_identity_and_batch_mode():
-    base = runner._ssh_base("/key")
-    assert "BatchMode=yes" in base
-    assert "IdentitiesOnly=yes" in base
-    assert base[:3] == ["ssh", "-i", "/key"]
-
-
-def test_check_ssh_key_usable_missing_file(tmp_path):
-    import pytest
-
-    with pytest.raises(SystemExit, match="not found"):
-        runner.check_ssh_key_usable(str(tmp_path / "nope"))
-
-
-def test_check_ssh_key_usable_unencrypted_passes(tmp_path):
-    key = tmp_path / "k"
-    import subprocess
-
-    subprocess.run(
-        ["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(key)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    runner.check_ssh_key_usable(str(key))  # should not raise
-
-
-def test_check_ssh_key_usable_encrypted_not_in_agent_errors(tmp_path):
-    import pytest
-    import subprocess
-
-    key = tmp_path / "enc"
-    subprocess.run(
-        ["ssh-keygen", "-t", "ed25519", "-N", "secretpass", "-f", str(key)],
-        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    )
-    with pytest.raises(SystemExit, match="ssh-add"):
-        runner.check_ssh_key_usable(str(key))
 
 
 def test_prompt_secret_returns_pasted_value(monkeypatch):
@@ -139,7 +182,6 @@ def test_prompt_secret_returns_pasted_value(monkeypatch):
 
 def test_prompt_secret_is_noop_without_tty(monkeypatch):
     monkeypatch.setattr(runner.sys.stdin, "isatty", lambda: False)
-    # Must not call getpass (would hang in CI); returns "" so the caller errors.
     monkeypatch.setattr(
         "getpass.getpass",
         lambda prompt="": (_ for _ in ()).throw(AssertionError("getpass called")),
