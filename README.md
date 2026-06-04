@@ -292,6 +292,7 @@ For all DirectX 12 capable GPUs, DirectML on Windows and WSL can be used. This i
 
 ## Upcoming Features
 
+- [ ] Re-add PyTorch `torch.compile` in a robust, opt-in way (e.g. a `--compile` flag). It was removed from the default CV path because compiling at runtime pulls in TorchInductor/Triton and crashes on several setups (CPU/MPS, small GPUs reporting "Not enough SMs"), which silently failed the whole CV benchmark. When re-adding, guard it behind an explicit flag and fall back to the eager model on any compile error.
 - [ ] Add config management with yaml file or python files to customize benchmarks more easily
 - [ ] Expand testing suite
 - [ ] Add more models (Language Models, Timeseries, Object Detection, Segmentation) and model registry
