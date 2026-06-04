@@ -93,6 +93,8 @@ To also run the low-bit workloads (FP8/FP4 and int8/int4 quantization, including
 pip install simple-ai-benchmarking[pt,lowbit]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git
 ```
 
+> **⚠️ `lowbit` is experimental and requires torch ≥ 2.6 (plus a recent GPU).** `torchao` is unpinned and tracks recent torch closely, so on older torch — e.g. the common CUDA 12.4 / torch 2.4 container images — `pip install …[pt,lowbit]` can **fail and abort the whole install**, leaving nothing runnable. On those images install plain `[pt]` instead (FP8/FP4 aren't usable on that hardware/torch anyway). This extra may break as `torchao` evolves.
+
 - **`transformers`** is required for the `huggingface-causal` backends. If it is missing — or installed but incompatible with your torch — that workload fails with `Could not import module 'AutoModelForCausalLM'` while the other workloads still run (each workload runs in an isolated process). Note `transformers` 5.x imports `torch.distributed.tensor.device_mesh`, which only exists in **torch ≥2.5**, so on older torch you must use `transformers<5` (what the `pt` extra installs). Quick check:
 
   ```bash

@@ -85,7 +85,12 @@ setuptools.setup(
             # want transformers 5.x.
             "transformers<5",
         ],
-        # Optional: real FP8 / int8 / int4 low-precision kernels (recent GPU).
+        # Optional, EXPERIMENTAL: real FP8 / int8 / int4 low-precision kernels via
+        # torchao. Use ONLY on torch >= 2.6 and a recent GPU (FP8: Ada/Hopper SM 8.9+,
+        # FP4/NVFP4: Blackwell SM100). torchao tracks recent torch closely and is
+        # unpinned here, so on older torch (e.g. the CUDA 12.4 / torch 2.4 images)
+        # the install can FAIL and take the whole environment down -- use [pt] there
+        # instead. This extra may break as torchao evolves.
         "lowbit": ["torchao"],
         # Optional: experimental one-shot benchmarking on a RunPod GPU pod.
         # (SSH uses the system OpenSSH client, so only the RunPod SDK is needed.)
