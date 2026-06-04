@@ -464,6 +464,14 @@ def register_profiles_cli():
         help="The URL of the AI Benchmark Database.",
     )
     parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        default=False,
+        help="Run the script in non-interactive mode. Accepted for parity with "
+        "saib-pub; registration is already non-interactive when a token "
+        "(-t) or AI_BENCHMARK_DATABASE_TOKEN is provided.",
+    )
+    parser.add_argument(
         "-t",
         "--token",
         type=str,

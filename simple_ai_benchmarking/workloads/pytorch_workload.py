@@ -17,7 +17,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-import platform
 from copy import deepcopy
 import subprocess
 import re
@@ -61,17 +60,12 @@ class PyTorchTraining(AIWorkload):
 
         self.model.to(self.device)
 
-        self._compile_model_if_supported()
+        # NOTE: torch.compile is intentionally NOT used here. It pulls in
+        # TorchInductor/Triton at runtime and crashes on several setups (e.g.
+        # CPU/MPS, "Not enough SMs" on small GPUs), which silently fails the CV
+        # benchmark. See the README TODO for re-adding it robustly (opt-in).
         self._assign_numerical_precision()
         self._assign_autocast_device_type()
-
-    def _compile_model_if_supported(self) -> None:
-
-        version_str = torch.__version__
-        major_version = int(version_str.split(".")[0])
-
-        if major_version >= 2 and platform.system() != "Windows":
-            self.model = torch.compile(self.model)
 
     def _assign_numerical_precision(self) -> None:
 
