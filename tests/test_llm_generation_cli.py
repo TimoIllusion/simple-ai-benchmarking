@@ -35,9 +35,14 @@ def test_saib_llm_runs_default_local_workloads_with_no_args(monkeypatch):
     assert configs[0].model == "SimpleTransformerLM"
     assert configs[0].device_name == get_device_name_pytorch()
     assert configs[0].base_url == ""
-    # The HF backend gets a real repo id and a bf16 default.
-    assert configs[1].model
+    # The HF backend defaults to the small Qwen2.5 (portable) at bf16.
+    assert configs[1].model == "Qwen/Qwen2.5-0.5B-Instruct"
     assert configs[1].compute_precision == "BF16"
+    # Both default workloads put real (batched) load on the device.
+    for c in configs:
+        assert c.concurrency == 8
+        assert c.requests == 32
+        assert c.warmup_requests == 2
 
 
 def test_saib_llm_only_supports_the_remaining_backends():

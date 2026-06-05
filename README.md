@@ -105,13 +105,13 @@ Four backends are supported — two self-contained local PyTorch backends and tw
   saib-llm --backend pytorch-simple-transformer --device cuda
   ```
 
-- `huggingface-causal` — a real model architecture built **random-initialized from its config** (only `config.json` is fetched, no weight download), default `Qwen/Qwen3-1.7B`, defaults to BF16. Uses the model's built-in KV cache, so time-to-first-token reflects a real prefill. Requires `transformers`:
+- `huggingface-causal` — a real model architecture built **random-initialized from its config** (only `config.json` is fetched, no weight download), default `Qwen/Qwen2.5-0.5B-Instruct`, defaults to BF16. Uses the model's built-in KV cache, so time-to-first-token reflects a real prefill. Requires `transformers`:
 
   ```bash
-  saib-llm --backend huggingface-causal --model Qwen/Qwen3-1.7B --device cuda
+  saib-llm --backend huggingface-causal --model Qwen/Qwen2.5-0.5B-Instruct --device cuda
   ```
 
-  For FP8/FP4 numbers on the same architecture, serve it with vLLM and benchmark through `openai-compatible` (below) — that exercises production paged-attention and real low-bit kernels rather than a synthetic cast.
+  The default 0.5B keeps the no-arg run portable. For the headline cross-engine comparison, run the 7B explicitly (`--model Qwen/Qwen2.5-7B-Instruct`, needs a ≥24 GB GPU) and benchmark the **same** model under vLLM (FP8/FP4/bf16) via `saib-runpod --workload vllm` — that exercises production paged-attention and real low-bit kernels rather than a synthetic cast.
 
 - `openai-compatible` — benchmark any server exposing the OpenAI `/v1/chat/completions` API (e.g. vLLM, llama.cpp server, LM Studio, OpenAI itself):
 
@@ -130,9 +130,9 @@ The benchmark performs configurable warmup and measured requests (optionally con
 Common options (see `saib-llm -h` for the full list):
 
 - `-w` / `--workloads` — when no `--backend` is given, 0-based indices selecting which of the default workloads to run, e.g. `-w 0` for only the first (simple transformer) or `-w 1` for only the second (Hugging Face causal LM). Default: run all (mirrors `saib-pt -w`)
-- `--requests` / `--warmup-requests` — number of measured / warmup requests (default `10` / `1`)
+- `--requests` / `--warmup-requests` — number of measured / warmup requests (default `32` / `2`)
 - `--repetitions` — number of times the measurement is repeated and averaged (default `3`); for paid HTTP endpoints, lower this to reduce cost
-- `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local PyTorch backends, the batch size processed in a single batched forward pass (default `1`)
+- `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local PyTorch backends, the batch size processed in a single batched forward pass (default `8`)
 - `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `2048` / `256`)
 - `--context-length` — model context window (default `4096`)
 - `--device` — torch device for the local backends, e.g. `cpu`, `cuda`, `mps` (default `cpu`)

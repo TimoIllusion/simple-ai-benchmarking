@@ -72,11 +72,11 @@ def test_hf_workload_resolves_config_from_raw_repo_id(monkeypatch):
     config = LLMGenerationConfig(
         backend=HF_CAUSAL_BACKEND,
         device_name="cpu",
-        model="Qwen/Qwen3-1.7B",
+        model="Qwen/Qwen2.5-0.5B-Instruct",
         compute_precision="BF16",
     )
     HuggingFaceCausalGeneration(config).setup()
-    assert seen["model_id"] == "Qwen/Qwen3-1.7B"
+    assert seen["model_id"] == "Qwen/Qwen2.5-0.5B-Instruct"
 
 
 def test_hf_workload_rejects_unknown_precision(monkeypatch):
