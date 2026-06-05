@@ -65,9 +65,12 @@ DEFAULT_LLM_BACKENDS = (
 
 # Default Hugging Face causal LM for the huggingface-causal backend. Only the
 # model config is fetched and the weights are randomly initialised (approach B),
-# so no large checkpoint is downloaded. Qwen3 is open (Apache-2.0, ungated) and
-# recent. Override with --model <hf_repo_id>.
-DEFAULT_HF_MODEL = "Qwen/Qwen3-1.7B"
+# so no large checkpoint is downloaded. Qwen2.5 is open (Apache-2.0, ungated); the
+# 0.5B size keeps the default run portable (fits modest GPUs, builds in seconds).
+# For the headline cross-engine comparison run the 7B explicitly, e.g.
+# `--model Qwen/Qwen2.5-7B-Instruct`, and benchmark the same model under vLLM via
+# `saib-runpod --workload vllm`. Override with --model <hf_repo_id>.
+DEFAULT_HF_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -95,10 +98,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--model", default="SimpleTransformerLM")
-    parser.add_argument("--requests", type=int, default=10)
-    parser.add_argument("--warmup-requests", type=int, default=1)
+    # Defaults put real load on the device: for the local backends concurrency is
+    # the batch size of one forward pass, so concurrency=8 / requests=32 exercises
+    # batched prefill+decode rather than a single-sequence trickle.
+    parser.add_argument("--requests", type=int, default=32)
+    parser.add_argument("--warmup-requests", type=int, default=2)
     parser.add_argument("--repetitions", type=int, default=3)
-    parser.add_argument("--concurrency", type=int, default=1)
+    parser.add_argument("--concurrency", type=int, default=8)
     parser.add_argument("--prompt-tokens", type=int, default=2048)
     parser.add_argument("--generated-tokens", type=int, default=256)
     parser.add_argument("--context-length", type=int, default=4096)
