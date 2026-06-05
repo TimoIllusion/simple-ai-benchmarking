@@ -1,4 +1,5 @@
 import sys
+import types
 
 import pytest
 
@@ -269,6 +270,47 @@ def test_hf_fp8_low_bit_backend_identity_and_requires_torchao(monkeypatch):
     _skip_if_torchao_available()
     with pytest.raises(NotImplementedError):
         workload.setup()
+
+
+def test_fp8_uses_recommended_per_row_torchao_recipe(monkeypatch):
+    seen = {}
+
+    class PerRow:
+        pass
+
+    class Float8Config:
+        def __init__(self, *, granularity):
+            self.granularity = granularity
+
+    quantization = types.ModuleType("torchao.quantization")
+    quantization.Float8DynamicActivationFloat8WeightConfig = Float8Config
+    quantization.Int4WeightOnlyConfig = type("Int4Config", (), {})
+    quantization.Int8WeightOnlyConfig = type("Int8Config", (), {})
+    quantization.PerRow = PerRow
+
+    def quantize_(model, config):
+        seen["model"] = model
+        seen["config"] = config
+
+    quantization.quantize_ = quantize_
+    torchao = types.ModuleType("torchao")
+    torchao.quantization = quantization
+    monkeypatch.setitem(sys.modules, "torchao", torchao)
+    monkeypatch.setitem(sys.modules, "torchao.quantization", quantization)
+
+    workload = HuggingFaceCausalFP8Generation(
+        LLMGenerationConfig(
+            backend=HF_CAUSAL_FP8_BACKEND,
+            model="dummy/model",
+            compute_precision="FP8",
+        )
+    )
+    model = object()
+
+    assert workload._apply_precision_quant(model) is model
+    assert seen["model"] is model
+    assert isinstance(seen["config"], Float8Config)
+    assert isinstance(seen["config"].granularity, PerRow)
 
 
 def test_hf_fp4_low_bit_backend_identity_and_requires_torchao(monkeypatch):

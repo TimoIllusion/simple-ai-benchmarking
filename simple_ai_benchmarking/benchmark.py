@@ -17,13 +17,17 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-from typing import List
+from typing import Callable, List, Optional
 from multiprocessing import Process, Queue, set_start_method
 
 from loguru import logger
 
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
-from simple_ai_benchmarking.results import BenchmarkLogger, BenchmarkResult
+from simple_ai_benchmarking.results import (
+    BaseBenchmarkLogger,
+    BenchmarkLogger,
+    BenchmarkResult,
+)
 from simple_ai_benchmarking.timer import Timer
 from simple_ai_benchmarking.dataset import get_available_memory_in_bytes
 
@@ -33,6 +37,7 @@ def process_workloads(
     out_file_base="benchmark_results",
     repetitions=3,
     result_logger=None,
+    on_workload_logged: Optional[Callable[[BaseBenchmarkLogger], None]] = None,
 ) -> None:
 
     assert workloads, "Got empty list fo workloads."
@@ -50,6 +55,12 @@ def process_workloads(
         result_logger.add_benchmark_result_by_averaging_multiple_results(
             benchmark_repetition_results
         )
+        result_logger.export_to_csv(out_file_base + ".csv")
+        if on_workload_logged:
+            try:
+                on_workload_logged(result_logger)
+            except Exception as e:
+                logger.warning(f"Could not publish workload result: {e}")
 
     result_logger.pretty_print_summary()
 

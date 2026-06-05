@@ -25,6 +25,7 @@ import json
 
 import requests
 from requests.auth import HTTPBasicAuth
+from loguru import logger
 
 from dataclasses import dataclass
 
@@ -411,26 +412,40 @@ def read_and_enrich_benchmark_data(args):
     )
 
 
-def submit_results(benchmark_datasets, args, submit_url, api_token):
-    """Submit benchmark results to the database."""
+def submit_results(
+    benchmark_datasets,
+    submit_url,
+    api_token=None,
+    user=None,
+    password=None,
+) -> int:
+    """Submit benchmark results to the database and return the failure count."""
+    failures = 0
     for benchmark_data in benchmark_datasets:
         print("Publishing...")
 
-        if api_token:
-            outcome = submit_benchmark_result_token_auth(
-                benchmark_data, submit_url, api_token
-            )
-        else:
-            outcome = submit_benchmark_result_user_pw_auth(
-                benchmark_data, submit_url, args.user, args.password
-            )
+        try:
+            if api_token:
+                outcome = submit_benchmark_result_token_auth(
+                    benchmark_data, submit_url, api_token
+                )
+            else:
+                outcome = submit_benchmark_result_user_pw_auth(
+                    benchmark_data, submit_url, user, password
+                )
+        except Exception as e:
+            print(f"Submission failed: {e}")
+            failures += 1
+            break
 
         if outcome == SUBMIT_DUPLICATE:
             # Already on the server; skip this run and keep publishing the rest.
             continue
         if outcome == SUBMIT_FAILED:
             print("Submission failed. Exiting...")
+            failures += 1
             break
+    return failures
 
 
 def publish_results_cli():
@@ -444,7 +459,115 @@ def publish_results_cli():
 
     benchmark_datasets = read_and_enrich_benchmark_data(args)
 
-    submit_results(benchmark_datasets, args, submit_url, api_token)
+    submit_results(
+        benchmark_datasets,
+        submit_url,
+        api_token,
+        user=args.user,
+        password=args.password,
+    )
+
+
+def register_profiles_from_csv(
+    csv_path,
+    database_url,
+    *,
+    token=None,
+    user=None,
+    password=None,
+) -> int:
+    """Register unique profiles from a CSV and return the failure count."""
+    url = database_url.rstrip("/") + "/benchmarks/profiles/register/"
+
+    headers = {}
+    auth = None
+    if token:
+        headers["Authorization"] = f"Token {token}"
+    elif user and password:
+        auth = HTTPBasicAuth(user, password)
+    else:
+        raise ValueError("Provide a token or user and password.")
+
+    fields = {
+        "benchmark_family": "bench_info_benchmark_family",
+        "benchmark_spec_name": "bench_info_benchmark_spec_name",
+        "benchmark_spec_version": "bench_info_benchmark_spec_version",
+        "benchmark_profile_id": "bench_info_benchmark_profile_id",
+        "benchmark_profile_hash": "bench_info_benchmark_profile_hash",
+        "benchmark_runner_id": "bench_info_benchmark_runner_id",
+        "benchmark_runner_hash": "bench_info_benchmark_runner_hash",
+    }
+
+    seen = set()
+    failures = 0
+
+    if not os.path.exists(csv_path):
+        raise FileNotFoundError(f"CSV file not found: {csv_path}")
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            phash = row.get(fields["benchmark_profile_hash"])
+            if not phash or phash in seen:
+                continue
+            seen.add(phash)
+            payload = {k: row.get(src, "") for k, src in fields.items()}
+            try:
+                r = requests.post(
+                    url, json=payload, headers=headers, auth=auth, timeout=30
+                )
+                if r.status_code in (200, 201):
+                    print(
+                        f"[{r.status_code}] {payload['benchmark_profile_id']} "
+                        f"({phash[:12]})"
+                    )
+                else:
+                    failures += 1
+                    print(f"[{r.status_code}] FAILED {phash[:12]}: {r.text}")
+            except Exception as e:
+                failures += 1
+                print(f"FAILED {phash[:12]}: {e}")
+
+    if not seen:
+        raise ValueError("No profile hashes found in CSV.")
+    return failures
+
+
+def build_incremental_publisher(
+    *,
+    csv_path,
+    read_csv_fn,
+    submit_url,
+    database_url,
+    token,
+):
+    """Build a callback that registers profiles and publishes newly added rows."""
+    published_count = 0
+
+    def publish(result_logger=None):
+        nonlocal published_count
+        try:
+            datasets = read_csv_fn(csv_path)
+            new_datasets = datasets[published_count:]
+            if not new_datasets:
+                return
+            registration_failures = register_profiles_from_csv(
+                csv_path, database_url, token=token
+            )
+            if registration_failures:
+                raise RuntimeError(
+                    f"Failed to register {registration_failures} benchmark profile(s)."
+                )
+            submission_failures = submit_results(new_datasets, submit_url, token)
+            if submission_failures:
+                raise RuntimeError(
+                    f"Failed to submit {submission_failures} benchmark result(s)."
+                )
+            published_count = len(datasets)
+        except Exception as e:
+            logger.warning(f"Could not incrementally publish benchmark results: {e}")
+
+    return publish
 
 
 def register_profiles_cli():
@@ -471,82 +594,23 @@ def register_profiles_cli():
         "saib-pub; registration is already non-interactive when a token "
         "(-t) or AI_BENCHMARK_DATABASE_TOKEN is provided.",
     )
-    parser.add_argument(
-        "-t",
-        "--token",
-        type=str,
-        default=None,
-        help="API token to authenticate with the database.",
-    )
-    parser.add_argument(
-        "-u",
-        "--user",
-        type=str,
-        default=None,
-        help="User to authenticate with the database.",
-    )
-    parser.add_argument(
-        "-p",
-        "--password",
-        type=str,
-        default=None,
-        help="Password to authenticate with the database.",
-    )
+    parser.add_argument("-t", "--token", type=str, default=None)
+    parser.add_argument("-u", "--user", type=str, default=None)
+    parser.add_argument("-p", "--password", type=str, default=None)
     args = parser.parse_args()
 
-    url = args.database_url.rstrip("/") + "/benchmarks/profiles/register/"
-    
     api_token = handle_token_pw_user(args)
-    headers = {}
-    auth = None
-    if api_token:
-        headers["Authorization"] = f"Token {api_token}"
-    elif args.user and args.password:
-        auth = HTTPBasicAuth(args.user, args.password)
-    else:
+    try:
+        failures = register_profiles_from_csv(
+            args.results_csv_path,
+            args.database_url,
+            token=api_token,
+            user=args.user,
+            password=args.password,
+        )
+    except (FileNotFoundError, ValueError) as e:
         import sys
-        sys.exit("Provide a token or user and password.")
-
-    fields = {
-        "benchmark_family": "bench_info_benchmark_family",
-        "benchmark_spec_name": "bench_info_benchmark_spec_name",
-        "benchmark_spec_version": "bench_info_benchmark_spec_version",
-        "benchmark_profile_id": "bench_info_benchmark_profile_id",
-        "benchmark_profile_hash": "bench_info_benchmark_profile_hash",
-        "benchmark_runner_id": "bench_info_benchmark_runner_id",
-        "benchmark_runner_hash": "bench_info_benchmark_runner_hash",
-    }
-
-    seen = set()
-    failures = 0
-    
-    if not os.path.exists(args.results_csv_path):
-        import sys
-        sys.exit(f"CSV file not found: {args.results_csv_path}")
-
-    with open(args.results_csv_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            phash = row.get(fields["benchmark_profile_hash"])
-            if not phash or phash in seen:
-                continue
-            seen.add(phash)
-            payload = {k: row.get(src, "") for k, src in fields.items()}
-            try:
-                r = requests.post(url, json=payload, headers=headers, auth=auth, timeout=30)
-                if r.status_code in (200, 201):
-                    print(f"[{r.status_code}] {payload['benchmark_profile_id']} ({phash[:12]})")
-                else:
-                    failures += 1
-                    print(f"[{r.status_code}] FAILED {phash[:12]}: {r.text}")
-            except Exception as e:
-                failures += 1
-                print(f"FAILED {phash[:12]}: {e}")
-
-    if not seen:
-        import sys
-        sys.exit("No profile hashes found in CSV.")
+        sys.exit(str(e))
     if failures:
         import sys
         sys.exit(1)
-

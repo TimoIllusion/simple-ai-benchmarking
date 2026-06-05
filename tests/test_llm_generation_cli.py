@@ -183,3 +183,39 @@ def test_build_generation_config_pytorch_metadata_defaults():
     assert config.accelerator == "CPU"
     assert config.base_url == ""
     assert config.model_cfg.vocab_size == 128
+
+
+def test_llm_publish_each_requires_token(monkeypatch):
+    import pytest
+    import simple_ai_benchmarking.llm_generation as llm_generation
+
+    monkeypatch.delenv("AI_BENCHMARK_DATABASE_TOKEN", raising=False)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["saib-llm", "--backend", OLLAMA_BACKEND, "--publish-each"],
+    )
+    monkeypatch.setattr(llm_generation, "build_generation_configs", lambda args: [])
+
+    with pytest.raises(SystemExit, match="requires"):
+        llm_generation.run_llm_generation_cli()
+
+
+def test_llm_publish_each_wires_incremental_publisher(monkeypatch):
+    import simple_ai_benchmarking.database as database
+    import simple_ai_benchmarking.llm_generation as llm_generation
+
+    publisher = object()
+    captured = {}
+    monkeypatch.setattr(
+        "sys.argv",
+        ["saib-llm", "--backend", OLLAMA_BACKEND, "--publish-each", "-t", "tok"],
+    )
+    monkeypatch.setattr(llm_generation, "build_generation_configs", lambda args: [])
+    monkeypatch.setattr(database, "build_incremental_publisher", lambda **kwargs: publisher)
+    monkeypatch.setattr(
+        llm_generation, "process_workloads", lambda *args, **kwargs: captured.update(kwargs)
+    )
+
+    llm_generation.run_llm_generation_cli()
+
+    assert captured["on_workload_logged"] is publisher

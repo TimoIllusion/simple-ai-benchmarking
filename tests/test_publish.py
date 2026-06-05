@@ -22,10 +22,12 @@ from dataclasses import dataclass
 from tempfile import NamedTemporaryFile
 
 from simple_ai_benchmarking.database import (
+    build_incremental_publisher,
     build_publish_parser,
     enrich_benchmark_data,
     get_git_commit_hash_from_package_version,
     read_csv_and_create_benchmark_dataset,
+    register_profiles_from_csv,
 )
 from simple_ai_benchmarking.llm_database import read_csv_and_create_llm_benchmark_dataset
 
@@ -175,6 +177,60 @@ class TestPublishDatabase(unittest.TestCase):
         finally:
             os.remove(csv_path)
 
+    def test_register_profiles_from_csv_deduplicates_profiles(self):
+        from unittest.mock import MagicMock, patch
+
+        csv_path = _write_csv(
+            "bench_info_benchmark_family,bench_info_benchmark_spec_name,"
+            "bench_info_benchmark_spec_version,bench_info_benchmark_profile_id,"
+            "bench_info_benchmark_profile_hash,bench_info_benchmark_runner_id,"
+            "bench_info_benchmark_runner_hash\n"
+            "cv,spec,1,p1,hash1,r1,rhash\n"
+            "cv,spec,1,p1,hash1,r1,rhash\n"
+            "cv,spec,1,p2,hash2,r1,rhash\n"
+        )
+        response = MagicMock(status_code=201)
+        try:
+            with patch("simple_ai_benchmarking.database.requests.post", return_value=response) as post:
+                failures = register_profiles_from_csv(
+                    csv_path, "http://database.test/", token="tok"
+                )
+        finally:
+            os.remove(csv_path)
+
+        self.assertEqual(failures, 0)
+        self.assertEqual(post.call_count, 2)
+
+    def test_incremental_publisher_submits_only_new_tail_and_retries_failures(self):
+        from unittest.mock import patch
+        from simple_ai_benchmarking import database as db
+
+        rows = ["a"]
+        submitted = []
+        outcomes = iter([1, 0, 0])
+
+        def submit(datasets, submit_url, token):
+            submitted.append(list(datasets))
+            return next(outcomes)
+
+        publisher = build_incremental_publisher(
+            csv_path="results.csv",
+            read_csv_fn=lambda path: list(rows),
+            submit_url="http://database.test/benchmarks/submit/",
+            database_url="http://database.test",
+            token="tok",
+        )
+        with patch.object(db, "register_profiles_from_csv", return_value=0), patch.object(
+            db, "submit_results", side_effect=submit
+        ):
+            publisher()
+            rows.append("b")
+            publisher()
+            rows.append("c")
+            publisher()
+
+        self.assertEqual(submitted, [["a"], ["a", "b"], ["c"]])
+
 
 class TestSubmissionOutcomes(unittest.TestCase):
 
@@ -214,7 +270,6 @@ class TestSubmissionOutcomes(unittest.TestCase):
         self.assertIn("saib-register", buf.getvalue())
 
     def test_submit_results_skips_duplicates_and_continues(self):
-        from types import SimpleNamespace
         from unittest.mock import patch
         from simple_ai_benchmarking import database as db
 
@@ -226,13 +281,12 @@ class TestSubmissionOutcomes(unittest.TestCase):
             return next(outcomes)
 
         with patch.object(db, "submit_benchmark_result_token_auth", fake_submit):
-            db.submit_results(["a", "b", "c"], SimpleNamespace(), "http://x", "tok")
+            db.submit_results(["a", "b", "c"], "http://x", "tok")
 
         # The duplicate ("b") is skipped without aborting; "c" still gets published.
         self.assertEqual(attempted, ["a", "b", "c"])
 
     def test_submit_results_stops_on_hard_failure(self):
-        from types import SimpleNamespace
         from unittest.mock import patch
         from simple_ai_benchmarking import database as db
 
@@ -244,7 +298,7 @@ class TestSubmissionOutcomes(unittest.TestCase):
             return next(outcomes)
 
         with patch.object(db, "submit_benchmark_result_token_auth", fake_submit):
-            db.submit_results(["a", "b", "c"], SimpleNamespace(), "http://x", "tok")
+            db.submit_results(["a", "b", "c"], "http://x", "tok")
 
         # A genuine failure still aborts: "c" is never attempted.
         self.assertEqual(attempted, ["a", "b"])

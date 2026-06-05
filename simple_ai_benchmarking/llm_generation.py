@@ -153,6 +153,22 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--attention-heads", type=int, default=4)
     parser.add_argument("--feedforward-dim", type=int, default=1024)
     parser.add_argument("--out-file-base", default="llm_results")
+    parser.add_argument(
+        "--publish-each",
+        action="store_true",
+        help="Register and publish each workload immediately after it completes.",
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Run publishing without interactive metadata prompts.",
+    )
+    parser.add_argument("-t", "--token", default=None)
+    parser.add_argument(
+        "--database-url",
+        default="https://timoillusion.pythonanywhere.com",
+        help="The URL of the AI Benchmark Database.",
+    )
     return parser.parse_args()
 
 
@@ -304,10 +320,34 @@ def build_generation_configs(args: argparse.Namespace):
     return [build_generation_config_from_args(args, backend) for backend in backends]
 
 
+def _build_incremental_publisher(args):
+    if not args.publish_each:
+        return None
+    token = args.token or os.environ.get("AI_BENCHMARK_DATABASE_TOKEN")
+    if not token:
+        raise SystemExit(
+            "--publish-each requires -t/--token or AI_BENCHMARK_DATABASE_TOKEN."
+        )
+    from simple_ai_benchmarking.database import build_incremental_publisher
+    from simple_ai_benchmarking.llm_database import (
+        read_csv_and_create_llm_benchmark_dataset,
+    )
+
+    database_url = args.database_url.rstrip("/")
+    return build_incremental_publisher(
+        csv_path=args.out_file_base + ".csv",
+        read_csv_fn=read_csv_and_create_llm_benchmark_dataset,
+        submit_url=database_url + "/benchmarks/llm/submit/",
+        database_url=database_url,
+        token=token,
+    )
+
+
 def run_llm_generation_cli() -> None:
     from loguru import logger
 
     args = parse_arguments()
+    publisher = _build_incremental_publisher(args)
     if args.backend is None:
         logger.info("Available default workloads (use -w to select a subset):")
         for i, backend in enumerate(DEFAULT_LLM_BACKENDS):
@@ -326,4 +366,5 @@ def run_llm_generation_cli() -> None:
         out_file_base=args.out_file_base,
         repetitions=args.repetitions,
         result_logger=LLMBenchmarkLogger(),
+        on_workload_logged=publisher,
     )
