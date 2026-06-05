@@ -11,22 +11,16 @@ from simple_ai_benchmarking.workloads.llm_workload import (
 
 
 def test_saib_llm_runs_default_local_workloads_with_no_args(monkeypatch):
-    # Bare `saib-llm` should build the default local LM workloads (simple
-    # transformer, KV-cache decoder, Hugging Face), mirroring how `saib-pt` runs
-    # several models. The FP8/FP4 low-bit variants are excluded from the default
-    # run and only available via an explicit --backend.
+    # Bare `saib-llm` should build the two default local LM workloads (simple
+    # transformer and Hugging Face causal LM), mirroring how `saib-pt` runs several
+    # models. The custom KV-cache decoder and the FP8/FP4 low-bit variants are
+    # excluded from the default run and only available via an explicit --backend.
     import pytest
 
     pytest.importorskip("torch")
     from simple_ai_benchmarking.config_pt_tf import get_device_name_pytorch
-    from simple_ai_benchmarking.llm_generation import (
-        KV_DECODER_DEFAULT_MODEL,
-        build_generation_configs,
-    )
-    from simple_ai_benchmarking.workloads.llm_workload import (
-        HF_CAUSAL_BACKEND,
-        PYTORCH_KV_DECODER_BACKEND,
-    )
+    from simple_ai_benchmarking.llm_generation import build_generation_configs
+    from simple_ai_benchmarking.workloads.llm_workload import HF_CAUSAL_BACKEND
 
     monkeypatch.setattr("sys.argv", ["saib-llm"])
 
@@ -36,19 +30,15 @@ def test_saib_llm_runs_default_local_workloads_with_no_args(monkeypatch):
 
     assert [c.backend for c in configs] == [
         PYTORCH_GENERATION_BACKEND,
-        PYTORCH_KV_DECODER_BACKEND,
         HF_CAUSAL_BACKEND,
     ]
     # Reference transformer keeps its defaults (self-contained, no server).
     assert configs[0].model == "SimpleTransformerLM"
     assert configs[0].device_name == get_device_name_pytorch()
     assert configs[0].base_url == ""
-    # KV-cache decoder gets its own model label (not the simple transformer's).
-    assert configs[1].model == KV_DECODER_DEFAULT_MODEL
-    assert configs[1].compute_precision == "BF16"
     # The HF backend gets a real repo id and a bf16 default.
-    assert configs[2].model
-    assert configs[2].compute_precision == "BF16"
+    assert configs[1].model
+    assert configs[1].compute_precision == "BF16"
 
 
 def test_saib_llm_excludes_fp8_fp4_from_default_run(monkeypatch):
@@ -64,17 +54,24 @@ def test_saib_llm_excludes_fp8_fp4_from_default_run(monkeypatch):
     from simple_ai_benchmarking.workloads.llm_workload import (
         HF_CAUSAL_FP4_BACKEND,
         HF_CAUSAL_FP8_BACKEND,
+        PYTORCH_KV_DECODER_BACKEND,
     )
 
+    assert PYTORCH_KV_DECODER_BACKEND not in DEFAULT_LLM_BACKENDS
     assert HF_CAUSAL_FP8_BACKEND not in DEFAULT_LLM_BACKENDS
     assert HF_CAUSAL_FP4_BACKEND not in DEFAULT_LLM_BACKENDS
 
-    monkeypatch.setattr(
-        "sys.argv",
-        ["saib-llm", "--backend", HF_CAUSAL_FP8_BACKEND, "--device", "cpu"],
-    )
-    configs = build_generation_configs(parse_arguments())
-    assert [c.backend for c in configs] == [HF_CAUSAL_FP8_BACKEND]
+    # All three excluded backends stay runnable via an explicit --backend.
+    for backend in (
+        PYTORCH_KV_DECODER_BACKEND,
+        HF_CAUSAL_FP8_BACKEND,
+        HF_CAUSAL_FP4_BACKEND,
+    ):
+        monkeypatch.setattr(
+            "sys.argv", ["saib-llm", "--backend", backend, "--device", "cpu"]
+        )
+        configs = build_generation_configs(parse_arguments())
+        assert [c.backend for c in configs] == [backend]
 
 
 def test_saib_llm_w_flag_selects_subset_of_default_workloads(monkeypatch):
@@ -82,19 +79,13 @@ def test_saib_llm_w_flag_selects_subset_of_default_workloads(monkeypatch):
 
     pytest.importorskip("torch")
     from simple_ai_benchmarking.llm_generation import build_generation_configs
-    from simple_ai_benchmarking.workloads.llm_workload import (
-        HF_CAUSAL_BACKEND,
-        PYTORCH_KV_DECODER_BACKEND,
-    )
+    from simple_ai_benchmarking.workloads.llm_workload import HF_CAUSAL_BACKEND
 
-    # `-w 1 2` should run only the second and third default workloads.
-    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "1", "2", "--device", "cpu"])
+    # `-w 1` should run only the second default workload (Hugging Face causal LM).
+    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "1", "--device", "cpu"])
     configs = build_generation_configs(parse_arguments())
 
-    assert [c.backend for c in configs] == [
-        PYTORCH_KV_DECODER_BACKEND,
-        HF_CAUSAL_BACKEND,
-    ]
+    assert [c.backend for c in configs] == [HF_CAUSAL_BACKEND]
 
 
 def test_saib_llm_w_flag_single_workload(monkeypatch):
@@ -102,14 +93,11 @@ def test_saib_llm_w_flag_single_workload(monkeypatch):
 
     pytest.importorskip("torch")
     from simple_ai_benchmarking.llm_generation import build_generation_configs
-    from simple_ai_benchmarking.workloads.llm_workload import (
-        PYTORCH_KV_DECODER_BACKEND,
-    )
 
-    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "1", "--device", "cpu"])
+    monkeypatch.setattr("sys.argv", ["saib-llm", "-w", "0", "--device", "cpu"])
     configs = build_generation_configs(parse_arguments())
 
-    assert [c.backend for c in configs] == [PYTORCH_KV_DECODER_BACKEND]
+    assert [c.backend for c in configs] == [PYTORCH_GENERATION_BACKEND]
 
 
 def test_saib_llm_w_flag_rejects_out_of_range(monkeypatch):

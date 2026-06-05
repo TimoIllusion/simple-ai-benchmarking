@@ -104,10 +104,10 @@ BLACKWELL_MARKERS = (
 )
 
 # Default LLM workload index set (mirrors `saib-llm` default order):
-#   0 simple-transformer, 1 kv-decoder, 2 huggingface-causal (Qwen BF16).
-# The FP8/FP4 low-bit variants are excluded from the default run everywhere (not
-# yet producing correct results); run them explicitly via --llm-args if needed.
-LLM_W_DEFAULT = "0 1 2"
+#   0 simple-transformer, 1 huggingface-causal (Qwen BF16, real KV cache).
+# The custom KV-cache decoder and the FP8/FP4 low-bit variants are excluded from the
+# default run everywhere; run them explicitly via --llm-args if needed.
+LLM_W_DEFAULT = "0 1"
 
 DONE_MARKER = "SAIB_ALL_DONE"
 
@@ -384,7 +384,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument("--pt-args", default="", help="Extra args for saib-pt, e.g. '-w 0'.")
     parser.add_argument(
         "--llm-args", default=None,
-        help="Extra args for saib-llm, e.g. '-w 0 1 2'. Default: auto by lowbit capability.",
+        help="Extra args for saib-llm, e.g. '-w 0 1'. Default: the default workload set (-w 0 1).",
     )
     parser.add_argument("--database-url", default=DEFAULT_DATABASE_URL)
     parser.add_argument("--disk-gb", type=int, default=40)

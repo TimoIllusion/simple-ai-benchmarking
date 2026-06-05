@@ -73,7 +73,7 @@ I develop this application in my free time as a hobby.
 
 ## LLM Inference Benchmarking
 
-In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs the **three default local PyTorch backends** (simple transformer, ~1B KV-cache decoder, and a Hugging Face architecture), requiring no server, just like `saib-pt` runs several models with sensible defaults. The FP8/FP4 low-bit variants are excluded from the default run (currently not producing correct results) but remain runnable via `--backend huggingface-causal-fp8` / `-fp4`:
+In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs the **two default local PyTorch backends** (the simple transformer and a Hugging Face causal LM — Qwen by default, with a real KV cache), requiring no server, just like `saib-pt` runs several models with sensible defaults. The custom ~1B KV-cache decoder and the FP8/FP4 low-bit variants are excluded from the default run but remain runnable via `--backend pytorch-kv-decoder` / `huggingface-causal-fp8` / `-fp4`:
 
 ```bash
 saib-llm
@@ -159,7 +159,7 @@ The benchmark performs configurable warmup and measured requests (optionally con
 
 Common options (see `saib-llm -h` for the full list):
 
-- `-w` / `--workloads` — when no `--backend` is given, 0-based indices selecting which of the default workloads to run, e.g. `-w 1` for only the second (KV-cache decoder) or `-w 1 2` for the second and third. Default: run all (mirrors `saib-pt -w`)
+- `-w` / `--workloads` — when no `--backend` is given, 0-based indices selecting which of the default workloads to run, e.g. `-w 0` for only the first (simple transformer) or `-w 1` for only the second (Hugging Face causal LM). Default: run all (mirrors `saib-pt -w`)
 - `--requests` / `--warmup-requests` — number of measured / warmup requests (default `10` / `1`)
 - `--repetitions` — number of times the measurement is repeated and averaged (default `3`); for paid HTTP endpoints, lower this to reduce cost
 - `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local PyTorch backends, the batch size processed in a single batched forward pass (default `1`)
@@ -250,8 +250,8 @@ If `RUNPOD_API_KEY` or `AI_BENCHMARK_DATABASE_TOKEN` are not set (and not passed
 
 | GPU generation | Image | pip extra | Default LLM `-w` | Low-bit |
 |---|---|---|---|---|
-| **Blackwell** (B200, RTX 5090, RTX PRO Blackwell) | `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (torch 2.8 / CUDA 12.8) | `[pt,lowbit]` + `torchao==0.13.0+cu128` | `0 1 2` | opt-in |
-| **Everything else** (Hopper, Ada, Ampere, …) | `runpod/pytorch:2.4.0-...cuda12.4.1` (torch 2.4) | `[pt]` | `0 1 2` | opt-in |
+| **Blackwell** (B200, RTX 5090, RTX PRO Blackwell) | `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (torch 2.8 / CUDA 12.8) | `[pt,lowbit]` + `torchao==0.13.0+cu128` | `0 1` | opt-in |
+| **Everything else** (Hopper, Ada, Ampere, …) | `runpod/pytorch:2.4.0-...cuda12.4.1` (torch 2.4) | `[pt]` | `0 1` | opt-in |
 
 Blackwell is special-cased automatically because it *cannot* run on the torch 2.4 image at all. **The FP8/FP4 low-bit backends are excluded from the default run everywhere** (currently not producing correct results); the Blackwell image still ships `[pt,lowbit]` so they can be opted into explicitly. FP8 on Hopper/Ada additionally needs the torch 2.8 image, which requires a host driver ≥ 12.8 and can fail to start on older-driver non-Blackwell hosts. Enable low-bit explicitly (prefer SECURE/datacenter hosts):
 
@@ -266,7 +266,7 @@ saib-runpod --gpu "NVIDIA H100 80GB HBM3" --cloud-type SECURE \
 
 **GPU names** are the RunPod GPU *ids*, e.g. `NVIDIA GeForce RTX 4090`, `NVIDIA H100 80GB HBM3` (H100 SXM), `NVIDIA H200`, `NVIDIA B200` — not the short display names. List them with `python -c "import runpod,os; runpod.api_key=os.environ['RUNPOD_API_KEY']; print('\n'.join(g['id'] for g in runpod.get_gpus()))"`.
 
-Useful flags: `--workload pt|llm|both` (default `both`), `--gpu "A,B,C"` (comma-separated fallback list; RunPod picks by availability), `--cloud-type SECURE|COMMUNITY` (default `SECURE`), `--capacity-wait SECONDS` (keep retrying while RunPod has no capacity, with backoff), `--image`/`--pip-spec` (override the auto profile), `--pt-args`/`--llm-args "-w 0 1 2"` (passed to the benchmark commands), `--pt-timeout`/`--llm-timeout SECONDS` (per-step hang caps), `--no-publish`, `--keep` (do **not** self-terminate — you must delete the pod yourself), and `--dry-run` (print the plan and the exact container script without creating anything — no API key needed). The database token is provided to the pod as an env var, never baked into the image or the script string.
+Useful flags: `--workload pt|llm|both` (default `both`), `--gpu "A,B,C"` (comma-separated fallback list; RunPod picks by availability), `--cloud-type SECURE|COMMUNITY` (default `SECURE`), `--capacity-wait SECONDS` (keep retrying while RunPod has no capacity, with backoff), `--image`/`--pip-spec` (override the auto profile), `--pt-args`/`--llm-args "-w 0 1"` (passed to the benchmark commands), `--pt-timeout`/`--llm-timeout SECONDS` (per-step hang caps), `--no-publish`, `--keep` (do **not** self-terminate — you must delete the pod yourself), and `--dry-run` (print the plan and the exact container script without creating anything — no API key needed). The database token is provided to the pod as an env var, never baked into the image or the script string.
 
 #### Launch a whole fleet
 

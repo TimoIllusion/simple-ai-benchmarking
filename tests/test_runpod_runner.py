@@ -36,16 +36,16 @@ def test_blackwell_gpu_auto_selects_torch28_image_and_lowbit():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA B200"])
     assert cfg.image == BLACKWELL_IMAGE
     assert cfg.pip_spec == PIP_LOWBIT
-    # FP8/FP4 are excluded from the default run, even on Blackwell.
-    assert cfg.llm_args == "-w 0 1 2"
+    # KV decoder and FP8/FP4 are excluded from the default run, even on Blackwell.
+    assert cfg.llm_args == "-w 0 1"
 
 
 def test_non_blackwell_gpu_auto_selects_default_image_no_lowbit():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
     assert cfg.image == DEFAULT_IMAGE
     assert cfg.pip_spec == PIP_BASE
-    # Default run excludes FP8/FP4.
-    assert cfg.llm_args == "-w 0 1 2"
+    # Default run excludes the KV decoder and FP8/FP4.
+    assert cfg.llm_args == "-w 0 1"
 
 
 def test_explicit_overrides_win_over_auto():

@@ -10,14 +10,14 @@
 # FP8/FP4 low-bit backends are excluded from the default LLM run everywhere (they are
 # not yet producing correct results); they are only launched when opted into below.
 #   * Blackwell (B200 / RTX 5090 / RTX PRO Blackwell): torch 2.8 image + [pt,lowbit],
-#     default LLM set (-w 0 1 2)           -> handled automatically by saib-runpod.
+#     default LLM set (-w 0 1)             -> handled automatically by saib-runpod.
 #   * Hopper / Ada (H100 / RTX 4090 ...): FP8 needs the torch 2.8 image too, so when
 #     opted in it is requested EXPLICITLY here (--image + --pip-spec + --llm-args
 #     "--backend huggingface-causal-fp8"). Off by default; the torch 2.8 image needs
 #     a host driver >= 12.8, so prefer SECURE (datacenter) hosts. Without it these
 #     pods fall back to the safe torch 2.4 image and the default LLM set.
 #   * Ampere & older (A6000 ...): no lowbit -> default torch 2.4 image + [pt],
-#     LLM -w 0 1 2                          -> handled automatically by saib-runpod.
+#     LLM -w 0 1                            -> handled automatically by saib-runpod.
 #
 # Usage:
 #   export RUNPOD_API_KEY=...

@@ -67,14 +67,13 @@ LOCAL_PYTORCH_BACKENDS = (
 )
 
 # Backends `saib-llm` runs when no --backend is given: the lightweight reference
-# transformer, the heavier custom KV-cache decoder, and a real Hugging Face model.
-# Mirrors how the CV benchmark runs several models in a single invocation. The
-# FP8/FP4 low-bit HF variants are intentionally excluded from the default run (they
-# are not yet producing correct results); they remain runnable via an explicit
-# `--backend huggingface-causal-fp8` / `huggingface-causal-fp4`.
+# transformer and a real Hugging Face causal LM (Qwen by default, with a real KV
+# cache). Mirrors how the CV benchmark runs several models in a single invocation.
+# The custom KV-cache decoder and the FP8/FP4 low-bit HF variants are intentionally
+# excluded from the default run; they remain runnable via an explicit `--backend`
+# (`pytorch-kv-decoder`, `huggingface-causal-fp8`, `huggingface-causal-fp4`).
 DEFAULT_LLM_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
-    PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
 )
 
@@ -123,9 +122,10 @@ def parse_arguments() -> argparse.Namespace:
         nargs="+",
         default=None,
         metavar="INDEX",
-        help="Indices (0-based) of the default workloads to run, e.g. `-w 1` for "
-        "only the second or `-w 1 2` for the second and third. Default: None (run "
-        "all). Cannot be combined with --backend.",
+        help="Indices (0-based) of the default workloads to run, e.g. `-w 0` for "
+        "only the first (simple transformer) or `-w 1` for only the second "
+        "(Hugging Face causal LM). Default: None (run all). Cannot be combined "
+        "with --backend.",
     )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--model", default="SimpleTransformerLM")
