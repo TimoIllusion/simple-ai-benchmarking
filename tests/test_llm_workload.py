@@ -166,6 +166,29 @@ def test_openai_compatible_generation_workload_streams_and_counts_tokens():
     assert workload._session.calls[0][1]["headers"]["Authorization"] == "Bearer token"
     assert result.bench_info.backend == OPENAI_COMPATIBLE_BACKEND
     assert result.performance.generated_tokens_per_second > 0
+
+
+def test_openai_compatible_reports_zero_when_server_streams_no_tokens():
+    # Regression: an empty/refused completion (no content deltas, no usage) must
+    # report 0 generated tokens, not fabricate the requested count.
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="test-model",
+            requests=1,
+            warmup_requests=0,
+            concurrency=1,
+            generated_tokens=23,
+        )
+    )
+    workload._session = FakeSession(["data: [DONE]"])
+    workload.setup()
+    workload.warmup()
+    workload.execute()
+    result = workload.build_result_log()
+
+    assert result.performance.generated_tokens_per_second == 0
     assert 0 < result.performance.time_to_first_token_s <= result.performance.duration_s
 
 

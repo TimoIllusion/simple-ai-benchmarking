@@ -523,7 +523,9 @@ class OpenAICompatibleGeneration(HTTPGenerationWorkload):
 
         return GenerationRequestResult(
             prompt_tokens=prompt_tokens,
-            generated_tokens=generated_tokens or self.cfg.generated_tokens,
+            # Report the actual count (0 if the server produced nothing); falling
+            # back to the requested count here would fabricate throughput.
+            generated_tokens=generated_tokens,
             time_to_first_token_s=time_to_first_token_s
             if time_to_first_token_s is not None
             else duration_s,
@@ -583,7 +585,9 @@ class OllamaGeneration(HTTPGenerationWorkload):
 
         return GenerationRequestResult(
             prompt_tokens=prompt_tokens,
-            generated_tokens=generated_tokens or self.cfg.generated_tokens,
+            # Report the actual count (0 if the server produced nothing); falling
+            # back to the requested count here would fabricate throughput.
+            generated_tokens=generated_tokens,
             time_to_first_token_s=time_to_first_token_s
             if time_to_first_token_s is not None
             else duration_s,
