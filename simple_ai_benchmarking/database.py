@@ -259,13 +259,18 @@ def read_csv_and_create_benchmark_dataset(csv_file_path: str, extra_info: str = 
                     f"Unknown benchmark type: {row['bench_info_workload_type']}"
                 )
 
+            # Per-row, not a reassignment of the `extra_info` parameter: otherwise
+            # the first row's value would leak onto every subsequent row (e.g. a
+            # multi-device CSV would publish every row with row 0's device).
             if extra_info is None:
-                extra_info = row["sw_info_ai_framework_extra_info"]
+                row_extra_info = row["sw_info_ai_framework_extra_info"]
+            else:
+                row_extra_info = extra_info
 
             benchmark_data = BenchmarkData(
                 ai_framework_name=row["sw_info_ai_framework_name"],
                 ai_framework_version=row["sw_info_ai_framework_version"],
-                ai_framework_extra_info=extra_info,
+                ai_framework_extra_info=row_extra_info,
                 python_version=row["sw_info_python_version"],
                 cpu_name=row["hw_info_cpu"],
                 accelerator=row["hw_info_accelerator"],

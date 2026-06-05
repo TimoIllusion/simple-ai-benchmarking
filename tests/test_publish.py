@@ -78,6 +78,45 @@ class TestPublishDatabase(unittest.TestCase):
         self.assertEqual(benchmark_data[0].generated_tokens_per_second, 42.5)
         self.assertEqual(benchmark_data[0].benchmark_spec_name, "saib_llm_generation")
 
+    def test_cv_reader_keeps_per_row_extra_info(self):
+        # Regression: read_csv_and_create_benchmark_dataset must not leak row 0's
+        # ai_framework_extra_info onto later rows (it reassigned the parameter).
+        cols = [
+            "sw_info_ai_framework_name", "sw_info_ai_framework_version",
+            "sw_info_ai_framework_extra_info", "sw_info_python_version",
+            "sw_info_os_version", "hw_info_cpu", "hw_info_accelerator",
+            "bench_info_workload_type", "bench_info_model", "bench_info_compute_precision",
+            "bench_info_batch_size", "bench_info_date", "bench_info_sample_shape",
+            "bench_info_num_parameters", "bench_info_num_classes", "performance_throughput",
+            "bench_info_benchmark_family", "bench_info_benchmark_spec_name",
+            "bench_info_benchmark_spec_version", "bench_info_benchmark_profile_id",
+            "bench_info_benchmark_profile_hash", "bench_info_benchmark_config_hash",
+            "bench_info_benchmark_runner_id", "bench_info_benchmark_runner_hash",
+            "bench_info_benchmark_payload_hash",
+        ]
+
+        def row(extra):
+            return [
+                "PyTorch", "2.4.0", extra, "3.11.0", "Linux", "AMD Ryzen", "GPU",
+                "InferenceWorkload", "ResNet50", "FP16", "32", "2026-05-11T12:00:00",
+                "224x224x3", "25500000", "1000", "123.4",
+                "cv", "saib_cv_classification", "2.1", "cv_resnet_v2",
+                "h" * 64, "h" * 64, "saib.cv.classification.v2", "r" * 64, "p" * 64,
+            ]
+
+        content = ",".join(cols) + "\n"
+        content += ",".join(row("cuda:0")) + "\n"
+        content += ",".join(row("cpu")) + "\n"
+        csv_path = _write_csv(content)
+        try:
+            data = read_csv_and_create_benchmark_dataset(csv_path)
+        finally:
+            os.remove(csv_path)
+
+        self.assertEqual(len(data), 2)
+        self.assertEqual(data[0].ai_framework_extra_info, "cuda:0")
+        self.assertEqual(data[1].ai_framework_extra_info, "cpu")
+
     def test_cv_reader_rejects_llm_csv_with_clear_error(self):
         # An LLM CSV (has bench_info_backend, no bench_info_workload_type).
         csv_path = _write_csv(
