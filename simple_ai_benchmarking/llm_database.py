@@ -159,4 +159,10 @@ def publish_llm_results_cli():
 
     api_token = handle_token_pw_user(args)
     benchmark_datasets = read_and_enrich_llm_benchmark_data(args)
-    submit_results(benchmark_datasets, args, submit_url, api_token)
+    submit_results(
+        benchmark_datasets,
+        submit_url,
+        api_token,
+        user=args.user,
+        password=args.password,
+    )

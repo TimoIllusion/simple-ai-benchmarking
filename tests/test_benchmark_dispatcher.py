@@ -45,7 +45,37 @@ def test_tf_benchmark() -> None:
     _make_fast_dispatcher(AIFramework.TENSORFLOW).run(args=_FAST_ARGS)
 
 
+def test_publish_each_requires_token(monkeypatch):
+    monkeypatch.delenv("AI_BENCHMARK_DATABASE_TOKEN", raising=False)
+    dispatcher = BenchmarkDispatcher(AIFramework.PYTORCH)
+    args = dispatcher.parser.parse_args(["--publish-each"])
+
+    import pytest
+
+    with pytest.raises(SystemExit, match="requires"):
+        dispatcher._build_publisher(args)
+
+
+def test_dispatcher_wires_incremental_publisher(monkeypatch):
+    import simple_ai_benchmarking.entrypoints as entrypoints
+
+    publisher = object()
+    captured = {}
+    monkeypatch.setattr(entrypoints, "initialize_logger", lambda path: None)
+    monkeypatch.setattr(entrypoints, "build_default_pt_workload_configs", lambda *a, **k: [])
+    monkeypatch.setattr(
+        entrypoints.WorkloadFactory, "build_multiple_workloads", lambda *a, **k: ["workload"]
+    )
+    monkeypatch.setattr(
+        entrypoints, "process_workloads", lambda *a, **k: captured.update(k)
+    )
+    monkeypatch.setattr(BenchmarkDispatcher, "_build_publisher", lambda self, args: publisher)
+
+    BenchmarkDispatcher(AIFramework.PYTORCH).run(args=["--publish-each", "-t", "tok"])
+
+    assert captured["on_workload_logged"] is publisher
+
+
 if __name__ == "__main__":
     test_pt_benchmark()
     test_tf_benchmark()
-

@@ -75,10 +75,10 @@ DEFAULT_DATABASE_URL = "https://timoillusion.pythonanywhere.com"
 DEFAULT_IMAGE = "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
 BLACKWELL_IMAGE = "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"
 
-# The lowbit extra pulls in torchao for real FP8/FP4 kernels. torchao is unpinned
-# and tracks recent torch, so installing it on the torch 2.4 image FAILS and aborts
-# the whole install -- hence lowbit is only ever paired with the Blackwell (torch
-# 2.8) image here. FP8/FP4 aren't usable on the torch 2.4 generation anyway.
+# The lowbit extra pulls in torchao for real FP8/FP4 kernels. torchao tracks recent
+# torch closely, so the RunPod torch 2.8 image must use the matching torchao release.
+# Without this explicit pin, pip currently installs a newer torchao whose compiled
+# extensions require torch >= 2.11, disabling NVFP4 and hurting low-bit performance.
 PIP_BASE = (
     "simple-ai-benchmarking[pt]@git+"
     "https://github.com/TimoIllusion/simple-ai-benchmarking.git@main"
@@ -87,6 +87,8 @@ PIP_LOWBIT = (
     "simple-ai-benchmarking[pt,lowbit]@git+"
     "https://github.com/TimoIllusion/simple-ai-benchmarking.git@main"
 )
+TORCHAO_TORCH28 = "torchao==0.13.0+cu128"
+TORCHAO_CU128_INDEX = "https://download.pytorch.org/whl/cu128"
 
 # RunPod gpuTypeId substrings that identify a Blackwell card. Matched case-folded.
 BLACKWELL_MARKERS = (
@@ -207,9 +209,14 @@ trap cleanup EXIT"""
 
 def _pt_block(cfg: Config) -> str:
     args = f" {cfg.pt_args}" if cfg.pt_args else ""
+    publish_args = (
+        ' --publish-each --non-interactive --database-url "${URL}"'
+        if cfg.publish
+        else ""
+    )
     lines = [
         'echo "== [pt] running (timeout ${PT_TIMEOUT}s) =="',
-        f'timeout -k 60 "${{PT_TIMEOUT}}" saib-pt{args} || echo "WARN saib-pt rc=$?"',
+        f'timeout -k 60 "${{PT_TIMEOUT}}" saib-pt{args}{publish_args} || echo "WARN saib-pt rc=$?"',
     ]
     if cfg.publish:
         lines += [
@@ -223,9 +230,14 @@ def _pt_block(cfg: Config) -> str:
 
 def _llm_block(cfg: Config) -> str:
     args = f" {cfg.llm_args}" if cfg.llm_args else ""
+    publish_args = (
+        ' --publish-each --non-interactive --database-url "${URL}"'
+        if cfg.publish
+        else ""
+    )
     lines = [
         'echo "== [llm] running (timeout ${LLM_TIMEOUT}s) =="',
-        f'timeout -k 60 "${{LLM_TIMEOUT}}" saib-llm{args} || echo "WARN saib-llm rc=$?"',
+        f'timeout -k 60 "${{LLM_TIMEOUT}}" saib-llm{args}{publish_args} || echo "WARN saib-llm rc=$?"',
     ]
     if cfg.publish:
         lines += [
@@ -241,6 +253,14 @@ def build_container_script(cfg: Config) -> str:
     """The bash exec'd by the pod's dockerStartCmd. The DB token is read from the
     pod env (``AI_BENCHMARK_DATABASE_TOKEN``), never interpolated into the text, so
     it is not baked into the script string."""
+    pip_requirements = [f'"{cfg.pip_spec}"']
+    pip_index_args = ""
+    if cfg.pip_spec == PIP_LOWBIT:
+        # Resolve the project and torchao together so pip never installs an
+        # incompatible latest torchao or the Python-only PyPI wheel.
+        pip_requirements.insert(0, f'"{TORCHAO_TORCH28}"')
+        pip_index_args = f" --extra-index-url {TORCHAO_CU128_INDEX}"
+
     blocks = [
         _THREAD_CAPS,
         _SELF_TERMINATE if not cfg.keep else 'echo "== --keep: pod will NOT self-terminate =="',
@@ -249,7 +269,7 @@ def build_container_script(cfg: Config) -> str:
         f'LLM_TIMEOUT="{cfg.llm_timeout}"',
         'echo "== installing SAIB =="',
         "python -m pip install --upgrade pip",
-        f'pip install "{cfg.pip_spec}"',
+        f"pip install{pip_index_args} {' '.join(pip_requirements)}",
     ]
     if cfg.workload in ("pt", "both"):
         blocks.append(_pt_block(cfg))

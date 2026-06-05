@@ -17,6 +17,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 from argparse import ArgumentParser
+import os
 from typing import List
 
 from loguru import logger
@@ -65,6 +66,22 @@ class BenchmarkDispatcher:
             default=None,
             help="Override amount of batches to process for all workloads. Default: None (no override)",
         )
+        parser.add_argument(
+            "--publish-each",
+            action="store_true",
+            help="Register and publish each workload immediately after it completes.",
+        )
+        parser.add_argument(
+            "--non-interactive",
+            action="store_true",
+            help="Run publishing without interactive metadata prompts.",
+        )
+        parser.add_argument("-t", "--token", default=None)
+        parser.add_argument(
+            "--database-url",
+            default="https://timoillusion.pythonanywhere.com",
+            help="The URL of the AI Benchmark Database.",
+        )
         return parser
 
     def _header(self):
@@ -74,20 +91,57 @@ class BenchmarkDispatcher:
     def run(self, args: List[str] = None):
         self._header()
         initialize_logger(self.LOG_FILE_PATH)
+        parsed_args = self.parser.parse_args(args)
+        publisher = self._build_publisher(parsed_args)
         workload_configs = build_default_pt_workload_configs(
             self.framework,
             batch_size=self.BATCH_SIZE,
             num_batches_inference=self.NUM_BATCHES_INFERENCE,
             num_batches_training=self.NUM_BATCHES_TRAINING,
         )
-        workload_configs = self._override_workload_cfg(workload_configs, args=args)
+        workload_configs = self._override_workload_cfg(
+            workload_configs, parsed_args=parsed_args
+        )
         workloads = WorkloadFactory.build_multiple_workloads(
             workload_configs, self.framework
         )
-        process_workloads(workloads, self.results_name, repetitions=self.REPETITIONS)
+        process_workloads(
+            workloads,
+            self.results_name,
+            repetitions=self.REPETITIONS,
+            on_workload_logged=publisher,
+        )
 
-    def _override_workload_cfg(self, workload_cfgs: List[AIWorkloadBaseConfig], args: List[str] = None):
-        parsed_args = self.parser.parse_args(args)
+    def _build_publisher(self, parsed_args):
+        if not parsed_args.publish_each:
+            return None
+        token = parsed_args.token or os.environ.get("AI_BENCHMARK_DATABASE_TOKEN")
+        if not token:
+            raise SystemExit(
+                "--publish-each requires -t/--token or "
+                "AI_BENCHMARK_DATABASE_TOKEN."
+            )
+        from simple_ai_benchmarking.database import (
+            build_incremental_publisher,
+            read_csv_and_create_benchmark_dataset,
+        )
+
+        database_url = parsed_args.database_url.rstrip("/")
+        return build_incremental_publisher(
+            csv_path=self.results_name + ".csv",
+            read_csv_fn=read_csv_and_create_benchmark_dataset,
+            submit_url=database_url + "/benchmarks/submit/",
+            database_url=database_url,
+            token=token,
+        )
+
+    def _override_workload_cfg(
+        self,
+        workload_cfgs: List[AIWorkloadBaseConfig],
+        args: List[str] = None,
+        parsed_args=None,
+    ):
+        parsed_args = parsed_args or self.parser.parse_args(args)
         workload_info = [f"[{i}] {w}" for i, w in enumerate(workload_cfgs)]
         logger.info("Available workloads:")
         for x in workload_info:

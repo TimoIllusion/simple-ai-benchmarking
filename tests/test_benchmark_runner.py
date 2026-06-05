@@ -1,6 +1,7 @@
 import queue as queue_mod
+from types import SimpleNamespace
 
-from simple_ai_benchmarking.benchmark import _extract_repetition_result
+from simple_ai_benchmarking.benchmark import _extract_repetition_result, process_workloads
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 from simple_ai_benchmarking.workloads.llm_workload import PyTorchLocalGeneration
 
@@ -51,3 +52,64 @@ def test_llm_workload_unifies_on_public_sync_device():
     # so the generic benchmark loop and the internal timing share one mechanism.
     assert PyTorchLocalGeneration.sync_device is not AIWorkload.sync_device
     assert not hasattr(PyTorchLocalGeneration, "_sync_device")
+
+
+class _Logger:
+    def __init__(self):
+        self.results = []
+        self.exported_sizes = []
+        self.excel_exported = False
+
+    def add_benchmark_result_by_averaging_multiple_results(self, results):
+        self.results.append(results[0])
+
+    def export_to_csv(self, path):
+        self.exported_sizes.append(len(self.results))
+
+    def export_to_excel(self, path):
+        self.excel_exported = True
+
+    def pretty_print_summary(self):
+        pass
+
+
+def test_process_workloads_exports_and_calls_back_after_each_workload(monkeypatch):
+    result_logger = _Logger()
+    callback_sizes = []
+    monkeypatch.setattr(
+        "simple_ai_benchmarking.benchmark._repeat_benchmark_n_times",
+        lambda workload, repetitions: [SimpleNamespace(workload=workload)],
+    )
+
+    process_workloads(
+        ["a", "b"],
+        result_logger=result_logger,
+        on_workload_logged=lambda logger: callback_sizes.append(len(logger.results)),
+    )
+
+    assert callback_sizes == [1, 2]
+    assert result_logger.exported_sizes == [1, 2, 2]
+    assert result_logger.excel_exported
+
+
+def test_process_workloads_swallowing_callback_failure_keeps_running(monkeypatch):
+    result_logger = _Logger()
+    callback_calls = []
+    monkeypatch.setattr(
+        "simple_ai_benchmarking.benchmark._repeat_benchmark_n_times",
+        lambda workload, repetitions: [SimpleNamespace(workload=workload)],
+    )
+
+    def failing_callback(logger):
+        callback_calls.append(len(logger.results))
+        raise RuntimeError("publish unavailable")
+
+    process_workloads(
+        ["a", "b"],
+        result_logger=result_logger,
+        on_workload_logged=failing_callback,
+    )
+
+    assert callback_calls == [1, 2]
+    assert result_logger.exported_sizes == [1, 2, 2]
+    assert result_logger.excel_exported

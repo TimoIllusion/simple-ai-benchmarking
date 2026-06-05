@@ -5,6 +5,8 @@ from simple_ai_benchmarking.experimental.runpod_runner import (
     DONE_MARKER,
     PIP_BASE,
     PIP_LOWBIT,
+    TORCHAO_CU128_INDEX,
+    TORCHAO_TORCH28,
     build_config,
     build_container_script,
     build_pod_body,
@@ -72,7 +74,25 @@ def test_script_both_runs_pt_then_llm_and_publishes():
     # Register must precede publish so unknown-profile rejections are avoided.
     assert script.index("saib-register results_pt.csv") < script.index("saib-pub results_pt.csv")
     assert script.index("saib-register llm_results.csv") < script.index("saib-pub-llm llm_results.csv")
+    assert 'saib-pt --publish-each --non-interactive --database-url "${URL}"' in script
+    assert '--publish-each --non-interactive --database-url "${URL}"' in script
     assert script.strip().splitlines()[-1] == f'echo "{DONE_MARKER}"'
+
+
+def test_blackwell_script_pins_torchao_to_torch28_compatible_release():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--workload", "llm"])
+    script = build_container_script(cfg)
+
+    assert (
+        f"pip install --extra-index-url {TORCHAO_CU128_INDEX} "
+        f'"{TORCHAO_TORCH28}" "{PIP_LOWBIT}"'
+    ) in script
+
+
+def test_non_lowbit_script_does_not_install_torchao():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
+
+    assert "torchao==" not in build_container_script(cfg)
 
 
 def test_script_self_terminates_and_caps_threads_by_default():
@@ -104,6 +124,7 @@ def test_no_publish_skips_upload():
     assert "saib-pt" in script
     assert "saib-pub" not in script
     assert "saib-register" not in script
+    assert "--publish-each" not in script
 
 
 def test_script_never_contains_the_token():

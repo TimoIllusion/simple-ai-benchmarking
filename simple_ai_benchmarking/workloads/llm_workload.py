@@ -344,9 +344,15 @@ class _DtypeQuantGeneration(PyTorchLocalGeneration):
             try:
                 # torchao >= 0.x Config-class API.
                 from torchao.quantization import (
-                    Float8DynamicActivationFloat8WeightConfig as fp8_config,
+                    Float8DynamicActivationFloat8WeightConfig,
                     Int4WeightOnlyConfig as int4_config,
                     Int8WeightOnlyConfig as int8_config,
+                    PerRow,
+                )
+                # Per-row is torchao's recommended FP8 inference recipe and the
+                # recipe used for its published LLM inference benchmarks.
+                fp8_config = Float8DynamicActivationFloat8WeightConfig(
+                    granularity=PerRow()
                 )
             except ImportError:
                 # Older function-style API.
@@ -363,7 +369,9 @@ class _DtypeQuantGeneration(PyTorchLocalGeneration):
                 "FP32/FP16/BF16 work without it."
             ) from exc
         if precision == "FP8":
-            quantize_(model, fp8_config())
+            if callable(fp8_config):
+                fp8_config = fp8_config()
+            quantize_(model, fp8_config)
         elif precision == "FP4":
             # NVFP4 is a torchao prototype and needs an NVIDIA Blackwell (SM100)
             # GPU; a missing/older torchao surfaces as the same NotImplementedError.
