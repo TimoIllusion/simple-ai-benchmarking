@@ -255,59 +255,94 @@ cleanup() {
 trap cleanup EXIT"""
 
 
-def _pt_block(cfg: Config) -> str:
-    args = f" {cfg.pt_args}" if cfg.pt_args else ""
-    publish_args = (
+def _publish_args(cfg: Config) -> str:
+    """Inline publish flags for a saib-* benchmark command (empty when --no-publish)."""
+    return (
         ' --publish-each --non-interactive --database-url "${URL}"'
         if cfg.publish
         else ""
     )
+
+
+def _register_publish_lines(csv: str, pub_tool: str, label: str) -> List[str]:
+    """register-then-publish a results CSV. Register must precede publish so the
+    server accepts rows whose profile isn't registered yet. Shared by every block
+    (pt/llm/vllm) so the publish protocol lives in exactly one place."""
+    return [
+        f'saib-register {csv} -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
+        f'--database-url "${{URL}}" --non-interactive || echo "WARN register {label}"',
+        f'{pub_tool} {csv} -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
+        f'--database-url "${{URL}}" --non-interactive || echo "WARN pub {label}"',
+    ]
+
+
+def _cli_block(cfg: Config, *, label: str, command: str, timeout_var: str,
+               csv: str, pub_tool: str) -> str:
+    """Run a saib-* benchmark CLI under a timeout, then optionally register+publish
+    its CSV. The pt and llm workloads are the same shape modulo command/CSV/tool."""
     lines = [
-        'echo "== [pt] running (timeout ${PT_TIMEOUT}s) =="',
-        f'timeout -k 60 "${{PT_TIMEOUT}}" saib-pt{args}{publish_args} || echo "WARN saib-pt rc=$?"',
+        f'echo "== [{label}] running (timeout ${{{timeout_var}}}s) =="',
+        f'timeout -k 60 "${{{timeout_var}}}" {command}{_publish_args(cfg)} '
+        f'|| echo "WARN {command.split()[0]} rc=$?"',
     ]
     if cfg.publish:
-        lines += [
-            'saib-register results_pt.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN register pt"',
-            'saib-pub results_pt.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN pub pt"',
-        ]
+        lines += _register_publish_lines(csv, pub_tool, label)
     return "\n".join(lines)
+
+
+def _pt_block(cfg: Config) -> str:
+    command = "saib-pt" + (f" {cfg.pt_args}" if cfg.pt_args else "")
+    return _cli_block(cfg, label="pt", command=command, timeout_var="PT_TIMEOUT",
+                      csv="results_pt.csv", pub_tool="saib-pub")
 
 
 def _llm_block(cfg: Config) -> str:
-    args = f" {cfg.llm_args}" if cfg.llm_args else ""
-    publish_args = (
-        ' --publish-each --non-interactive --database-url "${URL}"'
-        if cfg.publish
-        else ""
-    )
-    lines = [
-        'echo "== [llm] running (timeout ${LLM_TIMEOUT}s) =="',
-        f'timeout -k 60 "${{LLM_TIMEOUT}}" saib-llm{args}{publish_args} || echo "WARN saib-llm rc=$?"',
-    ]
-    if cfg.publish:
-        lines += [
-            'saib-register llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN register llm"',
-            'saib-pub-llm llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN pub llm"',
-        ]
-    return "\n".join(lines)
+    command = "saib-llm" + (f" {cfg.llm_args}" if cfg.llm_args else "")
+    return _cli_block(cfg, label="llm", command=command, timeout_var="LLM_TIMEOUT",
+                      csv="llm_results.csv", pub_tool="saib-pub-llm")
+
+
+@dataclass(frozen=True)
+class _VllmPrecision:
+    serve_quant_flag: str        # appended after `vllm serve "model"`
+    env_prefix: str              # inline env for the serve command (FlashInfer fp4)
+    compute_precision: str       # saib-llm --compute-precision value
+    quantization: str            # saib-llm --quantization metadata
+    uses_nvfp4_checkpoint: bool  # serve cfg.vllm_nvfp4_model instead of vllm_model
+    requires_blackwell: bool     # leg is gated to Blackwell hosts
+    pins: str                    # vLLM pip pins this precision needs
+
+
+# Single source of truth for every vLLM precision leg: serve flags, gating, pins,
+# and the recorded metadata. Adding a precision is one entry here (+ an alias).
+_VLLM_PRECISIONS = {
+    "bf16": _VllmPrecision("", "", "bf16", "none", False, False, VLLM_PINS),
+    "fp8": _VllmPrecision(" --quantization fp8", "", "fp8", "fp8", False, False, VLLM_PINS),
+    "fp4": _VllmPrecision(
+        " --quantization modelopt_fp4", VLLM_FP4_ENV, "fp4", "nvfp4",
+        True, True, VLLM_PINS_FP4,
+    ),
+}
+# Accepted CLI spellings that map onto a canonical precision key.
+_VLLM_PRECISION_ALIASES = {"nvfp4": "fp4"}
 
 
 def _normalize_precision(p: str) -> str:
     p = p.strip().lower()
-    return "fp4" if p in ("fp4", "nvfp4") else p
+    return _VLLM_PRECISION_ALIASES.get(p, p)
+
+
+def _vllm_served_model(cfg: Config, spec: _VllmPrecision) -> str:
+    return cfg.vllm_nvfp4_model if spec.uses_nvfp4_checkpoint else cfg.vllm_model
 
 
 def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
     """Return (effective, skipped) precision legs for the vLLM workload.
 
-    fp4 (NVFP4) is gated: it needs a Blackwell GPU *and* a pre-quantized checkpoint
-    (--vllm-nvfp4-model). On any other host, or without the checkpoint, the fp4 leg
-    is skipped (and reported) rather than launched into a guaranteed failure."""
+    Unknown precisions raise (a typo like 'int8' must not silently fall through to
+    a bf16 server with bf16 metadata). A precision is skipped (and reported) rather
+    than launched into a guaranteed failure when its gating isn't met: fp4 (NVFP4)
+    needs a Blackwell GPU *and* a pre-quantized checkpoint (--vllm-nvfp4-model)."""
     blackwell = is_blackwell(cfg.gpus[0] if cfg.gpus else "")
     effective: List[str] = []
     skipped: List[str] = []
@@ -315,7 +350,17 @@ def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
         if not raw.strip():
             continue
         p = _normalize_precision(raw)
-        if p == "fp4" and not (blackwell and cfg.vllm_nvfp4_model):
+        spec = _VLLM_PRECISIONS.get(p)
+        if spec is None:
+            raise SystemExit(
+                f"Unknown --vllm-precisions value '{raw.strip()}'. "
+                f"Choose from: {', '.join(_VLLM_PRECISIONS)} "
+                f"(aliases: {', '.join(_VLLM_PRECISION_ALIASES)})."
+            )
+        gated = (spec.requires_blackwell and not blackwell) or (
+            spec.uses_nvfp4_checkpoint and not cfg.vllm_nvfp4_model
+        )
+        if gated:
             if p not in skipped:
                 skipped.append(p)
             continue
@@ -324,24 +369,19 @@ def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
     return effective, skipped
 
 
-def _vllm_precision_spec(cfg: Config, precision: str):
-    """Map a precision leg to (served_model, serve_quant_flag, env_prefix,
-    compute_precision, quantization_metadata, accelerator_label)."""
-    if precision == "fp4":
-        return (cfg.vllm_nvfp4_model, " --quantization modelopt_fp4",
-                VLLM_FP4_ENV, "fp4", "nvfp4", "vllm-fp4")
-    if precision == "fp8":
-        return (cfg.vllm_model, " --quantization fp8", "", "fp8", "fp8", "vllm-fp8")
-    # bf16 / baseline: native half precision, no quant flag.
-    return (cfg.vllm_model, "", "", "bf16", "none", "vllm-bf16")
-
-
 def _vllm_leg(cfg: Config, precision: str) -> List[str]:
     """Lines that serve one precision, benchmark it over openai-compatible, publish
     its own per-precision CSV, and tear the server down before the next leg."""
-    model, quant_serve, env, compute_precision, quant_meta, accel = _vllm_precision_spec(
-        cfg, precision
-    )
+    spec = _VLLM_PRECISIONS[precision]
+    model = _vllm_served_model(cfg, spec)
+    quant_serve = spec.serve_quant_flag
+    env = spec.env_prefix
+    compute_precision = spec.compute_precision
+    quant_meta = spec.quantization
+    # Record the real GPU as the accelerator (the precision is already carried in
+    # --compute-precision/--quantization); a "vllm-fp8" label would overwrite the
+    # hardware field and lose which GPU produced the numbers.
+    accel = cfg.gpus[0] if cfg.gpus else "vllm"
     base = f"http://localhost:{VLLM_PORT}"
     out_base = f"llm_results_vllm_{precision}"
     log_file = f"/workspace/vllm_{precision}.log"
@@ -376,12 +416,9 @@ def _vllm_leg(cfg: Config, precision: str) -> List[str]:
         'wait "$VLLM_PID" 2>/dev/null || true',
     ]
     if cfg.publish:
-        lines += [
-            f'saib-register {out_base}.csv -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
-            f'--database-url "${{URL}}" --non-interactive || echo "WARN register vllm[{precision}]"',
-            f'saib-pub-llm {out_base}.csv -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
-            f'--database-url "${{URL}}" --non-interactive || echo "WARN pub vllm[{precision}]"',
-        ]
+        lines += _register_publish_lines(
+            f"{out_base}.csv", "saib-pub-llm", f"vllm[{precision}]"
+        )
     return lines
 
 
@@ -391,7 +428,10 @@ def _vllm_block(cfg: Config) -> str:
     cache and the quantization kernels; SAIB drives the HTTP API and publishes each
     precision as its own comparable result (served_by=vllm)."""
     effective, skipped = resolve_vllm_precisions(cfg)
-    pins = VLLM_PINS_FP4 if "fp4" in effective else VLLM_PINS
+    # Install the strictest pin set any effective leg needs (fp4 raises the floor).
+    pins = VLLM_PINS
+    if any(_VLLM_PRECISIONS[p].pins == VLLM_PINS_FP4 for p in effective):
+        pins = VLLM_PINS_FP4
     lines = [
         'echo "== [vllm] installing vLLM =="',
         f"pip install {pins} || echo 'WARN vllm install failed'",
@@ -412,9 +452,6 @@ def build_container_script(cfg: Config) -> str:
     """The bash exec'd by the pod's dockerStartCmd. The DB token is read from the
     pod env (``AI_BENCHMARK_DATABASE_TOKEN``), never interpolated into the text, so
     it is not baked into the script string."""
-    pip_requirements = [f'"{cfg.pip_spec}"']
-    pip_index_args = ""
-
     blocks = [
         _THREAD_CAPS,
         _SELF_TERMINATE if not cfg.keep else 'echo "== --keep: pod will NOT self-terminate =="',
@@ -423,7 +460,7 @@ def build_container_script(cfg: Config) -> str:
         f'LLM_TIMEOUT="{cfg.llm_timeout}"',
         'echo "== installing SAIB =="',
         "python -m pip install --upgrade pip",
-        f"pip install{pip_index_args} {' '.join(pip_requirements)}",
+        f'pip install "{cfg.pip_spec}"',
     ]
     if cfg.workload in ("pt", "both"):
         blocks.append(_pt_block(cfg))

@@ -53,6 +53,7 @@ class LLMBenchmarkData:
     benchmark_runner_id: str
     benchmark_runner_hash: str
     benchmark_payload_hash: str
+    serving_engine: str = ""
 
     def to_dict(self) -> dict:
         return self.__dict__
@@ -128,6 +129,8 @@ def read_csv_and_create_llm_benchmark_dataset(
                     benchmark_runner_id=row["bench_info_benchmark_runner_id"],
                     benchmark_runner_hash=row["bench_info_benchmark_runner_hash"],
                     benchmark_payload_hash=row["bench_info_benchmark_payload_hash"],
+                    # Spec-2.3 identity dimension; absent in pre-2.3 CSVs -> "".
+                    serving_engine=row.get("bench_info_serving_engine", ""),
                 )
             )
 
