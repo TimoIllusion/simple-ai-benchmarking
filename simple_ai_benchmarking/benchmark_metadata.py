@@ -22,7 +22,11 @@ SPEC_VERSION = "2.1"
 # backends stay comparable.
 # Bumped 2.1 -> 2.2 alongside the default thread-pool caps (OMP/BLAS/MKL=8), which
 # change measured throughput; 2.2 results carry fresh profile hashes.
-LLM_SPEC_VERSION = "2.2"
+# Bumped 2.2 -> 2.3 when serving_engine joined the profile: the engine that served
+# the model (vllm / ollama / pytorch / openai) is now part of the benchmark
+# identity, so results are grouped per engine even when they share the
+# openai-compatible protocol. 2.3 results carry fresh profile hashes.
+LLM_SPEC_VERSION = "2.3"
 
 CV_RUNNER_ID = "saib.cv.classification.v2"
 LLM_RUNNER_ID = "saib.llm.generation.v2"
@@ -83,12 +87,14 @@ def build_llm_profile(
     prompt_tokens: int,
     generated_tokens: int,
     concurrency: int,
+    serving_engine: str = "",
 ) -> Dict[str, Any]:
     return {
         "benchmark_family": LLM_BENCHMARK_FAMILY,
         "benchmark_spec_name": LLM_SPEC_NAME,
         "benchmark_spec_version": LLM_SPEC_VERSION,
         "backend_protocol_class": backend,
+        "serving_engine": serving_engine,
         "model": model,
         "benchmark_type": benchmark_type,
         "prompt_token_target": int(prompt_tokens),
@@ -107,8 +113,11 @@ def build_llm_profile(
 
 
 def build_llm_profile_id(profile: Mapping[str, Any]) -> str:
+    # serving_engine is part of the id so e.g. a vLLM-served and an OpenAI-served
+    # run over the same openai-compatible protocol get distinct, readable ids.
+    engine = profile.get("serving_engine") or "na"
     return (
-        f"llm_{profile['backend_protocol_class']}_{profile['model']}_"
+        f"llm_{profile['backend_protocol_class']}_{engine}_{profile['model']}_"
         f"{profile['benchmark_type']}_p{profile['prompt_token_target']}_"
         f"g{profile['generated_token_target']}_ctx{profile['context_length']}_"
         f"c{profile['concurrency']}_v2"

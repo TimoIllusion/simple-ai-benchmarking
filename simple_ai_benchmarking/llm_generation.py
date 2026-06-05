@@ -117,6 +117,13 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--ai-framework-version", default="")
     parser.add_argument("--ai-framework-extra-info", default="")
     parser.add_argument("--accelerator", default="unknown")
+    parser.add_argument(
+        "--served-by",
+        default="",
+        help="Engine that serves the model, recorded in the benchmark identity "
+        "(e.g. 'vllm' when benchmarking a vLLM server over --backend "
+        "openai-compatible). Default: derived from the backend.",
+    )
     parser.add_argument("--weight-source", default="")
     parser.add_argument("--device", default=None)
     parser.add_argument("--vocab-size", type=int, default=32000)
@@ -231,6 +238,7 @@ def build_generation_config_from_args(
         quantization=quantization,
         weight_source=weight_source,
         accelerator=accelerator,
+        served_by=args.served_by,
         ai_framework_version=ai_framework_version,
         ai_framework_extra_info=ai_framework_extra_info,
         model_params=args.model_params,

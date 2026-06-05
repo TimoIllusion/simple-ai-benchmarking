@@ -33,6 +33,7 @@ class LLMBenchInfo:
     concurrency: int
     date: str
     weight_source: str = ""
+    serving_engine: str = ""
     benchmark_family: str = field(init=False)
     benchmark_spec_name: str = field(init=False)
     benchmark_spec_version: str = field(init=False)
@@ -54,6 +55,7 @@ class LLMBenchInfo:
             prompt_tokens=self.prompt_tokens,
             generated_tokens=self.generated_tokens,
             concurrency=self.concurrency,
+            serving_engine=self.serving_engine,
         )
         assign_benchmark_identity(
             self,
@@ -129,6 +131,7 @@ class LLMBenchmarkLogger(BaseBenchmarkLogger):
         header = [
             "#RUN",
             "Backend",
+            "Engine",
             "Model",
             "Accelerator",
             "Precision",
@@ -146,6 +149,7 @@ class LLMBenchmarkLogger(BaseBenchmarkLogger):
                 [
                     str(i),
                     result.bench_info.backend,
+                    result.bench_info.serving_engine or "-",
                     result.bench_info.model,
                     result.hw_info.accelerator,
                     result.bench_info.compute_precision,

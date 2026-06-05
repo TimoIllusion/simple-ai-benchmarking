@@ -102,15 +102,41 @@ LLM_W_DEFAULT = "0 1"
 # paged-attention KV cache and the low-bit kernels; SAIB only drives it over HTTP via
 # the openai-compatible backend, so no torchao and no SAIB [pt] extra are involved.
 # This is a separate, opt-in workload -- never part of the default `saib-llm` run.
+# One pod serves the model and benchmarks several precisions in sequence (a fresh
+# server per precision, since quantization is a launch-time flag) so bf16 vs fp8 vs
+# fp4 are compared apples-to-apples on the same GPU.
+#  - bf16: native half precision, the baseline.
 #  - fp8: online dynamic FP8_E4M3 quant of the bf16 weights; Ada (SM 8.9+) or Blackwell.
-#  - nvfp4: needs a pre-quantized ModelOpt NVFP4 checkpoint AND a Blackwell GPU; pass
-#    the checkpoint repo id via --vllm-model (vLLM auto-detects modelopt_fp4).
-# Qwen2.5-0.5B-Instruct is ~1 GB (downloads in seconds) yet a realistic decoder-only
-# LM (GQA, RoPE, SwiGLU), so it exercises a true KV-cache decode path.
-VLLM_DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
-VLLM_DEFAULT_QUANT = "fp8"
+#  - fp4 (NVFP4): needs a pre-quantized ModelOpt NVFP4 checkpoint AND a Blackwell GPU
+#    (served with --quantization modelopt_fp4); gated to Blackwell + --vllm-nvfp4-model.
+# The 7B Instruct model is the throughput-bound regime where quantization actually
+# pays off (a 0.5B at low concurrency is overhead-bound and shows ~no fp8 gain).
+VLLM_DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+VLLM_DEFAULT_PRECISIONS = "bf16,fp8"
 VLLM_PORT = 8000
 VLLM_MAX_MODEL_LEN = 4096
+VLLM_DEFAULT_DISK_GB = 60  # 7B weights + vLLM + HF cache; 40 GB hits Errno 28.
+
+# Benchmark shape for the vLLM legs: a throughput-bound regime (high concurrency,
+# short prompt/gen) where fp8/fp4 separate clearly from bf16.
+VLLM_REQUESTS = 128
+VLLM_CONCURRENCY = 64
+VLLM_PROMPT_TOKENS = 256
+VLLM_GENERATED_TOKENS = 256
+
+# Pinned vLLM stack (validated on Blackwell sm_120). transformers has no upper bound
+# in vLLM's own deps, so pip otherwise grabs 5.x and breaks the tokenizer; hf_transfer
+# is required when the image sets HF_HUB_ENABLE_HF_TRANSFER=1. vLLM 0.11.0 has reliable
+# SM120 fp8/bf16; NVFP4 dense SM120 kernels are only reliable from 0.13.0, so the fp4
+# leg raises the floor.
+VLLM_PINS = '"vllm==0.11.0" "transformers==4.57.1" hf_transfer'
+VLLM_PINS_FP4 = '"vllm>=0.13.0" "transformers==4.57.1" hf_transfer'
+# FlashInfer must be told the target is SM120 explicitly for the NVFP4 path.
+VLLM_FP4_ENV = (
+    "FLASHINFER_CUDA_ARCH_LIST=12.0f FLASHINFER_FORCE_SM=120f "
+    "FLASHINFER_DISABLE_VERSION_CHECK=1 "
+)
+
 # vLLM ships its own torch build, so install SAIB without the [pt] extra (the
 # openai-compatible client is pure HTTP) to avoid fighting over torch/transformers.
 VLLM_SAIB_SPEC = (
@@ -141,8 +167,13 @@ class Config:
     pt_args: str
     llm_args: str
     vllm_model: str
-    vllm_quant: str
+    vllm_precisions: str
+    vllm_nvfp4_model: str
     vllm_max_model_len: int
+    vllm_requests: int
+    vllm_concurrency: int
+    vllm_prompt_tokens: int
+    vllm_generated_tokens: int
     database_url: str
     disk_gb: int
     cloud_type: str
@@ -154,6 +185,7 @@ class Config:
     image_was_set: bool = False
     pip_was_set: bool = False
     llm_args_was_set: bool = False
+    disk_was_set: bool = False
 
 
 # --------------------------------------------------------------------------- #
@@ -179,6 +211,8 @@ def resolve_profile(cfg: Config) -> None:
             cfg.image = BLACKWELL_IMAGE
         if not cfg.pip_was_set:
             cfg.pip_spec = VLLM_SAIB_SPEC
+        if not cfg.disk_was_set:
+            cfg.disk_gb = VLLM_DEFAULT_DISK_GB
         return
 
     if not cfg.image_was_set:
@@ -263,20 +297,54 @@ def _llm_block(cfg: Config) -> str:
     return "\n".join(lines)
 
 
-def _vllm_block(cfg: Config) -> str:
-    """Serve a small model with vLLM (FP8/FP4) and benchmark it through SAIB's
-    openai-compatible backend. vLLM owns the KV cache and the quantization kernels;
-    SAIB just drives the HTTP API and publishes the result like any other LLM run."""
-    quant = (cfg.vllm_quant or "none").lower()
-    quant_arg = "" if quant == "none" else f" --quantization {quant}"
-    accel = "vllm-bf16" if quant == "none" else f"vllm-{quant}"
-    model = cfg.vllm_model
-    base = f"http://localhost:{VLLM_PORT}"
-    publish_args = (
-        ' --publish-each --non-interactive --database-url "${URL}"'
-        if cfg.publish
-        else ""
+def _normalize_precision(p: str) -> str:
+    p = p.strip().lower()
+    return "fp4" if p in ("fp4", "nvfp4") else p
+
+
+def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
+    """Return (effective, skipped) precision legs for the vLLM workload.
+
+    fp4 (NVFP4) is gated: it needs a Blackwell GPU *and* a pre-quantized checkpoint
+    (--vllm-nvfp4-model). On any other host, or without the checkpoint, the fp4 leg
+    is skipped (and reported) rather than launched into a guaranteed failure."""
+    blackwell = is_blackwell(cfg.gpus[0] if cfg.gpus else "")
+    effective: List[str] = []
+    skipped: List[str] = []
+    for raw in cfg.vllm_precisions.split(","):
+        if not raw.strip():
+            continue
+        p = _normalize_precision(raw)
+        if p == "fp4" and not (blackwell and cfg.vllm_nvfp4_model):
+            if p not in skipped:
+                skipped.append(p)
+            continue
+        if p not in effective:
+            effective.append(p)
+    return effective, skipped
+
+
+def _vllm_precision_spec(cfg: Config, precision: str):
+    """Map a precision leg to (served_model, serve_quant_flag, env_prefix,
+    compute_precision, quantization_metadata, accelerator_label)."""
+    if precision == "fp4":
+        return (cfg.vllm_nvfp4_model, " --quantization modelopt_fp4",
+                VLLM_FP4_ENV, "fp4", "nvfp4", "vllm-fp4")
+    if precision == "fp8":
+        return (cfg.vllm_model, " --quantization fp8", "", "fp8", "fp8", "vllm-fp8")
+    # bf16 / baseline: native half precision, no quant flag.
+    return (cfg.vllm_model, "", "", "bf16", "none", "vllm-bf16")
+
+
+def _vllm_leg(cfg: Config, precision: str) -> List[str]:
+    """Lines that serve one precision, benchmark it over openai-compatible, publish
+    its own per-precision CSV, and tear the server down before the next leg."""
+    model, quant_serve, env, compute_precision, quant_meta, accel = _vllm_precision_spec(
+        cfg, precision
     )
+    base = f"http://localhost:{VLLM_PORT}"
+    out_base = f"llm_results_vllm_{precision}"
+    log_file = f"/workspace/vllm_{precision}.log"
     # Readiness probe via python (guaranteed present in every pytorch image; curl is
     # not), exit 0 only on HTTP 200 from /health.
     health = (
@@ -285,31 +353,58 @@ def _vllm_block(cfg: Config) -> str:
         'else 1)"'
     )
     lines = [
-        'echo "== [vllm] installing vLLM =="',
-        "pip install vllm || echo 'WARN vllm install failed'",
-        f'echo "== [vllm] serving {model} (quant={quant}) on port {VLLM_PORT} =="',
-        # Background server; logs to a file. vLLM exposes /health once it is ready.
-        f'vllm serve "{model}"{quant_arg} --port {VLLM_PORT} '
+        f'echo "== [vllm:{precision}] serving {model} on port {VLLM_PORT} =="',
+        # Background server; logs to a per-precision file. /health flips to 200 ready.
+        f'{env}vllm serve "{model}"{quant_serve} --port {VLLM_PORT} '
         f"--max-model-len {cfg.vllm_max_model_len} --download-dir /workspace/hf "
-        "> /workspace/vllm.log 2>&1 &",
+        f"> {log_file} 2>&1 &",
         "VLLM_PID=$!",
-        'echo "== [vllm] waiting for server (up to ~10 min: download + load) =="',
-        f"for i in $(seq 1 120); do {health} >/dev/null 2>&1 && break; sleep 5; done",
+        f'echo "== [vllm:{precision}] waiting for server (up to ~15 min: download + load) =="',
+        f"for i in $(seq 1 180); do {health} >/dev/null 2>&1 && break; sleep 5; done",
         f'{health} >/dev/null 2>&1 '
-        '|| { echo "WARN vllm server not ready"; tail -n 60 /workspace/vllm.log; }',
-        'echo "== [vllm] running benchmark (timeout ${LLM_TIMEOUT}s) =="',
+        f'|| {{ echo "WARN vllm[{precision}] not ready"; tail -n 60 {log_file}; }}',
+        f'echo "== [vllm:{precision}] running benchmark (timeout ${{LLM_TIMEOUT}}s) =="',
         f'timeout -k 60 "${{LLM_TIMEOUT}}" saib-llm --backend openai-compatible '
-        f'--base-url "{base}" --model "{model}" --accelerator "{accel}"{publish_args} '
-        '|| echo "WARN saib-llm vllm rc=$?"',
+        f'--base-url "{base}" --model "{model}" --served-by vllm '
+        f'--accelerator "{accel}" --compute-precision {compute_precision} '
+        f"--quantization {quant_meta} --requests {cfg.vllm_requests} "
+        f"--concurrency {cfg.vllm_concurrency} --prompt-tokens {cfg.vllm_prompt_tokens} "
+        f"--generated-tokens {cfg.vllm_generated_tokens} --out-file-base {out_base} "
+        f'|| echo "WARN saib-llm vllm[{precision}] rc=$?"',
+        # Stop the server and wait for the port to free before the next precision.
         'kill "$VLLM_PID" >/dev/null 2>&1 || true',
+        'wait "$VLLM_PID" 2>/dev/null || true',
     ]
     if cfg.publish:
         lines += [
-            'saib-register llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN register vllm"',
-            'saib-pub-llm llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN pub vllm"',
+            f'saib-register {out_base}.csv -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
+            f'--database-url "${{URL}}" --non-interactive || echo "WARN register vllm[{precision}]"',
+            f'saib-pub-llm {out_base}.csv -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
+            f'--database-url "${{URL}}" --non-interactive || echo "WARN pub vllm[{precision}]"',
         ]
+    return lines
+
+
+def _vllm_block(cfg: Config) -> str:
+    """Serve the model with vLLM and benchmark several precisions in sequence
+    (bf16, fp8, fp4) through SAIB's openai-compatible backend. vLLM owns the KV
+    cache and the quantization kernels; SAIB drives the HTTP API and publishes each
+    precision as its own comparable result (served_by=vllm)."""
+    effective, skipped = resolve_vllm_precisions(cfg)
+    pins = VLLM_PINS_FP4 if "fp4" in effective else VLLM_PINS
+    lines = [
+        'echo "== [vllm] installing vLLM =="',
+        f"pip install {pins} || echo 'WARN vllm install failed'",
+    ]
+    for p in skipped:
+        lines.append(
+            f'echo "== [vllm] skipping {p}: needs a Blackwell GPU and --vllm-nvfp4-model =="'
+        )
+    if not effective:
+        lines.append('echo "WARN no vllm precisions to run"')
+        return "\n".join(lines)
+    for precision in effective:
+        lines += _vllm_leg(cfg, precision)
     return "\n".join(lines)
 
 
@@ -436,9 +531,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--workload", choices=["pt", "llm", "vllm", "both"], default="both",
-        help="Which benchmark(s) to run on the pod (default: both). 'vllm' serves a "
-        "small model with vLLM (FP8/FP4) and benchmarks it via the openai-compatible "
-        "backend; it is standalone (not part of 'both').",
+        help="Which benchmark(s) to run on the pod (default: both). 'vllm' serves "
+        "the model with vLLM and benchmarks several precisions (bf16/fp8/fp4) in "
+        "sequence via the openai-compatible backend; it is standalone (not part of "
+        "'both').",
     )
     parser.add_argument(
         "--image", default=None,
@@ -455,21 +551,38 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--vllm-model", default=VLLM_DEFAULT_MODEL,
-        help=f"Model served by vLLM for --workload vllm. Default: {VLLM_DEFAULT_MODEL} "
-        "(small, ungated). For nvfp4 pass a pre-quantized ModelOpt NVFP4 checkpoint.",
+        help=f"Model served by vLLM for the bf16/fp8 legs of --workload vllm. "
+        f"Default: {VLLM_DEFAULT_MODEL}.",
     )
     parser.add_argument(
-        "--vllm-quant", default=VLLM_DEFAULT_QUANT,
-        help="vLLM quantization for --workload vllm: 'fp8' (online, Ada/Blackwell), "
-        "'nvfp4' (pre-quantized checkpoint, Blackwell only), or 'none' (bf16). "
-        f"Default: {VLLM_DEFAULT_QUANT}.",
+        "--vllm-precisions", default=VLLM_DEFAULT_PRECISIONS,
+        help="Comma-separated precisions to benchmark in sequence on one pod: "
+        "'bf16', 'fp8', 'fp4' (a fresh vLLM server per precision). fp4/NVFP4 is "
+        "gated to Blackwell + --vllm-nvfp4-model and otherwise skipped. "
+        f"Default: {VLLM_DEFAULT_PRECISIONS}.",
+    )
+    parser.add_argument(
+        "--vllm-nvfp4-model", default="",
+        help="Pre-quantized ModelOpt NVFP4 checkpoint repo id, served for the fp4 "
+        "leg (Blackwell only). Required to include fp4 in --vllm-precisions.",
     )
     parser.add_argument(
         "--vllm-max-model-len", type=int, default=VLLM_MAX_MODEL_LEN,
         help=f"Max model/context length for the vLLM server (default: {VLLM_MAX_MODEL_LEN}).",
     )
+    parser.add_argument("--vllm-requests", type=int, default=VLLM_REQUESTS,
+                        help=f"Measured requests per vLLM leg (default: {VLLM_REQUESTS}).")
+    parser.add_argument("--vllm-concurrency", type=int, default=VLLM_CONCURRENCY,
+                        help=f"In-flight concurrent requests per vLLM leg (default: {VLLM_CONCURRENCY}).")
+    parser.add_argument("--vllm-prompt-tokens", type=int, default=VLLM_PROMPT_TOKENS,
+                        help=f"Prompt length per vLLM leg (default: {VLLM_PROMPT_TOKENS}).")
+    parser.add_argument("--vllm-generated-tokens", type=int, default=VLLM_GENERATED_TOKENS,
+                        help=f"Generation length per vLLM leg (default: {VLLM_GENERATED_TOKENS}).")
     parser.add_argument("--database-url", default=DEFAULT_DATABASE_URL)
-    parser.add_argument("--disk-gb", type=int, default=40)
+    parser.add_argument(
+        "--disk-gb", type=int, default=None,
+        help="Container disk in GB. Default: 40, or 60 for --workload vllm (7B + vLLM).",
+    )
     parser.add_argument("--cloud-type", choices=["SECURE", "COMMUNITY"], default="SECURE")
     parser.add_argument(
         "--capacity-wait", type=int, default=0,
@@ -501,10 +614,15 @@ def build_config(args: argparse.Namespace) -> Config:
         pt_args=args.pt_args,
         llm_args=args.llm_args or "",
         vllm_model=args.vllm_model,
-        vllm_quant=args.vllm_quant,
+        vllm_precisions=args.vllm_precisions,
+        vllm_nvfp4_model=args.vllm_nvfp4_model,
         vllm_max_model_len=args.vllm_max_model_len,
+        vllm_requests=args.vllm_requests,
+        vllm_concurrency=args.vllm_concurrency,
+        vllm_prompt_tokens=args.vllm_prompt_tokens,
+        vllm_generated_tokens=args.vllm_generated_tokens,
         database_url=args.database_url,
-        disk_gb=args.disk_gb,
+        disk_gb=args.disk_gb if args.disk_gb is not None else 40,
         cloud_type=args.cloud_type,
         publish=not args.no_publish,
         keep=args.keep,
@@ -514,6 +632,7 @@ def build_config(args: argparse.Namespace) -> Config:
         image_was_set=args.image is not None,
         pip_was_set=args.pip_spec is not None,
         llm_args_was_set=args.llm_args is not None,
+        disk_was_set=args.disk_gb is not None,
     )
     resolve_profile(cfg)
     return cfg
@@ -529,8 +648,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         log(f"pip-spec: {cfg.pip_spec}")
         log(f"pt-args: '{cfg.pt_args}'  llm-args: '{cfg.llm_args}'  publish: {cfg.publish}")
         if cfg.workload == "vllm":
-            log(f"vllm-model: {cfg.vllm_model}  vllm-quant: {cfg.vllm_quant}  "
-                f"max-model-len: {cfg.vllm_max_model_len}")
+            effective, skipped = resolve_vllm_precisions(cfg)
+            log(f"vllm-model: {cfg.vllm_model}  precisions: {effective}"
+                + (f"  skipped: {skipped}" if skipped else ""))
+            log(f"max-model-len: {cfg.vllm_max_model_len}  disk-gb: {cfg.disk_gb}  "
+                f"shape: r{cfg.vllm_requests}/c{cfg.vllm_concurrency}/"
+                f"p{cfg.vllm_prompt_tokens}/g{cfg.vllm_generated_tokens}")
         print("\n--- container script (dockerStartCmd: bash -lc) ---")
         print(script)
         print("--- end container script ---")

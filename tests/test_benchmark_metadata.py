@@ -5,6 +5,7 @@ from simple_ai_benchmarking.benchmark_metadata import (
     build_cv_profile,
     build_cv_profile_id,
     build_llm_profile,
+    build_llm_profile_id,
     canonical_hash,
 )
 from simple_ai_benchmarking.llm_results import (
@@ -158,8 +159,30 @@ def test_llm_profile_hash_changes_for_comparability_parameters():
         "context_length": 8192,
         "concurrency": 2,
         "backend_protocol_class": "openai-compatible",
+        "serving_engine": "vllm",
     }.items():
         assert canonical_hash(base) != canonical_hash(dict(base, **{key: value}))
+
+
+def test_llm_serving_engine_distinguishes_same_protocol_runs():
+    # Two runs over the same openai-compatible protocol but different engines must
+    # get distinct profile identities (e.g. a vLLM server vs the OpenAI API).
+    common = dict(
+        backend="openai-compatible",
+        model="Qwen2.5-7B-Instruct",
+        benchmark_type="inference",
+        compute_precision="fp8",
+        quantization="fp8",
+        context_length=4096,
+        prompt_tokens=256,
+        generated_tokens=256,
+        concurrency=64,
+    )
+    vllm = build_llm_profile(serving_engine="vllm", **common)
+    openai = build_llm_profile(serving_engine="openai", **common)
+    assert canonical_hash(vllm) != canonical_hash(openai)
+    assert build_llm_profile_id(vllm) != build_llm_profile_id(openai)
+    assert "vllm" in build_llm_profile_id(vllm)
 
 
 def test_cv_csv_export_contains_benchmark_metadata():

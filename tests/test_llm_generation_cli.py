@@ -140,6 +140,7 @@ def _args(**overrides) -> argparse.Namespace:
         ai_framework_version="",
         ai_framework_extra_info="",
         accelerator="cpu",
+        served_by="",
         weight_source="",
         device="cpu",
         vocab_size=32000,

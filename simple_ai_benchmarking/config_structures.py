@@ -148,6 +148,11 @@ class LLMGenerationConfig:
     quantization: str = "none"
     weight_source: str = "random_weights"
     accelerator: str = "unknown"
+    # Engine that served the model (e.g. "vllm", "ollama", "pytorch"). Empty means
+    # "derive from the backend"; the HTTP backends let a caller (the RunPod vLLM
+    # runner) record which server produced the numbers so they group/compare
+    # cleanly even though they all speak the openai-compatible protocol.
+    served_by: str = ""
     ai_framework_version: str = ""
     ai_framework_extra_info: str = ""
     model_params: int = 0
