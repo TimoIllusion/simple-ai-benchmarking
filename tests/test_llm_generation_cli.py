@@ -153,6 +153,23 @@ def _args(**overrides) -> argparse.Namespace:
     return argparse.Namespace(**defaults)
 
 
+def test_local_backend_rejects_quantization():
+    import pytest
+
+    pytest.importorskip("torch")
+    # Low-bit quantization isn't applied locally; passing it must fail fast rather
+    # than silently record a precision the run never used.
+    with pytest.raises(SystemExit, match="quantization"):
+        build_generation_config_from_args(
+            _args(
+                backend=PYTORCH_GENERATION_BACKEND,
+                model="SimpleTransformerLM",
+                quantization="int8",
+                accelerator="unknown",
+            )
+        )
+
+
 def test_build_generation_config_uses_backend_default_base_url(monkeypatch):
     monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama.test")
 

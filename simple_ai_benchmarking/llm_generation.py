@@ -212,6 +212,15 @@ def build_generation_config_from_args(
         default_precision = "BF16" if backend == HF_CAUSAL_BACKEND else "FP32"
         compute_precision = args.compute_precision or default_precision
         quantization = args.quantization or "none"
+        # Local backends apply no quantization (the torchao path was removed), so
+        # accepting --quantization int8/int4 would silently record a precision the
+        # run never used. Reject it instead of publishing mislabeled data.
+        if quantization != "none":
+            raise SystemExit(
+                f"--quantization '{quantization}' is not supported for the local "
+                f"backend '{backend}'. Low-bit quantization is only available via a "
+                "serving engine (e.g. vLLM) over --backend openai-compatible."
+            )
         weight_source = weight_source or "random_weights"
         if accelerator == "unknown":
             if device_name.startswith("cuda") and torch.cuda.is_available():
