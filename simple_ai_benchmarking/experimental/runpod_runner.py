@@ -450,9 +450,6 @@ def build_container_script(cfg: Config) -> str:
     """The bash exec'd by the pod's dockerStartCmd. The DB token is read from the
     pod env (``AI_BENCHMARK_DATABASE_TOKEN``), never interpolated into the text, so
     it is not baked into the script string."""
-    pip_requirements = [f'"{cfg.pip_spec}"']
-    pip_index_args = ""
-
     blocks = [
         _THREAD_CAPS,
         _SELF_TERMINATE if not cfg.keep else 'echo "== --keep: pod will NOT self-terminate =="',
@@ -461,7 +458,7 @@ def build_container_script(cfg: Config) -> str:
         f'LLM_TIMEOUT="{cfg.llm_timeout}"',
         'echo "== installing SAIB =="',
         "python -m pip install --upgrade pip",
-        f"pip install{pip_index_args} {' '.join(pip_requirements)}",
+        f'pip install "{cfg.pip_spec}"',
     ]
     if cfg.workload in ("pt", "both"):
         blocks.append(_pt_block(cfg))
