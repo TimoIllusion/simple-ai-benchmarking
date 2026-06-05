@@ -16,10 +16,10 @@ SPEC_VERSION = "2.1"
 # v1 aggregate-only latency. v2 results carry their own profile/runner hashes and
 # never mix with v1 rows. Bumped to 2.1 when local-backend concurrency became a
 # batched forward pass (concurrency = batch size) instead of competing threads,
-# changing throughput methodology for the pytorch backend. Newer backends (the
-# KV-cache decoder and the Hugging Face causal-LM backend) keep this spec: they
-# follow the same measurement contract and are distinguished by their own
-# backend_protocol_class in the profile, so existing backends stay comparable.
+# changing throughput methodology for the pytorch backend. The Hugging Face
+# causal-LM backend keeps this spec: it follows the same measurement contract and
+# is distinguished by its own backend_protocol_class in the profile, so existing
+# backends stay comparable.
 # Bumped 2.1 -> 2.2 alongside the default thread-pool caps (OMP/BLAS/MKL=8), which
 # change measured throughput; 2.2 results carry fresh profile hashes.
 LLM_SPEC_VERSION = "2.2"

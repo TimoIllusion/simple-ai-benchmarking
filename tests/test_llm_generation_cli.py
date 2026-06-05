@@ -13,8 +13,7 @@ from simple_ai_benchmarking.workloads.llm_workload import (
 def test_saib_llm_runs_default_local_workloads_with_no_args(monkeypatch):
     # Bare `saib-llm` should build the two default local LM workloads (simple
     # transformer and Hugging Face causal LM), mirroring how `saib-pt` runs several
-    # models. The custom KV-cache decoder and the FP8/FP4 low-bit variants are
-    # excluded from the default run and only available via an explicit --backend.
+    # models. Low-bit (FP8/FP4) benchmarking is out of scope for the local backends.
     import pytest
 
     pytest.importorskip("torch")
@@ -41,37 +40,30 @@ def test_saib_llm_runs_default_local_workloads_with_no_args(monkeypatch):
     assert configs[1].compute_precision == "BF16"
 
 
-def test_saib_llm_excludes_fp8_fp4_from_default_run(monkeypatch):
-    # FP8/FP4 are intentionally not part of the default set, but stay runnable via
-    # an explicit --backend.
-    import pytest
-
-    pytest.importorskip("torch")
+def test_saib_llm_only_supports_the_remaining_backends():
+    # The KV-cache decoder and the torchao FP8/FP4 low-bit backends were removed;
+    # low-bit benchmarking now goes through a serving engine (vLLM) over the
+    # openai-compatible backend.
     from simple_ai_benchmarking.llm_generation import (
         DEFAULT_LLM_BACKENDS,
-        build_generation_configs,
+        SUPPORTED_LLM_BACKENDS,
     )
     from simple_ai_benchmarking.workloads.llm_workload import (
-        HF_CAUSAL_FP4_BACKEND,
-        HF_CAUSAL_FP8_BACKEND,
-        PYTORCH_KV_DECODER_BACKEND,
+        HF_CAUSAL_BACKEND,
+        OLLAMA_BACKEND,
+        OPENAI_COMPATIBLE_BACKEND,
+        PYTORCH_GENERATION_BACKEND,
     )
 
-    assert PYTORCH_KV_DECODER_BACKEND not in DEFAULT_LLM_BACKENDS
-    assert HF_CAUSAL_FP8_BACKEND not in DEFAULT_LLM_BACKENDS
-    assert HF_CAUSAL_FP4_BACKEND not in DEFAULT_LLM_BACKENDS
-
-    # All three excluded backends stay runnable via an explicit --backend.
-    for backend in (
-        PYTORCH_KV_DECODER_BACKEND,
-        HF_CAUSAL_FP8_BACKEND,
-        HF_CAUSAL_FP4_BACKEND,
-    ):
-        monkeypatch.setattr(
-            "sys.argv", ["saib-llm", "--backend", backend, "--device", "cpu"]
-        )
-        configs = build_generation_configs(parse_arguments())
-        assert [c.backend for c in configs] == [backend]
+    assert set(SUPPORTED_LLM_BACKENDS) == {
+        OPENAI_COMPATIBLE_BACKEND,
+        OLLAMA_BACKEND,
+        PYTORCH_GENERATION_BACKEND,
+        HF_CAUSAL_BACKEND,
+    }
+    assert DEFAULT_LLM_BACKENDS == (PYTORCH_GENERATION_BACKEND, HF_CAUSAL_BACKEND)
+    for removed in ("pytorch-kv-decoder", "huggingface-causal-fp8", "huggingface-causal-fp4"):
+        assert removed not in SUPPORTED_LLM_BACKENDS
 
 
 def test_saib_llm_w_flag_selects_subset_of_default_workloads(monkeypatch):

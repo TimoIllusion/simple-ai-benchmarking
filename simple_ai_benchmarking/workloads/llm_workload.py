@@ -19,7 +19,6 @@
 
 import datetime
 import json
-import os
 import time
 from abc import abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -36,36 +35,16 @@ from simple_ai_benchmarking.llm_results import (
 from simple_ai_benchmarking.results import collect_hw_info, collect_sw_info
 from simple_ai_benchmarking.workloads.ai_workload import AIWorkload
 
-# Model configs bundled with the package, keyed by HF repo id with "/" -> "__".
-# Used so the default HF causal backends build their architecture fully offline
-# instead of fetching config.json from huggingface.co, which rate-limits/blocks
-# datacenter IPs (the failure that silently dropped all Qwen LLM results).
-_BUNDLED_CONFIG_DIR = os.path.join(os.path.dirname(__file__), os.pardir, "model_configs")
-
-
-def _resolve_config_source(model_id: str) -> str:
-    """Return a local bundled config directory for known model ids, else the HF
-    repo id (so custom --model values still resolve over the network)."""
-    bundled = os.path.join(_BUNDLED_CONFIG_DIR, model_id.replace("/", "__"))
-    if os.path.isfile(os.path.join(bundled, "config.json")):
-        return os.path.abspath(bundled)
-    return model_id
-
-
 PYTORCH_GENERATION_BACKEND = "pytorch-simple-transformer"
-PYTORCH_KV_DECODER_BACKEND = "pytorch-kv-decoder"
 HF_CAUSAL_BACKEND = "huggingface-causal"
-# Low-bit variants of the Hugging Face backend: the same random-init architecture
-# quantized to FP8 / FP4 (NVFP4) via torchao. They carry their own backend identity
-# (and precision_policy) so results stay comparable per precision.
-HF_CAUSAL_FP8_BACKEND = "huggingface-causal-fp8"
-HF_CAUSAL_FP4_BACKEND = "huggingface-causal-fp4"
 OPENAI_COMPATIBLE_BACKEND = "openai-compatible"
 OLLAMA_BACKEND = "ollama"
 
 # Floating-point precisions applied by a plain dtype cast of the random-weight
-# model (no extra dependency). FP8 and int8/int4 are not dtype casts: they need
-# real low-precision kernels (torchao) and a recent GPU, handled separately.
+# model (no extra dependency). Low-bit formats (FP8/FP4/int8/int4) are not dtype
+# casts -- they need real low-precision kernels and a recent GPU -- and are
+# intentionally out of scope here: do low-bit benchmarking via a serving engine
+# (e.g. vLLM) through the openai-compatible backend.
 PRECISION_TO_DTYPE = {
     "": "float32",
     "FP32": "float32",
@@ -291,185 +270,32 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
         )
 
 
-class _DtypeQuantGeneration(PyTorchLocalGeneration):
-    """Shared precision/quantization handling for the local model backends.
+class HuggingFaceCausalGeneration(PyTorchLocalGeneration):
+    """Local generation on a real Hugging Face causal LM architecture.
 
-    FP32/FP16/BF16 are plain dtype casts of the random-weight model (no extra
-    dependency). FP8/FP4 (compute_precision) and int8/int4 (quantization) use real
-    low-precision kernels via torchao and a recent GPU; without torchao they fail
-    with a clear message instead of silently running at a higher precision."""
+    Builds the model from the repo's config and randomly initialises the weights
+    (no checkpoint download), so it exercises a production architecture (e.g.
+    Qwen) at its true size without a multi-GB checkpoint. `cfg.model` is the
+    Hugging Face repo id (only its config.json is fetched). Uses the model's
+    built-in KV cache: prefill = time-to-first-token, then cached decode.
+    Precision is a plain dtype cast (FP32/FP16/BF16); low-bit precisions are out
+    of scope -- benchmark those via a serving engine (vLLM) over openai-compatible.
+    Requires the optional `transformers` dependency; if it is missing the workload
+    simply fails (and the surrounding run continues with the other workloads)."""
 
-    _SUPPORTED_PRECISIONS = ("FP32", "FP16", "BF16", "FP8", "FP4")
-    _SUPPORTED_QUANTIZATIONS = ("none", "int8", "int4")
-
-    def _precision(self) -> str:
-        return (self.cfg.compute_precision or "FP32").upper()
-
-    def _quantization(self) -> str:
-        return (self.cfg.quantization or "none").lower()
+    _SUPPORTED_PRECISIONS = ("FP32", "FP16", "BF16")
 
     def _resolve_base_dtype(self):
-        precision = self._precision()
-        if precision in ("FP8", "FP4"):
-            # The module is built in bf16; torchao casts the Linear layers to the
-            # low-bit float format (fp8 / nvfp4).
-            return self._torch.bfloat16
+        precision = (self.cfg.compute_precision or "FP32").upper()
         dtype_name = PRECISION_TO_DTYPE.get(precision)
         if dtype_name is None:
             raise ValueError(
                 f"Unsupported compute precision '{self.cfg.compute_precision}' for "
                 f"{self._get_backend()}. Choose one of: "
-                f"{', '.join(self._SUPPORTED_PRECISIONS)}."
+                f"{', '.join(self._SUPPORTED_PRECISIONS)}. Use a serving engine "
+                "(e.g. vLLM) over the openai-compatible backend for FP8/FP4."
             )
         return getattr(self._torch, dtype_name)
-
-    def _apply_precision_quant(self, model):
-        """Apply FP8 / int8 / int4 via torchao when requested; otherwise no-op.
-
-        Call after the model is on its target device. Param counting should happen
-        before this, since quantization swaps in tensor-subclass weights."""
-        precision = self._precision()
-        quantization = self._quantization()
-        if quantization not in self._SUPPORTED_QUANTIZATIONS:
-            raise ValueError(
-                f"Unsupported quantization '{self.cfg.quantization}' for "
-                f"{self._get_backend()}. Choose one of: "
-                f"{', '.join(self._SUPPORTED_QUANTIZATIONS)}."
-            )
-        if precision not in ("FP8", "FP4") and quantization == "none":
-            return model
-        try:
-            from torchao.quantization import quantize_
-
-            try:
-                # torchao >= 0.x Config-class API.
-                from torchao.quantization import (
-                    Float8DynamicActivationFloat8WeightConfig,
-                    Int4WeightOnlyConfig as int4_config,
-                    Int8WeightOnlyConfig as int8_config,
-                    PerRow,
-                )
-                # Per-row is torchao's recommended FP8 inference recipe and the
-                # recipe used for its published LLM inference benchmarks.
-                fp8_config = Float8DynamicActivationFloat8WeightConfig(
-                    granularity=PerRow()
-                )
-            except ImportError:
-                # Older function-style API.
-                from torchao.quantization import (
-                    float8_dynamic_activation_float8_weight as fp8_config,
-                    int4_weight_only as int4_config,
-                    int8_weight_only as int8_config,
-                )
-        except ImportError as exc:
-            raise NotImplementedError(
-                f"compute_precision='{self.cfg.compute_precision}' / "
-                f"quantization='{self.cfg.quantization}' on {self._get_backend()} "
-                "needs torchao and a recent GPU: pip install torchao. "
-                "FP32/FP16/BF16 work without it."
-            ) from exc
-        if precision == "FP8":
-            if callable(fp8_config):
-                fp8_config = fp8_config()
-            quantize_(model, fp8_config)
-        elif precision == "FP4":
-            # NVFP4 is a torchao prototype and needs an NVIDIA Blackwell (SM100)
-            # GPU; a missing/older torchao surfaces as the same NotImplementedError.
-            try:
-                from torchao.prototype.mx_formats import NVFP4InferenceConfig
-            except ImportError as exc:
-                raise NotImplementedError(
-                    f"compute_precision='FP4' on {self._get_backend()} needs a "
-                    "torchao build with NVFP4 support and an NVIDIA Blackwell "
-                    "(SM100) GPU: pip install -U torchao. "
-                    "FP32/FP16/BF16 work without it."
-                ) from exc
-            quantize_(model, NVFP4InferenceConfig())
-        if quantization == "int8":
-            quantize_(model, int8_config())
-        elif quantization == "int4":
-            quantize_(model, int4_config())
-        return model
-
-
-class PyTorchKVDecoderGeneration(_DtypeQuantGeneration):
-    """Heavier local generation on a decoder-only transformer with a KV cache.
-
-    Same measurement contract as PyTorchLocalGeneration, but the model keeps
-    per-layer key/value caches: time-to-first-token is the prompt prefill, and the
-    remaining tokens are produced one-at-a-time against the cache (O(1) per token)
-    rather than re-running the whole sequence. Precision (FP32/FP16/BF16) is set by
-    casting the random-weight model to the requested dtype."""
-
-    def setup(self) -> None:
-        import torch
-
-        from simple_ai_benchmarking.models.generation_factory import (
-            GenerationModelFactory,
-        )
-
-        self._torch = torch
-        self._device = torch.device(self.cfg.device_name)
-        self.cfg.model_cfg.context_length = self.cfg.context_length
-        dtype = self._resolve_base_dtype()
-        model = GenerationModelFactory.create_pytorch_kv_decoder_model(
-            self.cfg.model_cfg
-        )
-        model = model.to(device=self._device, dtype=dtype)
-        if self.cfg.model_params == 0:
-            self.cfg.model_params = sum(p.numel() for p in model.parameters())
-        model = self._apply_precision_quant(model)
-        self._model = model.eval()
-
-    def _generate_batch(self, batch_size: int) -> List[GenerationRequestResult]:
-        prompt_tokens = self.cfg.prompt_tokens
-        input_ids = (
-            self._torch.arange(
-                prompt_tokens, device=self._device, dtype=self._torch.long
-            )
-            .unsqueeze(0)
-            .expand(batch_size, prompt_tokens)
-            .contiguous()
-        )
-        input_ids = input_ids % self.cfg.model_cfg.vocab_size
-
-        generated_tokens = max(1, self.cfg.generated_tokens)
-
-        # Prefill (= time-to-first-token), then cached single-token decode steps.
-        start = time.perf_counter()
-        next_token, cache = self._model.prefill(input_ids)
-        self.sync_device()
-        time_to_first_token_s = time.perf_counter() - start
-
-        for _ in range(generated_tokens - 1):
-            next_token, cache = self._model.decode_step(next_token, cache)
-        self.sync_device()
-
-        return [
-            GenerationRequestResult(
-                prompt_tokens=prompt_tokens,
-                generated_tokens=generated_tokens,
-                time_to_first_token_s=time_to_first_token_s,
-            )
-            for _ in range(batch_size)
-        ]
-
-    def _get_backend(self) -> str:
-        return PYTORCH_KV_DECODER_BACKEND
-
-    def _get_ai_framework_name(self) -> str:
-        return PYTORCH_KV_DECODER_BACKEND
-
-
-class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
-    """Local generation on a real Hugging Face causal LM architecture.
-
-    Builds the model from the repo's config and randomly initialises the weights
-    (no checkpoint download), so it exercises a production architecture (e.g.
-    Llama) at its true size. `cfg.model` is the Hugging Face repo id. Uses the
-    model's built-in KV cache: prefill = time-to-first-token, then cached decode.
-    Requires the optional `transformers` dependency; if it is missing the workload
-    simply fails (and the surrounding run continues with the other workloads)."""
 
     def setup(self) -> None:
         import torch
@@ -492,7 +318,7 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
         self._device = torch.device(self.cfg.device_name)
         dtype = self._resolve_base_dtype()
 
-        config = AutoConfig.from_pretrained(_resolve_config_source(self.cfg.model))
+        config = AutoConfig.from_pretrained(self.cfg.model)
         self._vocab_size = config.vocab_size
         try:
             model = AutoModelForCausalLM.from_config(config, torch_dtype=dtype)
@@ -502,7 +328,6 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
         model = model.to(self._device)
         if self.cfg.model_params == 0:
             self.cfg.model_params = sum(p.numel() for p in model.parameters())
-        model = self._apply_precision_quant(model)
         self._model = model.eval()
 
     def _generate_batch(self, batch_size: int) -> List[GenerationRequestResult]:
@@ -559,33 +384,6 @@ class HuggingFaceCausalGeneration(_DtypeQuantGeneration):
             return transformers.__version__
         except Exception:
             return self._torch.__version__
-
-
-class HuggingFaceCausalFP8Generation(HuggingFaceCausalGeneration):
-    """huggingface-causal quantized to FP8 weights/activations via torchao.
-
-    Identical build/measurement path to the bf16 HF backend; the FP8 precision is
-    carried on the config (compute_precision='FP8') and applied by torchao after
-    the model is on device. Needs torchao + a recent GPU (CUDA SM 8.9+)."""
-
-    def _get_backend(self) -> str:
-        return HF_CAUSAL_FP8_BACKEND
-
-    def _get_ai_framework_name(self) -> str:
-        return HF_CAUSAL_FP8_BACKEND
-
-
-class HuggingFaceCausalFP4Generation(HuggingFaceCausalGeneration):
-    """huggingface-causal quantized to FP4 (NVFP4) weights/activations via torchao.
-
-    Same path as the bf16 HF backend with compute_precision='FP4'. NVFP4 is a
-    torchao prototype and needs an NVIDIA Blackwell (SM100) GPU."""
-
-    def _get_backend(self) -> str:
-        return HF_CAUSAL_FP4_BACKEND
-
-    def _get_ai_framework_name(self) -> str:
-        return HF_CAUSAL_FP4_BACKEND
 
 
 class HTTPGenerationWorkload(LLMGenerationWorkload):
