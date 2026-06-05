@@ -264,9 +264,24 @@ saib-runpod --gpu "NVIDIA H100 80GB HBM3" --cloud-type SECURE \
 
 > ⚠️ Never pair `[pt,lowbit]` with the torch 2.4 image. The automatic RunPod profile pins the CUDA wheel `torchao==0.13.0+cu128`, the release built for its torch 2.8 image; custom image/pip overrides must select a torchao version compatible with their torch build.
 
+#### FP8 / FP4 via vLLM (`--workload vllm`)
+
+The in-process `torchao` low-bit backends above are experimental. For a reliable FP8/FP4 benchmark, `--workload vllm` instead serves a small model with [vLLM](https://docs.vllm.ai) (production paged-attention KV cache + mature quantization kernels) and benchmarks it through SAIB's `openai-compatible` backend. SAIB is installed torch-free (the HTTP client needs no torch); vLLM is pip-installed on the pod and brings its own torch. This workload is **standalone and never part of the default run** — you opt in explicitly.
+
+```bash
+# FP8 (online dynamic quant of bf16 weights) — works on Ada/Hopper/Blackwell:
+saib-runpod --gpu "NVIDIA GeForce RTX 4090" --cloud-type SECURE --workload vllm
+
+# FP4 (NVFP4) — Blackwell only, needs a pre-quantized ModelOpt NVFP4 checkpoint:
+saib-runpod --gpu "NVIDIA B200" --workload vllm \
+  --vllm-quant nvfp4 --vllm-model nvidia/<some-nvfp4-checkpoint>
+```
+
+The vLLM workload defaults to the torch 2.8 / CUDA 12.8 image on every GPU (so prefer SECURE/datacenter hosts, host driver ≥ 12.8). A small ungated model (`Qwen/Qwen2.5-0.5B-Instruct`, ~1 GB) is used so the checkpoint downloads in seconds. Flags: `--vllm-model`, `--vllm-quant fp8|nvfp4|none`, `--vllm-max-model-len`. FP8 needs no special checkpoint; NVFP4 currently requires a pre-quantized checkpoint passed via `--vllm-model`.
+
 **GPU names** are the RunPod GPU *ids*, e.g. `NVIDIA GeForce RTX 4090`, `NVIDIA H100 80GB HBM3` (H100 SXM), `NVIDIA H200`, `NVIDIA B200` — not the short display names. List them with `python -c "import runpod,os; runpod.api_key=os.environ['RUNPOD_API_KEY']; print('\n'.join(g['id'] for g in runpod.get_gpus()))"`.
 
-Useful flags: `--workload pt|llm|both` (default `both`), `--gpu "A,B,C"` (comma-separated fallback list; RunPod picks by availability), `--cloud-type SECURE|COMMUNITY` (default `SECURE`), `--capacity-wait SECONDS` (keep retrying while RunPod has no capacity, with backoff), `--image`/`--pip-spec` (override the auto profile), `--pt-args`/`--llm-args "-w 0 1"` (passed to the benchmark commands), `--pt-timeout`/`--llm-timeout SECONDS` (per-step hang caps), `--no-publish`, `--keep` (do **not** self-terminate — you must delete the pod yourself), and `--dry-run` (print the plan and the exact container script without creating anything — no API key needed). The database token is provided to the pod as an env var, never baked into the image or the script string.
+Useful flags: `--workload pt|llm|vllm|both` (default `both`; `vllm` is standalone, see above), `--gpu "A,B,C"` (comma-separated fallback list; RunPod picks by availability), `--cloud-type SECURE|COMMUNITY` (default `SECURE`), `--capacity-wait SECONDS` (keep retrying while RunPod has no capacity, with backoff), `--image`/`--pip-spec` (override the auto profile), `--pt-args`/`--llm-args "-w 0 1"` (passed to the benchmark commands), `--pt-timeout`/`--llm-timeout SECONDS` (per-step hang caps), `--no-publish`, `--keep` (do **not** self-terminate — you must delete the pod yourself), and `--dry-run` (print the plan and the exact container script without creating anything — no API key needed). The database token is provided to the pod as an env var, never baked into the image or the script string.
 
 #### Launch a whole fleet
 
