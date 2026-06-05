@@ -255,46 +255,51 @@ cleanup() {
 trap cleanup EXIT"""
 
 
-def _pt_block(cfg: Config) -> str:
-    args = f" {cfg.pt_args}" if cfg.pt_args else ""
-    publish_args = (
+def _publish_args(cfg: Config) -> str:
+    """Inline publish flags for a saib-* benchmark command (empty when --no-publish)."""
+    return (
         ' --publish-each --non-interactive --database-url "${URL}"'
         if cfg.publish
         else ""
     )
+
+
+def _register_publish_lines(csv: str, pub_tool: str, label: str) -> List[str]:
+    """register-then-publish a results CSV. Register must precede publish so the
+    server accepts rows whose profile isn't registered yet. Shared by every block
+    (pt/llm/vllm) so the publish protocol lives in exactly one place."""
+    return [
+        f'saib-register {csv} -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
+        f'--database-url "${{URL}}" --non-interactive || echo "WARN register {label}"',
+        f'{pub_tool} {csv} -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
+        f'--database-url "${{URL}}" --non-interactive || echo "WARN pub {label}"',
+    ]
+
+
+def _cli_block(cfg: Config, *, label: str, command: str, timeout_var: str,
+               csv: str, pub_tool: str) -> str:
+    """Run a saib-* benchmark CLI under a timeout, then optionally register+publish
+    its CSV. The pt and llm workloads are the same shape modulo command/CSV/tool."""
     lines = [
-        'echo "== [pt] running (timeout ${PT_TIMEOUT}s) =="',
-        f'timeout -k 60 "${{PT_TIMEOUT}}" saib-pt{args}{publish_args} || echo "WARN saib-pt rc=$?"',
+        f'echo "== [{label}] running (timeout ${{{timeout_var}}}s) =="',
+        f'timeout -k 60 "${{{timeout_var}}}" {command}{_publish_args(cfg)} '
+        f'|| echo "WARN {command.split()[0]} rc=$?"',
     ]
     if cfg.publish:
-        lines += [
-            'saib-register results_pt.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN register pt"',
-            'saib-pub results_pt.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN pub pt"',
-        ]
+        lines += _register_publish_lines(csv, pub_tool, label)
     return "\n".join(lines)
+
+
+def _pt_block(cfg: Config) -> str:
+    command = "saib-pt" + (f" {cfg.pt_args}" if cfg.pt_args else "")
+    return _cli_block(cfg, label="pt", command=command, timeout_var="PT_TIMEOUT",
+                      csv="results_pt.csv", pub_tool="saib-pub")
 
 
 def _llm_block(cfg: Config) -> str:
-    args = f" {cfg.llm_args}" if cfg.llm_args else ""
-    publish_args = (
-        ' --publish-each --non-interactive --database-url "${URL}"'
-        if cfg.publish
-        else ""
-    )
-    lines = [
-        'echo "== [llm] running (timeout ${LLM_TIMEOUT}s) =="',
-        f'timeout -k 60 "${{LLM_TIMEOUT}}" saib-llm{args}{publish_args} || echo "WARN saib-llm rc=$?"',
-    ]
-    if cfg.publish:
-        lines += [
-            'saib-register llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN register llm"',
-            'saib-pub-llm llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
-            '--database-url "${URL}" --non-interactive || echo "WARN pub llm"',
-        ]
-    return "\n".join(lines)
+    command = "saib-llm" + (f" {cfg.llm_args}" if cfg.llm_args else "")
+    return _cli_block(cfg, label="llm", command=command, timeout_var="LLM_TIMEOUT",
+                      csv="llm_results.csv", pub_tool="saib-pub-llm")
 
 
 @dataclass(frozen=True)
@@ -411,12 +416,9 @@ def _vllm_leg(cfg: Config, precision: str) -> List[str]:
         'wait "$VLLM_PID" 2>/dev/null || true',
     ]
     if cfg.publish:
-        lines += [
-            f'saib-register {out_base}.csv -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
-            f'--database-url "${{URL}}" --non-interactive || echo "WARN register vllm[{precision}]"',
-            f'saib-pub-llm {out_base}.csv -t "${{AI_BENCHMARK_DATABASE_TOKEN}}" '
-            f'--database-url "${{URL}}" --non-interactive || echo "WARN pub vllm[{precision}]"',
-        ]
+        lines += _register_publish_lines(
+            f"{out_base}.csv", "saib-pub-llm", f"vllm[{precision}]"
+        )
     return lines
 
 
