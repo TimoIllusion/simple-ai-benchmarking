@@ -38,7 +38,7 @@ Usage::
     export RUNPOD_API_KEY=...                 # from runpod.io account settings
     export AI_BENCHMARK_DATABASE_TOKEN=...     # database API token
     saib-runpod --gpu "NVIDIA GeForce RTX 4090"          # CV + LLM, auto image
-    saib-runpod --gpu "NVIDIA B200" --workload llm        # Blackwell -> FP8+FP4 auto
+    saib-runpod --gpu "NVIDIA B200" --workload llm        # Blackwell image, auto
 
 Dry run (no API key needed, prints the plan and the exact container script)::
 
@@ -103,11 +103,11 @@ BLACKWELL_MARKERS = (
     "RTX PRO 4000 BLACKWELL",
 )
 
-# Default LLM workload index sets (mirrors `saib-llm` default order):
-#   0 simple-transformer, 1 kv-decoder, 2 huggingface-causal (Qwen BF16),
-#   3 huggingface-causal-fp8, 4 huggingface-causal-fp4.
-LLM_W_BLACKWELL = "0 1 2 3 4"  # FP8 + FP4
-LLM_W_NO_LOWBIT = "0 1 2"  # no FP8/FP4 (torch 2.4 / non-lowbit install)
+# Default LLM workload index set (mirrors `saib-llm` default order):
+#   0 simple-transformer, 1 kv-decoder, 2 huggingface-causal (Qwen BF16).
+# The FP8/FP4 low-bit variants are excluded from the default run everywhere (not
+# yet producing correct results); run them explicitly via --llm-args if needed.
+LLM_W_DEFAULT = "0 1 2"
 
 DONE_MARKER = "SAIB_ALL_DONE"
 
@@ -153,10 +153,11 @@ def resolve_profile(cfg: Config) -> None:
 
     Only Blackwell is special-cased automatically, because Blackwell *cannot* run
     on the default image at all -- so picking the torch 2.8 image + lowbit for it is
-    a correctness requirement, not a preference. Enabling FP8 on Hopper/Ada is left
-    opt-in (pass ``--image`` + ``--pip-spec`` / see ``tools/run_fleet.sh``) because
-    the torch 2.8 image needs a host driver >= 12.8 and can fail to start on
-    older-driver non-Blackwell hosts."""
+    a correctness requirement, not a preference. The FP8/FP4 low-bit backends are
+    off by default everywhere; opt into them per host with an explicit ``--llm-args``
+    (plus ``--image`` + ``--pip-spec`` on non-Blackwell hosts, see
+    ``tools/run_fleet.sh``), since the torch 2.8 image needs a host driver >= 12.8
+    and can fail to start on older-driver non-Blackwell hosts."""
     lead = cfg.gpus[0] if cfg.gpus else ""
     blackwell = is_blackwell(lead)
 
@@ -165,14 +166,9 @@ def resolve_profile(cfg: Config) -> None:
     if not cfg.pip_was_set:
         cfg.pip_spec = PIP_LOWBIT if blackwell else PIP_BASE
     if not cfg.llm_args_was_set:
-        # Only restrict the default set; respect an explicit --llm-args.
-        lowbit = "lowbit" in cfg.pip_spec
-        if blackwell:
-            cfg.llm_args = f"-w {LLM_W_BLACKWELL}"
-        elif lowbit:
-            cfg.llm_args = "-w 0 1 2 3"  # FP8 but not FP4
-        else:
-            cfg.llm_args = f"-w {LLM_W_NO_LOWBIT}"
+        # Run the default working set; respect an explicit --llm-args (e.g. to
+        # opt into the FP8/FP4 low-bit backends, which are off by default).
+        cfg.llm_args = f"-w {LLM_W_DEFAULT}"
 
 
 # --------------------------------------------------------------------------- #

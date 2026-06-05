@@ -10,10 +10,11 @@ from simple_ai_benchmarking.workloads.llm_workload import (
 )
 
 
-def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
-    # Bare `saib-llm` should build all local LM workloads (simple transformer,
-    # KV-cache decoder, Hugging Face, and the FP8/FP4 low-bit HF variants),
-    # mirroring how `saib-pt` runs several models.
+def test_saib_llm_runs_default_local_workloads_with_no_args(monkeypatch):
+    # Bare `saib-llm` should build the default local LM workloads (simple
+    # transformer, KV-cache decoder, Hugging Face), mirroring how `saib-pt` runs
+    # several models. The FP8/FP4 low-bit variants are excluded from the default
+    # run and only available via an explicit --backend.
     import pytest
 
     pytest.importorskip("torch")
@@ -24,8 +25,6 @@ def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
     )
     from simple_ai_benchmarking.workloads.llm_workload import (
         HF_CAUSAL_BACKEND,
-        HF_CAUSAL_FP4_BACKEND,
-        HF_CAUSAL_FP8_BACKEND,
         PYTORCH_KV_DECODER_BACKEND,
     )
 
@@ -39,8 +38,6 @@ def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
         PYTORCH_GENERATION_BACKEND,
         PYTORCH_KV_DECODER_BACKEND,
         HF_CAUSAL_BACKEND,
-        HF_CAUSAL_FP8_BACKEND,
-        HF_CAUSAL_FP4_BACKEND,
     ]
     # Reference transformer keeps its defaults (self-contained, no server).
     assert configs[0].model == "SimpleTransformerLM"
@@ -49,13 +46,35 @@ def test_saib_llm_runs_all_local_workloads_with_no_args(monkeypatch):
     # KV-cache decoder gets its own model label (not the simple transformer's).
     assert configs[1].model == KV_DECODER_DEFAULT_MODEL
     assert configs[1].compute_precision == "BF16"
-    # All HF backends get a real repo id; bf16 default, low-bit variants pinned.
+    # The HF backend gets a real repo id and a bf16 default.
     assert configs[2].model
     assert configs[2].compute_precision == "BF16"
-    assert configs[3].model == configs[2].model
-    assert configs[3].compute_precision == "FP8"
-    assert configs[4].model == configs[2].model
-    assert configs[4].compute_precision == "FP4"
+
+
+def test_saib_llm_excludes_fp8_fp4_from_default_run(monkeypatch):
+    # FP8/FP4 are intentionally not part of the default set, but stay runnable via
+    # an explicit --backend.
+    import pytest
+
+    pytest.importorskip("torch")
+    from simple_ai_benchmarking.llm_generation import (
+        DEFAULT_LLM_BACKENDS,
+        build_generation_configs,
+    )
+    from simple_ai_benchmarking.workloads.llm_workload import (
+        HF_CAUSAL_FP4_BACKEND,
+        HF_CAUSAL_FP8_BACKEND,
+    )
+
+    assert HF_CAUSAL_FP8_BACKEND not in DEFAULT_LLM_BACKENDS
+    assert HF_CAUSAL_FP4_BACKEND not in DEFAULT_LLM_BACKENDS
+
+    monkeypatch.setattr(
+        "sys.argv",
+        ["saib-llm", "--backend", HF_CAUSAL_FP8_BACKEND, "--device", "cpu"],
+    )
+    configs = build_generation_configs(parse_arguments())
+    assert [c.backend for c in configs] == [HF_CAUSAL_FP8_BACKEND]
 
 
 def test_saib_llm_w_flag_selects_subset_of_default_workloads(monkeypatch):

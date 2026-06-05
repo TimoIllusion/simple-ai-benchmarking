@@ -67,16 +67,15 @@ LOCAL_PYTORCH_BACKENDS = (
 )
 
 # Backends `saib-llm` runs when no --backend is given: the lightweight reference
-# transformer, the heavier custom KV-cache decoder, a real Hugging Face model, and
-# its FP8/FP4 low-bit variants. Mirrors how the CV benchmark runs several models in
-# a single invocation. The low-bit variants need torchao + a recent GPU (FP4 needs
-# Blackwell); where unsupported they fail in isolation and the rest still run.
+# transformer, the heavier custom KV-cache decoder, and a real Hugging Face model.
+# Mirrors how the CV benchmark runs several models in a single invocation. The
+# FP8/FP4 low-bit HF variants are intentionally excluded from the default run (they
+# are not yet producing correct results); they remain runnable via an explicit
+# `--backend huggingface-causal-fp8` / `huggingface-causal-fp4`.
 DEFAULT_LLM_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
     PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
-    HF_CAUSAL_FP8_BACKEND,
-    HF_CAUSAL_FP4_BACKEND,
 )
 
 # Precision pinned per low-bit HF backend (precision is part of their identity).
@@ -112,9 +111,10 @@ def parse_arguments() -> argparse.Namespace:
         "--backend",
         choices=SUPPORTED_LLM_BACKENDS,
         default=None,
-        help="Generation backend to run. Default: None, which runs all local "
-        "workloads (simple transformer, KV-cache decoder, Hugging Face model, "
-        "and its FP8/FP4 low-bit variants).",
+        help="Generation backend to run. Default: None, which runs the default "
+        "local workloads (simple transformer, KV-cache decoder, Hugging Face "
+        "model). The FP8/FP4 low-bit variants are excluded by default; select one "
+        "explicitly with --backend huggingface-causal-fp8 / -fp4.",
     )
     parser.add_argument(
         "-w",

@@ -73,7 +73,7 @@ I develop this application in my free time as a hobby.
 
 ## LLM Inference Benchmarking
 
-In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs **all five local PyTorch backends** (simple transformer, ~1B KV-cache decoder, a Hugging Face architecture, and that architecture in FP8 and FP4), requiring no server, just like `saib-pt` runs several models with sensible defaults:
+In addition to the vision/CNN workloads, SAIB can benchmark large language model (LLM) inference and report token throughput. Run it with the `saib-llm` entry point. With no arguments it runs the **three default local PyTorch backends** (simple transformer, ~1B KV-cache decoder, and a Hugging Face architecture), requiring no server, just like `saib-pt` runs several models with sensible defaults. The FP8/FP4 low-bit variants are excluded from the default run (currently not producing correct results) but remain runnable via `--backend huggingface-causal-fp8` / `-fp4`:
 
 ```bash
 saib-llm
@@ -240,7 +240,7 @@ The pod self-terminates via a shell `trap` that issues `DELETE /v1/pods/$RUNPOD_
 export RUNPOD_API_KEY=YOUR_RUNPOD_KEY
 export AI_BENCHMARK_DATABASE_TOKEN=YOUR_DATABASE_TOKEN
 saib-runpod --gpu "NVIDIA GeForce RTX 4090"          # CV + LLM, image auto-selected
-saib-runpod --gpu "NVIDIA B200" --workload llm         # Blackwell -> FP8+FP4 auto
+saib-runpod --gpu "NVIDIA B200" --workload llm         # Blackwell image auto-selected
 saib-runpod --dry-run --gpu "NVIDIA B200"              # print plan + container script, no API key
 ```
 
@@ -250,16 +250,16 @@ If `RUNPOD_API_KEY` or `AI_BENCHMARK_DATABASE_TOKEN` are not set (and not passed
 
 | GPU generation | Image | pip extra | Default LLM `-w` | Low-bit |
 |---|---|---|---|---|
-| **Blackwell** (B200, RTX 5090, RTX PRO Blackwell) | `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (torch 2.8 / CUDA 12.8) | `[pt,lowbit]` + `torchao==0.13.0+cu128` | `0 1 2 3 4` | **FP8 + FP4** |
-| **Everything else** (Hopper, Ada, Ampere, …) | `runpod/pytorch:2.4.0-...cuda12.4.1` (torch 2.4) | `[pt]` | `0 1 2` | none |
+| **Blackwell** (B200, RTX 5090, RTX PRO Blackwell) | `runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404` (torch 2.8 / CUDA 12.8) | `[pt,lowbit]` + `torchao==0.13.0+cu128` | `0 1 2` | opt-in |
+| **Everything else** (Hopper, Ada, Ampere, …) | `runpod/pytorch:2.4.0-...cuda12.4.1` (torch 2.4) | `[pt]` | `0 1 2` | opt-in |
 
-Blackwell is special-cased automatically because it *cannot* run on the torch 2.4 image at all. **FP8 on Hopper/Ada is opt-in**, not automatic: it needs the torch 2.8 image too, but that image requires a host driver ≥ 12.8 and can fail to start on older-driver non-Blackwell hosts. Enable it explicitly (prefer SECURE/datacenter hosts):
+Blackwell is special-cased automatically because it *cannot* run on the torch 2.4 image at all. **The FP8/FP4 low-bit backends are excluded from the default run everywhere** (currently not producing correct results); the Blackwell image still ships `[pt,lowbit]` so they can be opted into explicitly. FP8 on Hopper/Ada additionally needs the torch 2.8 image, which requires a host driver ≥ 12.8 and can fail to start on older-driver non-Blackwell hosts. Enable low-bit explicitly (prefer SECURE/datacenter hosts):
 
 ```bash
 saib-runpod --gpu "NVIDIA H100 80GB HBM3" --cloud-type SECURE \
   --image runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404 \
   --pip-spec "simple-ai-benchmarking[pt,lowbit]@git+https://github.com/TimoIllusion/simple-ai-benchmarking.git@main" \
-  --llm-args "-w 0 1 2 3"     # FP8 yes, FP4 no (Hopper/Ada have no FP4)
+  --llm-args "--backend huggingface-causal-fp8"     # FP8 (Hopper/Ada have no FP4)
 ```
 
 > ⚠️ Never pair `[pt,lowbit]` with the torch 2.4 image. The automatic RunPod profile pins the CUDA wheel `torchao==0.13.0+cu128`, the release built for its torch 2.8 image; custom image/pip overrides must select a torchao version compatible with their torch build.

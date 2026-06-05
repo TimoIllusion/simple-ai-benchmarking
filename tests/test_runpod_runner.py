@@ -36,26 +36,28 @@ def test_blackwell_gpu_auto_selects_torch28_image_and_lowbit():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA B200"])
     assert cfg.image == BLACKWELL_IMAGE
     assert cfg.pip_spec == PIP_LOWBIT
-    # Blackwell runs the full LLM set incl FP8 (3) and FP4 (4).
-    assert cfg.llm_args == "-w 0 1 2 3 4"
+    # FP8/FP4 are excluded from the default run, even on Blackwell.
+    assert cfg.llm_args == "-w 0 1 2"
 
 
 def test_non_blackwell_gpu_auto_selects_default_image_no_lowbit():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
     assert cfg.image == DEFAULT_IMAGE
     assert cfg.pip_spec == PIP_BASE
-    # No lowbit -> FP8/FP4 are skipped.
+    # Default run excludes FP8/FP4.
     assert cfg.llm_args == "-w 0 1 2"
 
 
 def test_explicit_overrides_win_over_auto():
+    # An explicit --llm-args is respected verbatim, e.g. to opt into the FP8 backend.
     cfg = _config(
         ["--dry-run", "--gpu", "NVIDIA H100 80GB HBM3",
-         "--image", BLACKWELL_IMAGE, "--pip-spec", PIP_LOWBIT, "--llm-args", "-w 0 1 2 3"]
+         "--image", BLACKWELL_IMAGE, "--pip-spec", PIP_LOWBIT,
+         "--llm-args", "--backend huggingface-causal-fp8"]
     )
     assert cfg.image == BLACKWELL_IMAGE
     assert cfg.pip_spec == PIP_LOWBIT
-    assert cfg.llm_args == "-w 0 1 2 3"  # FP8 but no FP4 on Hopper
+    assert cfg.llm_args == "--backend huggingface-causal-fp8"
 
 
 def test_first_gpu_in_fallback_list_drives_the_profile():
