@@ -109,6 +109,26 @@ BLACKWELL_MARKERS = (
 # default run everywhere; run them explicitly via --llm-args if needed.
 LLM_W_DEFAULT = "0 1"
 
+# vLLM FP8/FP4 benchmark (`--workload vllm`). vLLM provides the production
+# paged-attention KV cache and the low-bit kernels; SAIB only drives it over HTTP via
+# the openai-compatible backend, so no torchao and no SAIB [pt] extra are involved.
+# This is a separate, opt-in workload -- never part of the default `saib-llm` run.
+#  - fp8: online dynamic FP8_E4M3 quant of the bf16 weights; Ada (SM 8.9+) or Blackwell.
+#  - nvfp4: needs a pre-quantized ModelOpt NVFP4 checkpoint AND a Blackwell GPU; pass
+#    the checkpoint repo id via --vllm-model (vLLM auto-detects modelopt_fp4).
+# Qwen2.5-0.5B-Instruct is ~1 GB (downloads in seconds) yet a realistic decoder-only
+# LM (GQA, RoPE, SwiGLU), so it exercises a true KV-cache decode path.
+VLLM_DEFAULT_MODEL = "Qwen/Qwen2.5-0.5B-Instruct"
+VLLM_DEFAULT_QUANT = "fp8"
+VLLM_PORT = 8000
+VLLM_MAX_MODEL_LEN = 4096
+# vLLM ships its own torch build, so install SAIB without the [pt] extra (the
+# openai-compatible client is pure HTTP) to avoid fighting over torch/transformers.
+VLLM_SAIB_SPEC = (
+    "simple-ai-benchmarking@git+"
+    "https://github.com/TimoIllusion/simple-ai-benchmarking.git@main"
+)
+
 DONE_MARKER = "SAIB_ALL_DONE"
 
 
@@ -128,9 +148,12 @@ class Config:
     gpus: List[str]
     image: str
     pip_spec: str
-    workload: str  # "pt" | "llm" | "both"
+    workload: str  # "pt" | "llm" | "vllm" | "both"
     pt_args: str
     llm_args: str
+    vllm_model: str
+    vllm_quant: str
+    vllm_max_model_len: int
     database_url: str
     disk_gb: int
     cloud_type: str
@@ -160,6 +183,17 @@ def resolve_profile(cfg: Config) -> None:
     and can fail to start on older-driver non-Blackwell hosts."""
     lead = cfg.gpus[0] if cfg.gpus else ""
     blackwell = is_blackwell(lead)
+
+    if cfg.workload == "vllm":
+        # vLLM needs a recent torch/CUDA, so default to the cu128 (torch 2.8) image
+        # on every GPU (FP8 works on Ada too; that host just needs driver >= 12.8 --
+        # prefer SECURE). SAIB is installed torch-free; vLLM is pip-installed in the
+        # workload block and brings its own torch.
+        if not cfg.image_was_set:
+            cfg.image = BLACKWELL_IMAGE
+        if not cfg.pip_was_set:
+            cfg.pip_spec = VLLM_SAIB_SPEC
+        return
 
     if not cfg.image_was_set:
         cfg.image = BLACKWELL_IMAGE if blackwell else DEFAULT_IMAGE
@@ -245,6 +279,56 @@ def _llm_block(cfg: Config) -> str:
     return "\n".join(lines)
 
 
+def _vllm_block(cfg: Config) -> str:
+    """Serve a small model with vLLM (FP8/FP4) and benchmark it through SAIB's
+    openai-compatible backend. vLLM owns the KV cache and the quantization kernels;
+    SAIB just drives the HTTP API and publishes the result like any other LLM run."""
+    quant = (cfg.vllm_quant or "none").lower()
+    quant_arg = "" if quant == "none" else f" --quantization {quant}"
+    accel = "vllm-bf16" if quant == "none" else f"vllm-{quant}"
+    model = cfg.vllm_model
+    base = f"http://localhost:{VLLM_PORT}"
+    publish_args = (
+        ' --publish-each --non-interactive --database-url "${URL}"'
+        if cfg.publish
+        else ""
+    )
+    # Readiness probe via python (guaranteed present in every pytorch image; curl is
+    # not), exit 0 only on HTTP 200 from /health.
+    health = (
+        "python -c \"import urllib.request,sys; "
+        f"sys.exit(0 if urllib.request.urlopen('{base}/health',timeout=5).status==200 "
+        'else 1)"'
+    )
+    lines = [
+        'echo "== [vllm] installing vLLM =="',
+        "pip install vllm || echo 'WARN vllm install failed'",
+        f'echo "== [vllm] serving {model} (quant={quant}) on port {VLLM_PORT} =="',
+        # Background server; logs to a file. vLLM exposes /health once it is ready.
+        f'vllm serve "{model}"{quant_arg} --port {VLLM_PORT} '
+        f"--max-model-len {cfg.vllm_max_model_len} --download-dir /workspace/hf "
+        "> /workspace/vllm.log 2>&1 &",
+        "VLLM_PID=$!",
+        'echo "== [vllm] waiting for server (up to ~10 min: download + load) =="',
+        f"for i in $(seq 1 120); do {health} >/dev/null 2>&1 && break; sleep 5; done",
+        f'{health} >/dev/null 2>&1 '
+        '|| { echo "WARN vllm server not ready"; tail -n 60 /workspace/vllm.log; }',
+        'echo "== [vllm] running benchmark (timeout ${LLM_TIMEOUT}s) =="',
+        f'timeout -k 60 "${{LLM_TIMEOUT}}" saib-llm --backend openai-compatible '
+        f'--base-url "{base}" --model "{model}" --accelerator "{accel}"{publish_args} '
+        '|| echo "WARN saib-llm vllm rc=$?"',
+        'kill "$VLLM_PID" >/dev/null 2>&1 || true',
+    ]
+    if cfg.publish:
+        lines += [
+            'saib-register llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
+            '--database-url "${URL}" --non-interactive || echo "WARN register vllm"',
+            'saib-pub-llm llm_results.csv -t "${AI_BENCHMARK_DATABASE_TOKEN}" '
+            '--database-url "${URL}" --non-interactive || echo "WARN pub vllm"',
+        ]
+    return "\n".join(lines)
+
+
 def build_container_script(cfg: Config) -> str:
     """The bash exec'd by the pod's dockerStartCmd. The DB token is read from the
     pod env (``AI_BENCHMARK_DATABASE_TOKEN``), never interpolated into the text, so
@@ -271,6 +355,8 @@ def build_container_script(cfg: Config) -> str:
         blocks.append(_pt_block(cfg))
     if cfg.workload in ("llm", "both"):
         blocks.append(_llm_block(cfg))
+    if cfg.workload == "vllm":
+        blocks.append(_vllm_block(cfg))
     blocks.append(f'echo "{DONE_MARKER}"')
     return "\n".join(blocks)
 
@@ -370,8 +456,10 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="RunPod gpuTypeId, or a comma-separated fallback list (RunPod picks by availability).",
     )
     parser.add_argument(
-        "--workload", choices=["pt", "llm", "both"], default="both",
-        help="Which benchmark(s) to run on the pod (default: both).",
+        "--workload", choices=["pt", "llm", "vllm", "both"], default="both",
+        help="Which benchmark(s) to run on the pod (default: both). 'vllm' serves a "
+        "small model with vLLM (FP8/FP4) and benchmarks it via the openai-compatible "
+        "backend; it is standalone (not part of 'both').",
     )
     parser.add_argument(
         "--image", default=None,
@@ -385,6 +473,21 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--llm-args", default=None,
         help="Extra args for saib-llm, e.g. '-w 0 1'. Default: the default workload set (-w 0 1).",
+    )
+    parser.add_argument(
+        "--vllm-model", default=VLLM_DEFAULT_MODEL,
+        help=f"Model served by vLLM for --workload vllm. Default: {VLLM_DEFAULT_MODEL} "
+        "(small, ungated). For nvfp4 pass a pre-quantized ModelOpt NVFP4 checkpoint.",
+    )
+    parser.add_argument(
+        "--vllm-quant", default=VLLM_DEFAULT_QUANT,
+        help="vLLM quantization for --workload vllm: 'fp8' (online, Ada/Blackwell), "
+        "'nvfp4' (pre-quantized checkpoint, Blackwell only), or 'none' (bf16). "
+        f"Default: {VLLM_DEFAULT_QUANT}.",
+    )
+    parser.add_argument(
+        "--vllm-max-model-len", type=int, default=VLLM_MAX_MODEL_LEN,
+        help=f"Max model/context length for the vLLM server (default: {VLLM_MAX_MODEL_LEN}).",
     )
     parser.add_argument("--database-url", default=DEFAULT_DATABASE_URL)
     parser.add_argument("--disk-gb", type=int, default=40)
@@ -418,6 +521,9 @@ def build_config(args: argparse.Namespace) -> Config:
         workload=args.workload,
         pt_args=args.pt_args,
         llm_args=args.llm_args or "",
+        vllm_model=args.vllm_model,
+        vllm_quant=args.vllm_quant,
+        vllm_max_model_len=args.vllm_max_model_len,
         database_url=args.database_url,
         disk_gb=args.disk_gb,
         cloud_type=args.cloud_type,
@@ -443,6 +549,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         log(f"Workload: {cfg.workload}  GPUs: {cfg.gpus}  image: {cfg.image}")
         log(f"pip-spec: {cfg.pip_spec}")
         log(f"pt-args: '{cfg.pt_args}'  llm-args: '{cfg.llm_args}'  publish: {cfg.publish}")
+        if cfg.workload == "vllm":
+            log(f"vllm-model: {cfg.vllm_model}  vllm-quant: {cfg.vllm_quant}  "
+                f"max-model-len: {cfg.vllm_max_model_len}")
         print("\n--- container script (dockerStartCmd: bash -lc) ---")
         print(script)
         print("--- end container script ---")
