@@ -297,6 +297,10 @@ def _llm_block(cfg: Config) -> str:
     return "\n".join(lines)
 
 
+# Precisions the vLLM workload knows how to serve (after alias normalization).
+VLLM_KNOWN_PRECISIONS = ("bf16", "fp8", "fp4")
+
+
 def _normalize_precision(p: str) -> str:
     p = p.strip().lower()
     return "fp4" if p in ("fp4", "nvfp4") else p
@@ -305,9 +309,11 @@ def _normalize_precision(p: str) -> str:
 def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
     """Return (effective, skipped) precision legs for the vLLM workload.
 
-    fp4 (NVFP4) is gated: it needs a Blackwell GPU *and* a pre-quantized checkpoint
-    (--vllm-nvfp4-model). On any other host, or without the checkpoint, the fp4 leg
-    is skipped (and reported) rather than launched into a guaranteed failure."""
+    Unknown precisions raise (a typo like 'int8' must not silently fall through to
+    a bf16 server with bf16 metadata). fp4 (NVFP4) is gated: it needs a Blackwell
+    GPU *and* a pre-quantized checkpoint (--vllm-nvfp4-model); on any other host, or
+    without the checkpoint, the fp4 leg is skipped (and reported) rather than
+    launched into a guaranteed failure."""
     blackwell = is_blackwell(cfg.gpus[0] if cfg.gpus else "")
     effective: List[str] = []
     skipped: List[str] = []
@@ -315,6 +321,11 @@ def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
         if not raw.strip():
             continue
         p = _normalize_precision(raw)
+        if p not in VLLM_KNOWN_PRECISIONS:
+            raise SystemExit(
+                f"Unknown --vllm-precisions value '{raw.strip()}'. "
+                f"Choose from: {', '.join(VLLM_KNOWN_PRECISIONS)} (or nvfp4)."
+            )
         if p == "fp4" and not (blackwell and cfg.vllm_nvfp4_model):
             if p not in skipped:
                 skipped.append(p)

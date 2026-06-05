@@ -171,6 +171,17 @@ def test_workload_vllm_fp4_gated_to_blackwell_with_checkpoint():
     assert '"vllm==0.11.0"' in ada_script  # no fp4 -> the 0.11 pin
 
 
+def test_workload_vllm_rejects_unknown_precision():
+    import pytest
+
+    cfg = _config(
+        ["--dry-run", "--gpu", "NVIDIA B200", "--workload", "vllm",
+         "--vllm-precisions", "bf16,int8"]
+    )
+    with pytest.raises(SystemExit, match="Unknown --vllm-precisions"):
+        build_container_script(cfg)
+
+
 def test_workload_vllm_publishes_each_precision_register_before_pub():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--workload", "vllm"])
     script = build_container_script(cfg)
