@@ -121,11 +121,12 @@ def test_workload_vllm_runs_bf16_then_fp8_legs_with_correct_metadata():
     # bf16 leg: no quant flag; fp8 leg: --quantization fp8 -- bf16 served first.
     assert f'vllm serve "{VLLM_DEFAULT_MODEL}" --port' in script  # bf16, no quant
     assert f'vllm serve "{VLLM_DEFAULT_MODEL}" --quantization fp8' in script
-    assert script.index("vllm-bf16") < script.index("vllm-fp8")
-    # Each leg passes the correct metadata to saib-llm (the old Quant=none bug).
+    assert script.index("llm_results_vllm_bf16") < script.index("llm_results_vllm_fp8")
+    # Each leg passes the correct metadata to saib-llm (the old Quant=none bug),
+    # and records the real GPU as the accelerator (not a "vllm-fp8" label).
     assert '--served-by vllm' in script
-    assert '--accelerator "vllm-bf16" --compute-precision bf16 --quantization none' in script
-    assert '--accelerator "vllm-fp8" --compute-precision fp8 --quantization fp8' in script
+    assert '--accelerator "NVIDIA B200" --compute-precision bf16 --quantization none' in script
+    assert '--accelerator "NVIDIA B200" --compute-precision fp8 --quantization fp8' in script
     assert script.index("/health") < script.index("saib-llm --backend openai-compatible")
     assert '--base-url "http://localhost:8000"' in script
     # Standalone: no pt/llm default benchmarks; ends with the done marker.
@@ -155,7 +156,7 @@ def test_workload_vllm_fp4_gated_to_blackwell_with_checkpoint():
     assert script.count("vllm serve") == 3
     assert 'vllm serve "nvidia/ckpt-nvfp4" --quantization modelopt_fp4' in script
     assert "FLASHINFER_FORCE_SM=120f" in script
-    assert '--accelerator "vllm-fp4" --compute-precision fp4 --quantization nvfp4' in script
+    assert '--accelerator "NVIDIA B200" --compute-precision fp4 --quantization nvfp4' in script
     assert '"vllm>=0.13.0"' in script  # fp4 raises the vLLM floor
 
     # Non-Blackwell, or no checkpoint: fp4 is skipped, not launched.

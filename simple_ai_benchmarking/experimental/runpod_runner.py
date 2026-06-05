@@ -326,22 +326,26 @@ def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
 
 def _vllm_precision_spec(cfg: Config, precision: str):
     """Map a precision leg to (served_model, serve_quant_flag, env_prefix,
-    compute_precision, quantization_metadata, accelerator_label)."""
+    compute_precision, quantization_metadata)."""
     if precision == "fp4":
         return (cfg.vllm_nvfp4_model, " --quantization modelopt_fp4",
-                VLLM_FP4_ENV, "fp4", "nvfp4", "vllm-fp4")
+                VLLM_FP4_ENV, "fp4", "nvfp4")
     if precision == "fp8":
-        return (cfg.vllm_model, " --quantization fp8", "", "fp8", "fp8", "vllm-fp8")
+        return (cfg.vllm_model, " --quantization fp8", "", "fp8", "fp8")
     # bf16 / baseline: native half precision, no quant flag.
-    return (cfg.vllm_model, "", "", "bf16", "none", "vllm-bf16")
+    return (cfg.vllm_model, "", "", "bf16", "none")
 
 
 def _vllm_leg(cfg: Config, precision: str) -> List[str]:
     """Lines that serve one precision, benchmark it over openai-compatible, publish
     its own per-precision CSV, and tear the server down before the next leg."""
-    model, quant_serve, env, compute_precision, quant_meta, accel = _vllm_precision_spec(
+    model, quant_serve, env, compute_precision, quant_meta = _vllm_precision_spec(
         cfg, precision
     )
+    # Record the real GPU as the accelerator (the precision is already carried in
+    # --compute-precision/--quantization); a "vllm-fp8" label would overwrite the
+    # hardware field and lose which GPU produced the numbers.
+    accel = cfg.gpus[0] if cfg.gpus else "vllm"
     base = f"http://localhost:{VLLM_PORT}"
     out_base = f"llm_results_vllm_{precision}"
     log_file = f"/workspace/vllm_{precision}.log"
