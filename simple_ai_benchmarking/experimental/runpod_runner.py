@@ -297,23 +297,47 @@ def _llm_block(cfg: Config) -> str:
     return "\n".join(lines)
 
 
-# Precisions the vLLM workload knows how to serve (after alias normalization).
-VLLM_KNOWN_PRECISIONS = ("bf16", "fp8", "fp4")
+@dataclass(frozen=True)
+class _VllmPrecision:
+    serve_quant_flag: str        # appended after `vllm serve "model"`
+    env_prefix: str              # inline env for the serve command (FlashInfer fp4)
+    compute_precision: str       # saib-llm --compute-precision value
+    quantization: str            # saib-llm --quantization metadata
+    uses_nvfp4_checkpoint: bool  # serve cfg.vllm_nvfp4_model instead of vllm_model
+    requires_blackwell: bool     # leg is gated to Blackwell hosts
+    pins: str                    # vLLM pip pins this precision needs
+
+
+# Single source of truth for every vLLM precision leg: serve flags, gating, pins,
+# and the recorded metadata. Adding a precision is one entry here (+ an alias).
+_VLLM_PRECISIONS = {
+    "bf16": _VllmPrecision("", "", "bf16", "none", False, False, VLLM_PINS),
+    "fp8": _VllmPrecision(" --quantization fp8", "", "fp8", "fp8", False, False, VLLM_PINS),
+    "fp4": _VllmPrecision(
+        " --quantization modelopt_fp4", VLLM_FP4_ENV, "fp4", "nvfp4",
+        True, True, VLLM_PINS_FP4,
+    ),
+}
+# Accepted CLI spellings that map onto a canonical precision key.
+_VLLM_PRECISION_ALIASES = {"nvfp4": "fp4"}
 
 
 def _normalize_precision(p: str) -> str:
     p = p.strip().lower()
-    return "fp4" if p in ("fp4", "nvfp4") else p
+    return _VLLM_PRECISION_ALIASES.get(p, p)
+
+
+def _vllm_served_model(cfg: Config, spec: _VllmPrecision) -> str:
+    return cfg.vllm_nvfp4_model if spec.uses_nvfp4_checkpoint else cfg.vllm_model
 
 
 def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
     """Return (effective, skipped) precision legs for the vLLM workload.
 
     Unknown precisions raise (a typo like 'int8' must not silently fall through to
-    a bf16 server with bf16 metadata). fp4 (NVFP4) is gated: it needs a Blackwell
-    GPU *and* a pre-quantized checkpoint (--vllm-nvfp4-model); on any other host, or
-    without the checkpoint, the fp4 leg is skipped (and reported) rather than
-    launched into a guaranteed failure."""
+    a bf16 server with bf16 metadata). A precision is skipped (and reported) rather
+    than launched into a guaranteed failure when its gating isn't met: fp4 (NVFP4)
+    needs a Blackwell GPU *and* a pre-quantized checkpoint (--vllm-nvfp4-model)."""
     blackwell = is_blackwell(cfg.gpus[0] if cfg.gpus else "")
     effective: List[str] = []
     skipped: List[str] = []
@@ -321,12 +345,17 @@ def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
         if not raw.strip():
             continue
         p = _normalize_precision(raw)
-        if p not in VLLM_KNOWN_PRECISIONS:
+        spec = _VLLM_PRECISIONS.get(p)
+        if spec is None:
             raise SystemExit(
                 f"Unknown --vllm-precisions value '{raw.strip()}'. "
-                f"Choose from: {', '.join(VLLM_KNOWN_PRECISIONS)} (or nvfp4)."
+                f"Choose from: {', '.join(_VLLM_PRECISIONS)} "
+                f"(aliases: {', '.join(_VLLM_PRECISION_ALIASES)})."
             )
-        if p == "fp4" and not (blackwell and cfg.vllm_nvfp4_model):
+        gated = (spec.requires_blackwell and not blackwell) or (
+            spec.uses_nvfp4_checkpoint and not cfg.vllm_nvfp4_model
+        )
+        if gated:
             if p not in skipped:
                 skipped.append(p)
             continue
@@ -335,24 +364,15 @@ def resolve_vllm_precisions(cfg: Config) -> Tuple[List[str], List[str]]:
     return effective, skipped
 
 
-def _vllm_precision_spec(cfg: Config, precision: str):
-    """Map a precision leg to (served_model, serve_quant_flag, env_prefix,
-    compute_precision, quantization_metadata)."""
-    if precision == "fp4":
-        return (cfg.vllm_nvfp4_model, " --quantization modelopt_fp4",
-                VLLM_FP4_ENV, "fp4", "nvfp4")
-    if precision == "fp8":
-        return (cfg.vllm_model, " --quantization fp8", "", "fp8", "fp8")
-    # bf16 / baseline: native half precision, no quant flag.
-    return (cfg.vllm_model, "", "", "bf16", "none")
-
-
 def _vllm_leg(cfg: Config, precision: str) -> List[str]:
     """Lines that serve one precision, benchmark it over openai-compatible, publish
     its own per-precision CSV, and tear the server down before the next leg."""
-    model, quant_serve, env, compute_precision, quant_meta = _vllm_precision_spec(
-        cfg, precision
-    )
+    spec = _VLLM_PRECISIONS[precision]
+    model = _vllm_served_model(cfg, spec)
+    quant_serve = spec.serve_quant_flag
+    env = spec.env_prefix
+    compute_precision = spec.compute_precision
+    quant_meta = spec.quantization
     # Record the real GPU as the accelerator (the precision is already carried in
     # --compute-precision/--quantization); a "vllm-fp8" label would overwrite the
     # hardware field and lose which GPU produced the numbers.
@@ -406,7 +426,10 @@ def _vllm_block(cfg: Config) -> str:
     cache and the quantization kernels; SAIB drives the HTTP API and publishes each
     precision as its own comparable result (served_by=vllm)."""
     effective, skipped = resolve_vllm_precisions(cfg)
-    pins = VLLM_PINS_FP4 if "fp4" in effective else VLLM_PINS
+    # Install the strictest pin set any effective leg needs (fp4 raises the floor).
+    pins = VLLM_PINS
+    if any(_VLLM_PRECISIONS[p].pins == VLLM_PINS_FP4 for p in effective):
+        pins = VLLM_PINS_FP4
     lines = [
         'echo "== [vllm] installing vLLM =="',
         f"pip install {pins} || echo 'WARN vllm install failed'",
