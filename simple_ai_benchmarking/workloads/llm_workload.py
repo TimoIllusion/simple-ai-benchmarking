@@ -97,6 +97,16 @@ class LLMGenerationWorkload(AIWorkload):
     def _get_backend(self) -> str:
         pass
 
+    def _get_serving_engine(self) -> str:
+        """Engine that served the model, for the benchmark identity/metadata.
+
+        An explicit cfg.served_by wins (the RunPod vLLM runner sets it to "vllm");
+        otherwise each backend supplies a sensible default."""
+        return self.cfg.served_by or self._default_serving_engine()
+
+    def _default_serving_engine(self) -> str:
+        return ""
+
     @abstractmethod
     def _run_warmup(self) -> None:
         pass
@@ -139,6 +149,7 @@ class LLMGenerationWorkload(AIWorkload):
             concurrency=self.cfg.concurrency,
             date=datetime.datetime.now().isoformat(),
             weight_source=self.cfg.weight_source,
+            serving_engine=self._get_serving_engine(),
         )
         performance = LLMPerformanceResult(
             requests=self.cfg.requests,
@@ -245,6 +256,10 @@ class PyTorchLocalGeneration(LLMGenerationWorkload):
 
     def _get_backend(self) -> str:
         return PYTORCH_GENERATION_BACKEND
+
+    def _default_serving_engine(self) -> str:
+        # In-process PyTorch (the simple transformer and the HF causal subclass).
+        return "pytorch"
 
     def _get_ai_framework_name(self) -> str:
         return PYTORCH_GENERATION_BACKEND
@@ -443,6 +458,11 @@ class OpenAICompatibleGeneration(HTTPGenerationWorkload):
     def _get_backend(self) -> str:
         return OPENAI_COMPATIBLE_BACKEND
 
+    def _default_serving_engine(self) -> str:
+        # The protocol is generic; without an explicit --served-by we can only say
+        # it spoke the openai-compatible API. The RunPod vLLM runner sets "vllm".
+        return OPENAI_COMPATIBLE_BACKEND
+
     def _get_ai_framework_name(self) -> str:
         return OPENAI_COMPATIBLE_BACKEND
 
@@ -513,6 +533,9 @@ class OpenAICompatibleGeneration(HTTPGenerationWorkload):
 class OllamaGeneration(HTTPGenerationWorkload):
 
     def _get_backend(self) -> str:
+        return OLLAMA_BACKEND
+
+    def _default_serving_engine(self) -> str:
         return OLLAMA_BACKEND
 
     def _get_ai_framework_name(self) -> str:

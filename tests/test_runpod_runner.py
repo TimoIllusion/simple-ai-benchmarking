@@ -112,47 +112,70 @@ def test_workload_llm_only_skips_pt():
     assert "saib-pt" not in script
 
 
-def test_workload_vllm_serves_and_benchmarks_via_openai_compatible():
+def test_workload_vllm_runs_bf16_then_fp8_legs_with_correct_metadata():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--workload", "vllm"])
     script = build_container_script(cfg)
-    # Installs vLLM, serves the default small model with FP8, waits for /health,
-    # then benchmarks through the openai-compatible backend -- in that order.
-    assert "pip install vllm" in script
+    # Default precisions bf16,fp8: a fresh vLLM server per precision, in order.
+    assert '"vllm==0.11.0"' in script and "transformers==4.57.1" in script and "hf_transfer" in script
+    assert script.count("vllm serve") == 2
+    # bf16 leg: no quant flag; fp8 leg: --quantization fp8 -- bf16 served first.
+    assert f'vllm serve "{VLLM_DEFAULT_MODEL}" --port' in script  # bf16, no quant
     assert f'vllm serve "{VLLM_DEFAULT_MODEL}" --quantization fp8' in script
-    assert script.index("vllm serve") < script.index("/health")
+    assert script.index("vllm-bf16") < script.index("vllm-fp8")
+    # Each leg passes the correct metadata to saib-llm (the old Quant=none bug).
+    assert '--served-by vllm' in script
+    assert '--accelerator "vllm-bf16" --compute-precision bf16 --quantization none' in script
+    assert '--accelerator "vllm-fp8" --compute-precision fp8 --quantization fp8' in script
     assert script.index("/health") < script.index("saib-llm --backend openai-compatible")
-    assert "--base-url \"http://localhost:8000\"" in script
-    # Standalone vLLM workload does not run the pt/llm benchmarks.
+    assert '--base-url "http://localhost:8000"' in script
+    # Standalone: no pt/llm default benchmarks; ends with the done marker.
     assert "saib-pt" not in script
-    assert "-w 0 1" not in script
-    # Register precedes publish, and the script still ends with the done marker.
-    assert script.index("saib-register llm_results.csv") < script.index("saib-pub-llm llm_results.csv")
     assert script.strip().splitlines()[-1] == f'echo "{DONE_MARKER}"'
 
 
-def test_workload_vllm_uses_cu128_image_and_torchfree_saib():
+def test_workload_vllm_bumps_disk_and_uses_cu128_torchfree_saib():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA GeForce RTX 4090", "--workload", "vllm"])
     # vLLM needs a recent torch/CUDA, so even a non-Blackwell GPU gets the cu128
-    # image, and SAIB is installed without the [pt] extra (vLLM brings torch).
+    # image, SAIB is installed torch-free, and disk is bumped for the 7B + vLLM.
     assert cfg.image == BLACKWELL_IMAGE
     assert cfg.pip_spec == VLLM_SAIB_SPEC
     assert "[pt]" not in cfg.pip_spec
-    assert "torchao==" not in build_container_script(cfg)
+    assert cfg.disk_gb == 60
+    assert "torchao" not in build_container_script(cfg)
 
 
-def test_workload_vllm_quant_options():
-    nvfp4 = _config(
+def test_workload_vllm_fp4_gated_to_blackwell_with_checkpoint():
+    # Blackwell + an NVFP4 checkpoint: the fp4 leg runs with modelopt_fp4, the
+    # FlashInfer SM120 env, and the bumped vLLM floor.
+    bw = _config(
         ["--dry-run", "--gpu", "NVIDIA B200", "--workload", "vllm",
-         "--vllm-quant", "nvfp4", "--vllm-model", "nvidia/some-fp4-ckpt"]
+         "--vllm-precisions", "bf16,fp8,fp4", "--vllm-nvfp4-model", "nvidia/ckpt-nvfp4"]
     )
-    script = build_container_script(nvfp4)
-    assert 'vllm serve "nvidia/some-fp4-ckpt" --quantization nvfp4' in script
-    assert '--accelerator "vllm-nvfp4"' in script
+    script = build_container_script(bw)
+    assert script.count("vllm serve") == 3
+    assert 'vllm serve "nvidia/ckpt-nvfp4" --quantization modelopt_fp4' in script
+    assert "FLASHINFER_FORCE_SM=120f" in script
+    assert '--accelerator "vllm-fp4" --compute-precision fp4 --quantization nvfp4' in script
+    assert '"vllm>=0.13.0"' in script  # fp4 raises the vLLM floor
 
-    bf16 = _config(["--dry-run", "--gpu", "NVIDIA B200", "--workload", "vllm", "--vllm-quant", "none"])
-    bf16_script = build_container_script(bf16)
-    assert "--quantization" not in bf16_script
-    assert '--accelerator "vllm-bf16"' in bf16_script
+    # Non-Blackwell, or no checkpoint: fp4 is skipped, not launched.
+    ada = _config(
+        ["--dry-run", "--gpu", "NVIDIA GeForce RTX 4090", "--workload", "vllm",
+         "--vllm-precisions", "bf16,fp8,fp4"]
+    )
+    ada_script = build_container_script(ada)
+    assert ada_script.count("vllm serve") == 2
+    assert "modelopt_fp4" not in ada_script
+    assert "skipping fp4" in ada_script
+    assert '"vllm==0.11.0"' in ada_script  # no fp4 -> the 0.11 pin
+
+
+def test_workload_vllm_publishes_each_precision_register_before_pub():
+    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--workload", "vllm"])
+    script = build_container_script(cfg)
+    for precision in ("bf16", "fp8"):
+        csv = f"llm_results_vllm_{precision}.csv"
+        assert script.index(f"saib-register {csv}") < script.index(f"saib-pub-llm {csv}")
 
 
 def test_no_publish_skips_upload():

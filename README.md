@@ -227,18 +227,18 @@ Blackwell is special-cased automatically because it *cannot* run on the torch 2.
 
 #### FP8 / FP4 via vLLM (`--workload vllm`)
 
-For an FP8/FP4 benchmark, `--workload vllm` serves a model with [vLLM](https://docs.vllm.ai) (production paged-attention KV cache + mature quantization kernels) and benchmarks it through SAIB's `openai-compatible` backend. SAIB is installed torch-free (the HTTP client needs no torch); vLLM is pip-installed on the pod and brings its own torch. This workload is **standalone and never part of the default run** — you opt in explicitly.
+For FP8/FP4 numbers, `--workload vllm` serves a model with [vLLM](https://docs.vllm.ai) (production paged-attention KV cache + mature quantization kernels) and benchmarks it through SAIB's `openai-compatible` backend. One pod serves the model and benchmarks **several precisions in sequence** (a fresh server per precision, since quantization is a launch-time flag), so `bf16` vs `fp8` vs `fp4` are compared apples-to-apples on the same GPU. Each precision publishes as its own comparable result (tagged `served_by=vllm`). SAIB is installed torch-free (the HTTP client needs no torch); vLLM is pip-installed on the pod and brings its own torch. This workload is **standalone and never part of the default run** — you opt in explicitly, and it pairs with the local `huggingface-causal` run on the same model for a PyTorch-vs-vLLM comparison.
 
 ```bash
-# FP8 (online dynamic quant of bf16 weights) — works on Ada/Hopper/Blackwell:
+# Default: benchmark bf16 then fp8 on the 7B baseline (Ada/Hopper/Blackwell):
 saib-runpod --gpu "NVIDIA GeForce RTX 4090" --cloud-type SECURE --workload vllm
 
-# FP4 (NVFP4) — Blackwell only, needs a pre-quantized ModelOpt NVFP4 checkpoint:
+# Add FP4 (NVFP4) — Blackwell only, needs a pre-quantized ModelOpt NVFP4 checkpoint:
 saib-runpod --gpu "NVIDIA B200" --workload vllm \
-  --vllm-quant nvfp4 --vllm-model nvidia/<some-nvfp4-checkpoint>
+  --vllm-precisions bf16,fp8,fp4 --vllm-nvfp4-model nvidia/<some-nvfp4-checkpoint>
 ```
 
-The vLLM workload defaults to the torch 2.8 / CUDA 12.8 image on every GPU (so prefer SECURE/datacenter hosts, host driver ≥ 12.8). A small ungated model (`Qwen/Qwen2.5-0.5B-Instruct`, ~1 GB) is used so the checkpoint downloads in seconds. Flags: `--vllm-model`, `--vllm-quant fp8|nvfp4|none`, `--vllm-max-model-len`. FP8 needs no special checkpoint; NVFP4 currently requires a pre-quantized checkpoint passed via `--vllm-model`.
+The vLLM workload defaults to the torch 2.8 / CUDA 12.8 image on every GPU (so prefer SECURE/datacenter hosts, host driver ≥ 12.8) and a **60 GB** container disk (7B + vLLM + HF cache). The default model is `Qwen/Qwen2.5-7B-Instruct` — the throughput-bound regime where quantization actually pays off. The stack is pinned (`vllm==0.11.0`, `transformers==4.57.1`, `hf_transfer`); requesting `fp4` raises the floor to `vllm>=0.13.0` (reliable SM120 NVFP4) and adds the FlashInfer SM120 env. Flags: `--vllm-model`, `--vllm-precisions bf16,fp8,fp4`, `--vllm-nvfp4-model`, `--vllm-max-model-len`, and the benchmark shape `--vllm-requests`/`--vllm-concurrency`/`--vllm-prompt-tokens`/`--vllm-generated-tokens` (defaults 128/64/256/256). `fp8` needs no special checkpoint (online dynamic quant of the bf16 weights); `fp4` is skipped on non-Blackwell hosts or when no `--vllm-nvfp4-model` is given.
 
 **GPU names** are the RunPod GPU *ids*, e.g. `NVIDIA GeForce RTX 4090`, `NVIDIA H100 80GB HBM3` (H100 SXM), `NVIDIA H200`, `NVIDIA B200` — not the short display names. List them with `python -c "import runpod,os; runpod.api_key=os.environ['RUNPOD_API_KEY']; print('\n'.join(g['id'] for g in runpod.get_gpus()))"`.
 
