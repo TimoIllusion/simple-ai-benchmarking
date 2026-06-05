@@ -75,20 +75,10 @@ DEFAULT_DATABASE_URL = "https://timoillusion.pythonanywhere.com"
 DEFAULT_IMAGE = "runpod/pytorch:2.4.0-py3.11-cuda12.4.1-devel-ubuntu22.04"
 BLACKWELL_IMAGE = "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404"
 
-# The lowbit extra pulls in torchao for real FP8/FP4 kernels. torchao tracks recent
-# torch closely, so the RunPod torch 2.8 image must use the matching torchao release.
-# Without this explicit pin, pip currently installs a newer torchao whose compiled
-# extensions require torch >= 2.11, disabling NVFP4 and hurting low-bit performance.
 PIP_BASE = (
     "simple-ai-benchmarking[pt]@git+"
     "https://github.com/TimoIllusion/simple-ai-benchmarking.git@main"
 )
-PIP_LOWBIT = (
-    "simple-ai-benchmarking[pt,lowbit]@git+"
-    "https://github.com/TimoIllusion/simple-ai-benchmarking.git@main"
-)
-TORCHAO_TORCH28 = "torchao==0.13.0+cu128"
-TORCHAO_CU128_INDEX = "https://download.pytorch.org/whl/cu128"
 
 # RunPod gpuTypeId substrings that identify a Blackwell card. Matched case-folded.
 BLACKWELL_MARKERS = (
@@ -104,9 +94,8 @@ BLACKWELL_MARKERS = (
 )
 
 # Default LLM workload index set (mirrors `saib-llm` default order):
-#   0 simple-transformer, 1 huggingface-causal (Qwen BF16, real KV cache).
-# The custom KV-cache decoder and the FP8/FP4 low-bit variants are excluded from the
-# default run everywhere; run them explicitly via --llm-args if needed.
+#   0 simple-transformer, 1 huggingface-causal (random-init from config, BF16).
+# Low-bit (FP8/FP4) benchmarking is handled by the separate `--workload vllm` path.
 LLM_W_DEFAULT = "0 1"
 
 # vLLM FP8/FP4 benchmark (`--workload vllm`). vLLM provides the production
@@ -175,12 +164,9 @@ def resolve_profile(cfg: Config) -> None:
     generation, unless the user pinned them explicitly.
 
     Only Blackwell is special-cased automatically, because Blackwell *cannot* run
-    on the default image at all -- so picking the torch 2.8 image + lowbit for it is
-    a correctness requirement, not a preference. The FP8/FP4 low-bit backends are
-    off by default everywhere; opt into them per host with an explicit ``--llm-args``
-    (plus ``--image`` + ``--pip-spec`` on non-Blackwell hosts, see
-    ``tools/run_fleet.sh``), since the torch 2.8 image needs a host driver >= 12.8
-    and can fail to start on older-driver non-Blackwell hosts."""
+    on the default image at all -- so picking the torch 2.8 image for it is a
+    correctness requirement, not a preference. Low-bit (FP8/FP4) benchmarking is
+    done via the separate ``--workload vllm`` path, not the local pt/llm runs."""
     lead = cfg.gpus[0] if cfg.gpus else ""
     blackwell = is_blackwell(lead)
 
@@ -198,10 +184,8 @@ def resolve_profile(cfg: Config) -> None:
     if not cfg.image_was_set:
         cfg.image = BLACKWELL_IMAGE if blackwell else DEFAULT_IMAGE
     if not cfg.pip_was_set:
-        cfg.pip_spec = PIP_LOWBIT if blackwell else PIP_BASE
+        cfg.pip_spec = PIP_BASE
     if not cfg.llm_args_was_set:
-        # Run the default working set; respect an explicit --llm-args (e.g. to
-        # opt into the FP8/FP4 low-bit backends, which are off by default).
         cfg.llm_args = f"-w {LLM_W_DEFAULT}"
 
 
@@ -335,11 +319,6 @@ def build_container_script(cfg: Config) -> str:
     it is not baked into the script string."""
     pip_requirements = [f'"{cfg.pip_spec}"']
     pip_index_args = ""
-    if cfg.pip_spec == PIP_LOWBIT:
-        # Resolve the project and torchao together so pip never installs an
-        # incompatible latest torchao or the Python-only PyPI wheel.
-        pip_requirements.insert(0, f'"{TORCHAO_TORCH28}"')
-        pip_index_args = f" --extra-index-url {TORCHAO_CU128_INDEX}"
 
     blocks = [
         _THREAD_CAPS,
@@ -467,7 +446,7 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--pip-spec", default=None,
-        help="pip requirement installed on the pod. Default: auto ([pt], or [pt,lowbit] for Blackwell).",
+        help="pip requirement installed on the pod. Default: auto ([pt], or a torch-free spec for --workload vllm).",
     )
     parser.add_argument("--pt-args", default="", help="Extra args for saib-pt, e.g. '-w 0'.")
     parser.add_argument(

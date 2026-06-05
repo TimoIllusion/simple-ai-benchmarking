@@ -4,9 +4,6 @@ from simple_ai_benchmarking.experimental.runpod_runner import (
     DEFAULT_IMAGE,
     DONE_MARKER,
     PIP_BASE,
-    PIP_LOWBIT,
-    TORCHAO_CU128_INDEX,
-    TORCHAO_TORCH28,
     VLLM_DEFAULT_MODEL,
     VLLM_SAIB_SPEC,
     build_config,
@@ -34,32 +31,31 @@ def test_blackwell_detection():
     assert not is_blackwell("NVIDIA GeForce RTX 4090")
 
 
-def test_blackwell_gpu_auto_selects_torch28_image_and_lowbit():
+def test_blackwell_gpu_auto_selects_torch28_image():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA B200"])
     assert cfg.image == BLACKWELL_IMAGE
-    assert cfg.pip_spec == PIP_LOWBIT
-    # KV decoder and FP8/FP4 are excluded from the default run, even on Blackwell.
+    # Blackwell still installs the plain [pt] spec; low-bit goes via --workload vllm.
+    assert cfg.pip_spec == PIP_BASE
     assert cfg.llm_args == "-w 0 1"
 
 
-def test_non_blackwell_gpu_auto_selects_default_image_no_lowbit():
+def test_non_blackwell_gpu_auto_selects_default_image():
     cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
     assert cfg.image == DEFAULT_IMAGE
     assert cfg.pip_spec == PIP_BASE
-    # Default run excludes the KV decoder and FP8/FP4.
     assert cfg.llm_args == "-w 0 1"
 
 
 def test_explicit_overrides_win_over_auto():
-    # An explicit --llm-args is respected verbatim, e.g. to opt into the FP8 backend.
+    # An explicit --image / --pip-spec / --llm-args is respected verbatim.
     cfg = _config(
         ["--dry-run", "--gpu", "NVIDIA H100 80GB HBM3",
-         "--image", BLACKWELL_IMAGE, "--pip-spec", PIP_LOWBIT,
-         "--llm-args", "--backend huggingface-causal-fp8"]
+         "--image", BLACKWELL_IMAGE, "--pip-spec", PIP_BASE,
+         "--llm-args", "-w 0"]
     )
     assert cfg.image == BLACKWELL_IMAGE
-    assert cfg.pip_spec == PIP_LOWBIT
-    assert cfg.llm_args == "--backend huggingface-causal-fp8"
+    assert cfg.pip_spec == PIP_BASE
+    assert cfg.llm_args == "-w 0"
 
 
 def test_first_gpu_in_fallback_list_drives_the_profile():
@@ -83,20 +79,14 @@ def test_script_both_runs_pt_then_llm_and_publishes():
     assert script.strip().splitlines()[-1] == f'echo "{DONE_MARKER}"'
 
 
-def test_blackwell_script_pins_torchao_to_torch28_compatible_release():
-    cfg = _config(["--dry-run", "--gpu", "NVIDIA B200", "--workload", "llm"])
-    script = build_container_script(cfg)
-
-    assert (
-        f"pip install --extra-index-url {TORCHAO_CU128_INDEX} "
-        f'"{TORCHAO_TORCH28}" "{PIP_LOWBIT}"'
-    ) in script
-
-
-def test_non_lowbit_script_does_not_install_torchao():
-    cfg = _config(["--dry-run", "--gpu", "NVIDIA RTX A6000"])
-
-    assert "torchao==" not in build_container_script(cfg)
+def test_script_never_installs_torchao():
+    # torchao / low-bit local kernels were removed; the pod install is plain [pt].
+    for gpu in ("NVIDIA RTX A6000", "NVIDIA B200"):
+        cfg = _config(["--dry-run", "--gpu", gpu, "--workload", "llm"])
+        script = build_container_script(cfg)
+        assert "torchao" not in script
+        assert "--extra-index-url" not in script
+        assert f'pip install "{PIP_BASE}"' in script
 
 
 def test_script_self_terminates_and_caps_threads_by_default():

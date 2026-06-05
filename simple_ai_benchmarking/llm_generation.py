@@ -30,72 +30,38 @@ from simple_ai_benchmarking.llm_results import LLMBenchmarkLogger
 from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 from simple_ai_benchmarking.workloads.llm_workload import (
     HF_CAUSAL_BACKEND,
-    HF_CAUSAL_FP4_BACKEND,
-    HF_CAUSAL_FP8_BACKEND,
     OLLAMA_BACKEND,
     OPENAI_COMPATIBLE_BACKEND,
     PYTORCH_GENERATION_BACKEND,
-    PYTORCH_KV_DECODER_BACKEND,
 )
 
-# The Hugging Face backends (full-precision plus the FP8/FP4 low-bit variants) all
-# build a model from a Hugging Face repo id and substitute the default repo.
-HF_BACKENDS = (
-    HF_CAUSAL_BACKEND,
-    HF_CAUSAL_FP8_BACKEND,
-    HF_CAUSAL_FP4_BACKEND,
-)
+# The Hugging Face backend builds a model from a Hugging Face repo id and
+# substitutes the default repo when --model is left at its placeholder.
+HF_BACKENDS = (HF_CAUSAL_BACKEND,)
 
 SUPPORTED_LLM_BACKENDS = (
     OPENAI_COMPATIBLE_BACKEND,
     OLLAMA_BACKEND,
     PYTORCH_GENERATION_BACKEND,
-    PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
-    HF_CAUSAL_FP8_BACKEND,
-    HF_CAUSAL_FP4_BACKEND,
 )
 
 # Local PyTorch backends that build and run a model in-process (vs HTTP serving
 # backends). They share device auto-detection and framework metadata defaults.
 LOCAL_PYTORCH_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
-    PYTORCH_KV_DECODER_BACKEND,
     HF_CAUSAL_BACKEND,
-    HF_CAUSAL_FP8_BACKEND,
-    HF_CAUSAL_FP4_BACKEND,
 )
 
 # Backends `saib-llm` runs when no --backend is given: the lightweight reference
-# transformer and a real Hugging Face causal LM (Qwen by default, with a real KV
-# cache). Mirrors how the CV benchmark runs several models in a single invocation.
-# The custom KV-cache decoder and the FP8/FP4 low-bit HF variants are intentionally
-# excluded from the default run; they remain runnable via an explicit `--backend`
-# (`pytorch-kv-decoder`, `huggingface-causal-fp8`, `huggingface-causal-fp4`).
+# transformer and a real Hugging Face causal LM (random-init from its config).
+# Mirrors how the CV benchmark runs several models in a single invocation. Low-bit
+# (FP8/FP4) benchmarking is intentionally out of scope for the local backends; run
+# it through a serving engine (vLLM) via the openai-compatible backend instead.
 DEFAULT_LLM_BACKENDS = (
     PYTORCH_GENERATION_BACKEND,
     HF_CAUSAL_BACKEND,
 )
-
-# Precision pinned per low-bit HF backend (precision is part of their identity).
-HF_LOWBIT_PRECISION = {
-    HF_CAUSAL_FP8_BACKEND: "FP8",
-    HF_CAUSAL_FP4_BACKEND: "FP4",
-}
-
-# Fixed ~1B-parameter geometry for the custom KV-cache decoder. Intentionally not
-# exposed as user-tunable presets: the custom LM simply defaults to ~1B. Mirrors
-# the defaults baked into KVCacheDecoderLM.
-KV_DECODER_DEFAULT_GEOMETRY = dict(
-    embedding_dim=2048,
-    transformer_layers=16,
-    attention_heads=16,
-    feedforward_dim=5632,
-)
-
-# Display/identity name for the custom KV-cache decoder, so its results are not
-# mislabelled with the simple transformer's default --model placeholder.
-KV_DECODER_DEFAULT_MODEL = "KVCacheDecoderLM-1B"
 
 # Default Hugging Face causal LM for the huggingface-causal backend. Only the
 # model config is fetched and the weights are randomly initialised (approach B),
@@ -111,9 +77,9 @@ def parse_arguments() -> argparse.Namespace:
         choices=SUPPORTED_LLM_BACKENDS,
         default=None,
         help="Generation backend to run. Default: None, which runs the default "
-        "local workloads (simple transformer, KV-cache decoder, Hugging Face "
-        "model). The FP8/FP4 low-bit variants are excluded by default; select one "
-        "explicitly with --backend huggingface-causal-fp8 / -fp4.",
+        "local workloads (simple transformer + Hugging Face causal LM). For low-bit "
+        "(FP8/FP4) benchmarking, serve the model with vLLM and use --backend "
+        "openai-compatible.",
     )
     parser.add_argument(
         "-w",
@@ -192,28 +158,21 @@ def build_generation_config_from_args(
     if api_key is None and args.api_key_env:
         api_key = os.environ.get(args.api_key_env)
 
-    # The custom KV-cache decoder always uses its fixed ~1B geometry; other local
-    # backends take the individual geometry flags (the HF backend ignores these
-    # and builds from the model's own config).
-    if backend == PYTORCH_KV_DECODER_BACKEND:
-        geometry = dict(KV_DECODER_DEFAULT_GEOMETRY)
-    else:
-        geometry = dict(
-            embedding_dim=args.embedding_dim,
-            transformer_layers=args.transformer_layers,
-            attention_heads=args.attention_heads,
-            feedforward_dim=args.feedforward_dim,
-        )
+    # The simple-transformer backend takes the individual geometry flags; the HF
+    # backend ignores these and builds from the model's own config.
+    geometry = dict(
+        embedding_dim=args.embedding_dim,
+        transformer_layers=args.transformer_layers,
+        attention_heads=args.attention_heads,
+        feedforward_dim=args.feedforward_dim,
+    )
 
-    # Give each local backend a meaningful model name when the user left --model at
-    # its placeholder: HF backends take a real repo id, and the KV-cache decoder
-    # gets its own name (otherwise it inherits the simple transformer's label).
+    # Give the HF backend a real repo id when the user left --model at its
+    # placeholder (otherwise it would inherit the simple transformer's label).
     model = args.model
     placeholder = ("", "SimpleTransformerLM")
     if backend in HF_BACKENDS and model in placeholder:
         model = DEFAULT_HF_MODEL
-    elif backend == PYTORCH_KV_DECODER_BACKEND and model in placeholder:
-        model = KV_DECODER_DEFAULT_MODEL
 
     # Default to the best local device (cuda/mps/cpu), matching how the CV
     # benchmarks pick their device, unless one was explicitly requested.
@@ -235,19 +194,10 @@ def build_generation_config_from_args(
 
         ai_framework_version = ai_framework_version or torch.__version__
         ai_framework_extra_info = ai_framework_extra_info or device_name
-        # The low-bit HF backends pin their precision (it is part of their
-        # identity); the heavier backends default to bf16; the lightweight
-        # reference transformer keeps fp32 so its established results stay
-        # comparable.
-        if backend in HF_LOWBIT_PRECISION:
-            compute_precision = HF_LOWBIT_PRECISION[backend]
-        else:
-            default_precision = (
-                "BF16"
-                if backend in (PYTORCH_KV_DECODER_BACKEND, HF_CAUSAL_BACKEND)
-                else "FP32"
-            )
-            compute_precision = args.compute_precision or default_precision
+        # The HF causal backend defaults to bf16; the lightweight reference
+        # transformer keeps fp32 so its established results stay comparable.
+        default_precision = "BF16" if backend == HF_CAUSAL_BACKEND else "FP32"
+        compute_precision = args.compute_precision or default_precision
         quantization = args.quantization or "none"
         weight_source = weight_source or "random_weights"
         if accelerator == "unknown":
