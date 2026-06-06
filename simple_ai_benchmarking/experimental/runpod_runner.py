@@ -259,9 +259,13 @@ cleanup() {
   [ "$SAIB_TERMINATED" = "1" ] && return
   SAIB_TERMINATED=1
   echo "== SAIB self-terminating pod ${RUNPOD_POD_ID} =="
+  # Use SAIB_RUNPOD_API_KEY, NOT RUNPOD_API_KEY: RunPod reserves the RUNPOD_*
+  # namespace and auto-injects its own *pod-scoped* RUNPOD_API_KEY into every
+  # container, which shadows the full-access key we set and yields HTTP 403 on
+  # the account-level DELETE. The full key is passed under the unreserved name.
   # python is present in all pytorch images, so teardown needs no curl.
-  python -c "import urllib.request,os; r=urllib.request.Request('https://rest.runpod.io/v1/pods/'+os.environ['RUNPOD_POD_ID'],method='DELETE',headers={'Authorization':'Bearer '+os.environ['RUNPOD_API_KEY']}); urllib.request.urlopen(r,timeout=30)" \
-  || python3 -c "import urllib.request,os; r=urllib.request.Request('https://rest.runpod.io/v1/pods/'+os.environ['RUNPOD_POD_ID'],method='DELETE',headers={'Authorization':'Bearer '+os.environ['RUNPOD_API_KEY']}); urllib.request.urlopen(r,timeout=30)" || true
+  python -c "import urllib.request,os; r=urllib.request.Request('https://rest.runpod.io/v1/pods/'+os.environ['RUNPOD_POD_ID'],method='DELETE',headers={'Authorization':'Bearer '+os.environ['SAIB_RUNPOD_API_KEY']}); urllib.request.urlopen(r,timeout=30)" \
+  || python3 -c "import urllib.request,os; r=urllib.request.Request('https://rest.runpod.io/v1/pods/'+os.environ['RUNPOD_POD_ID'],method='DELETE',headers={'Authorization':'Bearer '+os.environ['SAIB_RUNPOD_API_KEY']}); urllib.request.urlopen(r,timeout=30)" || true
   # Block so the container does NOT exit and get auto-restarted by RunPod before the
   # DELETE takes effect -- an exited container is restarted and the whole benchmark
   # re-runs in a loop (duplicate rows + runaway billing).
@@ -584,7 +588,10 @@ def rest_call(method: str, path: str, key: str, body: Optional[dict] = None) -> 
 
 
 def build_pod_body(cfg: Config, script: str) -> dict:
-    env = {"RUNPOD_API_KEY": cfg.api_key}
+    # NOT "RUNPOD_API_KEY": RunPod reserves the RUNPOD_* env namespace and injects
+    # its own pod-scoped key, which would shadow this full-access key and make the
+    # self-terminate DELETE fail with 403. The trap reads SAIB_RUNPOD_API_KEY.
+    env = {"SAIB_RUNPOD_API_KEY": cfg.api_key}
     # The DB token is needed to publish results and/or to stream debug logs.
     if cfg.publish or cfg.debug:
         env["AI_BENCHMARK_DATABASE_TOKEN"] = cfg.db_token or ""

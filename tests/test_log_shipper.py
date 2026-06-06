@@ -66,7 +66,7 @@ def test_poll_once_ships_complete_lines(tmp_path, monkeypatch):
     sent = []
     monkeypatch.setattr(
         ls, "post_lines",
-        lambda url, rid, lines, token, stream: sent.append(list(lines)) or True,
+        lambda url, rid, lines, token, stream, start_seq=None: sent.append(list(lines)) or True,
     )
     log_file.write_text("a\nb\nhalf")
     shipper.poll_once()
@@ -80,7 +80,7 @@ def test_poll_once_keeps_pending_on_failure_then_retries(tmp_path, monkeypatch):
     outcomes = [False, True]
     sent = []
 
-    def fake_post(url, rid, lines, token, stream):
+    def fake_post(url, rid, lines, token, stream, start_seq=None):
         sent.append(list(lines))
         return outcomes.pop(0)
 
@@ -91,6 +91,56 @@ def test_poll_once_keeps_pending_on_failure_then_retries(tmp_path, monkeypatch):
     shipper.poll_once()           # retries the same lines, succeeds
     assert shipper._pending == []
     assert sent == [["a", "b"], ["a", "b"]]
+
+
+def test_flush_tags_lines_with_monotonic_seq(tmp_path, monkeypatch):
+    # Each line carries its absolute index as ``start_seq`` so the server can
+    # drop re-sent duplicates. Seqs must keep counting up across batches.
+    shipper, log_file = _shipper(tmp_path, batch_lines=2)
+    seqs = []
+    monkeypatch.setattr(
+        ls, "post_lines",
+        lambda url, rid, lines, token, stream, start_seq=None: seqs.append(start_seq) or True,
+    )
+    log_file.write_text("a\nb\nc\nd\ne\n")
+    shipper.poll_once()
+    assert seqs == [0, 2, 4]  # batches of 2 -> base advances by the batch size
+
+
+def test_failed_batch_is_retried_with_same_seq(tmp_path, monkeypatch):
+    # A batch that fails (e.g. a timed-out-but-stored POST) must be re-sent with
+    # the *same* start_seq, so the server recognises and ignores the duplicate.
+    shipper, log_file = _shipper(tmp_path)
+    outcomes = [False, True]
+    seqs = []
+
+    def fake_post(url, rid, lines, token, stream, start_seq=None):
+        seqs.append(start_seq)
+        return outcomes.pop(0)
+
+    monkeypatch.setattr(ls, "post_lines", fake_post)
+    log_file.write_text("a\nb\n")
+    shipper.poll_once()  # fails -> seq 0
+    shipper.poll_once()  # retries the SAME lines -> still seq 0
+    assert seqs == [0, 0]
+    assert shipper._seq_base == 2  # advanced only after the successful send
+
+
+def test_post_lines_tags_payload_with_seq(monkeypatch):
+    captured = {}
+
+    def fake_urlopen(req, timeout=0):
+        captured["body"] = req.data.decode()
+        return _FakeResp(201)
+
+    monkeypatch.setattr(ls.urllib.request, "urlopen", fake_urlopen)
+    assert post_lines("http://db", "r1", ["x", "y"], "tok", start_seq=5) is True
+    import json as _json
+    payload = _json.loads(captured["body"])
+    assert payload["lines"] == [
+        {"seq": 5, "text": "x"},
+        {"seq": 6, "text": "y"},
+    ]
 
 
 def test_pending_buffer_is_bounded(tmp_path, monkeypatch):
@@ -111,7 +161,7 @@ def test_final_flush_retries_tail_before_giving_up(tmp_path, monkeypatch):
     outcomes = [False, False, True]
     sent = []
 
-    def fake_post(url, rid, lines, token, stream):
+    def fake_post(url, rid, lines, token, stream, start_seq=None):
         ok = outcomes.pop(0)
         if ok:
             sent.append(list(lines))
