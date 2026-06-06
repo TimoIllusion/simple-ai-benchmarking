@@ -280,3 +280,57 @@ def test_prompt_secret_is_noop_without_tty(monkeypatch):
         lambda prompt="": (_ for _ in ()).throw(AssertionError("getpass called")),
     )
     assert runner._prompt_secret("token") == ""
+
+
+# --------------------------------------------------------------------------- #
+# --debug live-log streaming
+# --------------------------------------------------------------------------- #
+def test_debug_off_by_default_adds_no_streaming():
+    script = build_container_script(_config(["--dry-run", "--gpu", "NVIDIA RTX A6000"]))
+    assert "saib-logship" not in script
+    assert "tee -a" not in script
+    assert runner.RUN_STOP_FILE not in script
+
+
+def test_debug_injects_tee_shipper_and_footer():
+    cfg = _config(["--dry-run", "--debug", "--gpu", "NVIDIA RTX A6000"])
+    script = build_container_script(cfg)
+    # Console is teed before anything else so install output is captured too.
+    assert script.index('exec > >(tee -a "$RUN_LOG_FILE")') < script.index("installing SAIB")
+    # Shipper starts after SAIB is installed.
+    assert script.index("pip install") < script.index("saib-logship")
+    # Footer signals completion so the shipper can flush before teardown.
+    assert 'echo "ok" > "$RUN_STOP_FILE"' in script
+    assert script.rstrip().endswith("sleep 10")
+
+
+def test_debug_default_run_id_is_pod_id_expression():
+    script = build_container_script(_config(["--dry-run", "--debug", "--gpu", "NVIDIA RTX A6000"]))
+    assert 'RUN_ID="${RUNPOD_POD_ID}"' in script
+
+
+def test_debug_explicit_run_id_is_used():
+    script = build_container_script(
+        _config(["--dry-run", "--debug", "--run-id", "my-run-7", "--gpu", "NVIDIA RTX A6000"])
+    )
+    assert 'RUN_ID="my-run-7"' in script
+
+
+def test_debug_passes_accelerator_and_family_to_shipper():
+    cfg = _config(["--dry-run", "--debug", "--workload", "vllm", "--gpu", "NVIDIA B200"])
+    script = build_container_script(cfg)
+    assert '--accelerator "NVIDIA B200"' in script
+    assert '--benchmark-family "vllm"' in script
+
+
+def test_debug_token_in_pod_env_even_without_publish():
+    cfg = _config(["--dry-run", "--debug", "--no-publish", "--db-token", "tok",
+                   "--api-key", "key", "--gpu", "NVIDIA RTX A6000"])
+    body = build_pod_body(cfg, "script")
+    assert body["env"]["AI_BENCHMARK_DATABASE_TOKEN"] == "tok"
+
+
+def test_no_token_in_pod_env_without_debug_or_publish():
+    cfg = _config(["--dry-run", "--no-publish", "--api-key", "key", "--gpu", "NVIDIA RTX A6000"])
+    body = build_pod_body(cfg, "script")
+    assert "AI_BENCHMARK_DATABASE_TOKEN" not in body["env"]

@@ -100,6 +100,7 @@ setuptools.setup(
             "saib-pub-llm = simple_ai_benchmarking.entrypoints:publish_llm",
             "saib-register = simple_ai_benchmarking.entrypoints:register_profiles",
             "saib-runpod = simple_ai_benchmarking.experimental.runpod_runner:main",
+            "saib-logship = simple_ai_benchmarking.experimental.log_shipper:main",
         ]
     },
 )
