@@ -43,11 +43,11 @@ fire() {
   echo "=== launching: $* ==="
   "$RUNPOD" --capacity-wait "$CAP" \
     --workload vllm --vllm-model "$VLLM_MODEL" --vllm-precisions "$VLLM_PRECISIONS" \
-    "${EXTRA[@]}" "$@" || echo "WARN: launch failed for: $*"
+    ${EXTRA[@]+"${EXTRA[@]}"} "$@" || echo "WARN: launch failed for: $*"
 }
 
 # --- One Blackwell + one Ada card; both run bf16 + fp8 --------------------------
-fire --gpu "NVIDIA RTX PRO 4500 Blackwell"  --cloud-type SECURE   # Blackwell
-fire --gpu "NVIDIA RTX 6000 Ada Generation" --cloud-type SECURE   # Ada
+fire --gpu "NVIDIA RTX PRO 6000 Blackwell Workstation Edition" --cloud-type SECURE   # Blackwell
+fire --gpu "NVIDIA RTX 6000 Ada Generation"                    --cloud-type SECURE   # Ada
 
 echo "All launch calls issued. Pods self-terminate when done; watch the RunPod console."
