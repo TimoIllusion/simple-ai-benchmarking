@@ -64,10 +64,32 @@ DEFAULT_BATCH_LINES = 500       # lines per POST (server cap is higher)
 DEFAULT_MAX_RUNTIME = 6 * 3600  # hard stop so a forgotten shipper can't run forever
 MAX_PENDING_LINES = 20000       # bound memory if the server is unreachable for long
 POST_TIMEOUT = 15               # seconds per ingest request
+FINAL_FLUSH_RETRIES = 4         # extra attempts to ship the tail before giving up
 
 
 def log(message: str) -> None:
     print(f"[saib-logship {time.strftime('%H:%M:%S')}] {message}", flush=True)
+
+
+def _post_json(url: str, payload: dict, token: Optional[str], label: str) -> bool:
+    """POST ``payload`` as JSON with optional Token auth. Return True on a 2xx.
+
+    Best-effort: every failure mode (HTTP error, timeout, DNS, bad JSON) returns
+    False instead of raising, so the caller simply retries on the next tick."""
+    body = json.dumps(payload).encode()
+    headers = {"Content-Type": "application/json"}
+    if token:
+        headers["Authorization"] = f"Token {token}"
+    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=POST_TIMEOUT) as resp:
+            return 200 <= resp.status < 300
+    except urllib.error.HTTPError as exc:
+        log(f"{label} rejected (HTTP {exc.code}); will retry")
+        return False
+    except Exception as exc:  # noqa: BLE001 -- side-car must never crash the run
+        log(f"{label} failed ({exc.__class__.__name__}); will retry")
+        return False
 
 
 def post_lines(
@@ -77,25 +99,10 @@ def post_lines(
     token: Optional[str],
     stream: str = "stdout",
 ) -> bool:
-    """POST a batch of lines to the ingest endpoint. Return True on a 2xx.
-
-    Best-effort: every failure mode (HTTP error, timeout, DNS, bad JSON) returns
-    False instead of raising, so the caller simply retries on the next tick."""
+    """POST a batch of lines to the ingest endpoint. Return True on a 2xx."""
     url = database_url.rstrip("/") + LOGS_ENDPOINT
-    body = json.dumps({"run_id": run_id, "stream": stream, "lines": lines}).encode()
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Token {token}"
-    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=POST_TIMEOUT) as resp:
-            return 200 <= resp.status < 300
-    except urllib.error.HTTPError as exc:
-        log(f"ingest rejected (HTTP {exc.code}); will retry")
-        return False
-    except Exception as exc:  # noqa: BLE001 -- side-car must never crash the run
-        log(f"ingest failed ({exc.__class__.__name__}); will retry")
-        return False
+    payload = {"run_id": run_id, "stream": stream, "lines": lines}
+    return _post_json(url, payload, token, "ingest")
 
 
 def post_run_report(
@@ -105,17 +112,8 @@ def post_run_report(
     ``post_lines`` -- used to make the run appear (and finish) in the dashboard's
     run table, separate from the streamed console lines."""
     url = database_url.rstrip("/") + REPORT_ENDPOINT
-    body = json.dumps({k: v for k, v in fields.items() if v not in (None, "")}).encode()
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Token {token}"
-    req = urllib.request.Request(url, data=body, method="POST", headers=headers)
-    try:
-        with urllib.request.urlopen(req, timeout=POST_TIMEOUT) as resp:
-            return 200 <= resp.status < 300
-    except Exception as exc:  # noqa: BLE001
-        log(f"run report failed ({exc.__class__.__name__})")
-        return False
+    payload = {k: v for k, v in fields.items() if v not in (None, "")}
+    return _post_json(url, payload, token, "run report")
 
 
 def _terminal_status_from_stop_file(stop_file: Optional[str]) -> str:
@@ -231,6 +229,21 @@ class LogShipper:
         self._enqueue(self._split_complete_lines(text, final=final))
         self._flush_pending()
 
+    def _final_flush(self) -> None:
+        """Last drain at end of run: capture anything written after the stop, then
+        retry shipping the tail a few times. Unlike a normal tick (which just waits
+        for the next pass), this is the last chance to deliver those lines, so a
+        transient blip on the final batch must not silently drop the end of the
+        console."""
+        self.poll_once(final=True)
+        for _ in range(FINAL_FLUSH_RETRIES):
+            if not self._pending:
+                return
+            time.sleep(self.interval)
+            self._flush_pending()
+        if self._pending:
+            log(f"{len(self._pending)} line(s) undelivered at exit")
+
     def _should_stop(self) -> bool:
         return bool(self.stop_file) and os.path.exists(self.stop_file)
 
@@ -263,12 +276,12 @@ class LogShipper:
             self.poll_once()
             if self._should_stop():
                 # Final drain: capture anything written after the stop file.
-                self.poll_once(final=True)
+                self._final_flush()
                 self._report(_terminal_status_from_stop_file(self.stop_file))
                 log("stop file present; final flush done, exiting")
                 return 0
             if time.time() >= deadline:
-                self.poll_once(final=True)
+                self._final_flush()
                 self._report("failed")
                 log("max runtime reached; exiting")
                 return 0

@@ -103,6 +103,27 @@ def test_pending_buffer_is_bounded(tmp_path, monkeypatch):
     assert shipper._pending == ["line7", "line8", "line9"]
 
 
+def test_final_flush_retries_tail_before_giving_up(tmp_path, monkeypatch):
+    shipper, log_file = _shipper(tmp_path)
+    shipper.interval = 0  # no real sleeping between retries
+    # Fail the first two attempts, then succeed: the tail must still be delivered
+    # instead of being dropped on the single final pass.
+    outcomes = [False, False, True]
+    sent = []
+
+    def fake_post(url, rid, lines, token, stream):
+        ok = outcomes.pop(0)
+        if ok:
+            sent.append(list(lines))
+        return ok
+
+    monkeypatch.setattr(ls, "post_lines", fake_post)
+    log_file.write_text("tail line\n")
+    shipper._final_flush()
+    assert shipper._pending == []
+    assert sent == [["tail line"]]
+
+
 # --------------------------------------------------------------------------- #
 # Run lifecycle reporting
 # --------------------------------------------------------------------------- #
