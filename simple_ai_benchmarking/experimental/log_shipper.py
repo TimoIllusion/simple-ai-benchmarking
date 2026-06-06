@@ -98,10 +98,25 @@ def post_lines(
     lines: List[str],
     token: Optional[str],
     stream: str = "stdout",
+    start_seq: Optional[int] = None,
 ) -> bool:
-    """POST a batch of lines to the ingest endpoint. Return True on a 2xx."""
+    """POST a batch of lines to the ingest endpoint. Return True on a 2xx.
+
+    When ``start_seq`` is given, each line is tagged with a monotonically
+    increasing ``seq`` (its absolute index in the shipped stream) so the server
+    can drop re-sent duplicates: a slow/timed-out POST that actually succeeded
+    server-side is retried with the *same* seqs and ignored the second time,
+    instead of storing the whole batch again (the cause of the duplicated
+    console). ``seq`` is also stable across a shipper restart (offset resets to
+    0, lines re-read from the top get their original seqs)."""
     url = database_url.rstrip("/") + LOGS_ENDPOINT
-    payload = {"run_id": run_id, "stream": stream, "lines": lines}
+    if start_seq is None:
+        payload_lines: list = lines
+    else:
+        payload_lines = [
+            {"seq": start_seq + i, "text": text} for i, text in enumerate(lines)
+        ]
+    payload = {"run_id": run_id, "stream": stream, "lines": payload_lines}
     return _post_json(url, payload, token, "ingest")
 
 
@@ -158,6 +173,10 @@ class LogShipper:
     _offset: int = field(default=0, init=False)
     _carry: str = field(default="", init=False)
     _pending: List[str] = field(default_factory=list, init=False)
+    # Absolute index of ``_pending[0]`` in the shipped stream. Carried alongside
+    # the (string) pending buffer so each line keeps a stable ``seq`` for the
+    # server's idempotent ingest, while ``_pending`` stays a plain list of text.
+    _seq_base: int = field(default=0, init=False)
 
     def _read_new_text(self) -> str:
         """Return file bytes appended since the last read, advancing the offset.
@@ -210,6 +229,9 @@ class LogShipper:
         if len(self._pending) > MAX_PENDING_LINES:
             dropped = len(self._pending) - MAX_PENDING_LINES
             self._pending = self._pending[-MAX_PENDING_LINES:]
+            # Advance the base by the dropped count so seqs stay tied to the
+            # line's absolute position even after trimming the oldest.
+            self._seq_base += dropped
             log(f"dropping {dropped} oldest buffered lines (server unreachable)")
 
     def _flush_pending(self) -> None:
@@ -218,10 +240,12 @@ class LogShipper:
         while self._pending:
             batch = self._pending[: self.batch_lines]
             if not post_lines(
-                self.database_url, self.run_id, batch, self.token, self.stream
+                self.database_url, self.run_id, batch, self.token, self.stream,
+                start_seq=self._seq_base,
             ):
                 return
             del self._pending[: len(batch)]
+            self._seq_base += len(batch)
 
     def poll_once(self, *, final: bool = False) -> None:
         """One tail pass: read new text, queue complete lines, flush to server."""
