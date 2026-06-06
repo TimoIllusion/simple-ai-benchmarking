@@ -16,6 +16,8 @@
 #   export RUNPOD_API_KEY=...
 #   export AI_BENCHMARK_DATABASE_TOKEN=...
 #   tools/run_fleet.sh                 # the default 5-GPU spread below
+#   tools/run_fleet.sh --debug         # stream live pod logs to the dashboard
+#   tools/run_fleet.sh --no-publish    # any extra args pass through to each pod
 set -euo pipefail
 
 : "${RUNPOD_API_KEY:?set RUNPOD_API_KEY}"
@@ -24,7 +26,15 @@ set -euo pipefail
 RUNPOD="${RUNPOD:-saib-runpod}"
 CAP="${CAPACITY_WAIT:-180}"     # keep retrying thin-stock GPUs for a few minutes
 
-fire() { echo "=== launching: $* ==="; "$RUNPOD" --capacity-wait "$CAP" "$@" || echo "WARN: launch failed for: $*"; }
+# Extra args ($@) pass through to every launch (e.g. --debug, --no-publish,
+# --database-url). Use --debug to stream each pod's CV/LLM console to the
+# dashboard live-log view.
+EXTRA=("$@")
+
+fire() {
+  echo "=== launching: $* ==="
+  "$RUNPOD" --capacity-wait "$CAP" ${EXTRA[@]+"${EXTRA[@]}"} "$@" || echo "WARN: launch failed for: $*"
+}
 
 # --- Blackwell: torch 2.8 image auto-selected by saib-runpod (default LLM set) --
 fire --gpu "NVIDIA B200"               --cloud-type SECURE

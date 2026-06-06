@@ -251,6 +251,7 @@ Useful flags: `--workload pt|llm|vllm|both` (default `both`; `vllm` is standalon
 ```bash
 export RUNPOD_API_KEY=...  AI_BENCHMARK_DATABASE_TOKEN=...
 tools/run_fleet.sh                       # default 5-GPU spread
+tools/run_fleet.sh --debug               # also stream live logs to /dashboard/
 ```
 
 ## Hardware Acceleration for PyTorch and TensorFlow
