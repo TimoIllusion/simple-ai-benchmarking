@@ -299,9 +299,22 @@ def test_debug_injects_tee_shipper_and_footer():
     assert script.index('exec > >(tee -a "$RUN_LOG_FILE")') < script.index("installing SAIB")
     # Shipper starts after SAIB is installed.
     assert script.index("pip install") < script.index("saib-logship")
-    # Footer signals completion so the shipper can flush before teardown.
-    assert 'echo "ok" > "$RUN_STOP_FILE"' in script
+    # Footer writes the benchmark exit code (not a hardcoded "ok") so the shipper
+    # can report completed vs failed; SAIB_RC is seeded in the debug header.
+    assert "SAIB_RC=0" in script
+    assert 'echo "${SAIB_RC:-0}" > "$RUN_STOP_FILE"' in script
     assert script.rstrip().endswith("sleep 10")
+
+
+def test_debug_records_benchmark_failure_in_stop_file_code():
+    # A failing benchmark CLI must set SAIB_RC so the footer reports a real failure
+    # instead of always writing success. The capture clause replaces the old
+    # fire-and-forget `|| echo WARN` that swallowed the exit code.
+    cfg = _config(["--dry-run", "--debug", "--workload", "llm", "--gpu", "NVIDIA RTX A6000"])
+    script = build_container_script(cfg)
+    assert "SAIB_RC=$rc" in script
+    # The swallow-and-forget form must be gone for the benchmark command.
+    assert 'rc=$?"' not in script
 
 
 def test_debug_default_run_id_is_pod_id_expression():

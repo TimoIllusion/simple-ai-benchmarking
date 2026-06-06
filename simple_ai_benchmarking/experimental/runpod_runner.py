@@ -286,6 +286,9 @@ def _debug_header(cfg: Config) -> str:
             f'RUN_LOG_FILE="{RUN_LOG_FILE}"',
             f'RUN_STOP_FILE="{RUN_STOP_FILE}"',
             f'RUN_ID="{_run_id_expr(cfg)}"',
+            # Benchmark exit code, set by the workload blocks; the footer writes it
+            # to the stop file so the run is reported completed (0) or failed.
+            "SAIB_RC=0",
             'mkdir -p "$(dirname "$RUN_LOG_FILE")" 2>/dev/null || true',
             # Capture stdout AND stderr for everything that follows.
             'exec > >(tee -a "$RUN_LOG_FILE") 2>&1',
@@ -315,11 +318,12 @@ def _debug_shipper_launch(cfg: Config) -> str:
 
 
 def _debug_footer() -> str:
-    """Signal the shipper that the run is done and give it one interval to flush
-    the tail before the self-terminate trap deletes the pod."""
+    """Signal the shipper that the run is done and give it a moment to flush the
+    tail before the self-terminate trap deletes the pod. The stop file carries the
+    benchmark exit code (SAIB_RC) so the shipper reports completed vs failed."""
     return "\n".join(
         [
-            'echo "ok" > "$RUN_STOP_FILE"',
+            'echo "${SAIB_RC:-0}" > "$RUN_STOP_FILE"',
             'sleep 10',
         ]
     )
@@ -332,6 +336,15 @@ def _publish_args(cfg: Config) -> str:
         if cfg.publish
         else ""
     )
+
+
+def _capture_failure(message: str) -> str:
+    """Trailing shell clause for a benchmark command: on a non-zero exit, warn and
+    record the code in ``SAIB_RC``. The run must keep going (publish + teardown),
+    so the failure is not fatal, but the captured code lets the debug footer write
+    a real pass/fail marker -- otherwise every run looks 'completed'. Publishing
+    failures deliberately do not touch SAIB_RC: run status reflects the benchmark."""
+    return f'|| {{ rc=$?; echo "WARN {message} rc=$rc"; SAIB_RC=$rc; }}'
 
 
 def _register_publish_lines(csv: str, pub_tool: str, label: str) -> List[str]:
@@ -353,7 +366,7 @@ def _cli_block(cfg: Config, *, label: str, command: str, timeout_var: str,
     lines = [
         f'echo "== [{label}] running (timeout ${{{timeout_var}}}s) =="',
         f'timeout -k 60 "${{{timeout_var}}}" {command}{_publish_args(cfg)} '
-        f'|| echo "WARN {command.split()[0]} rc=$?"',
+        f'{_capture_failure(command.split()[0])}',
     ]
     if cfg.publish:
         lines += _register_publish_lines(csv, pub_tool, label)
@@ -480,7 +493,7 @@ def _vllm_leg(cfg: Config, precision: str) -> List[str]:
         f"--quantization {quant_meta} --requests {cfg.vllm_requests} "
         f"--concurrency {cfg.vllm_concurrency} --prompt-tokens {cfg.vllm_prompt_tokens} "
         f"--generated-tokens {cfg.vllm_generated_tokens} --out-file-base {out_base} "
-        f'|| echo "WARN saib-llm vllm[{precision}] rc=$?"',
+        f'{_capture_failure(f"saib-llm vllm[{precision}]")}',
         # Stop the server and wait for the port to free before the next precision.
         'kill "$VLLM_PID" >/dev/null 2>&1 || true',
         'wait "$VLLM_PID" 2>/dev/null || true',
