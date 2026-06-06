@@ -9,8 +9,8 @@
 # The container image is auto-selected per GPU generation by saib-runpod:
 #   * Blackwell (B200 / RTX 5090 / RTX PRO Blackwell): torch 2.8 / CUDA 12.8 image.
 #   * Everything else (Hopper / Ada / Ampere ...): torch 2.4 / CUDA 12.4 image.
-# All pods run the full-precision default LLM set (-w 0 1). FP8/FP4 benchmarking is
-# done separately via `saib-runpod --workload vllm` (see the README), not here.
+# All pods run the full-precision default LLM set (-w 0 1). FP8/FP4 benchmarking via
+# a vLLM OpenAI endpoint is a separate, opt-in fleet: see tools/run_fleet_vllm.sh.
 #
 # Usage:
 #   export RUNPOD_API_KEY=...

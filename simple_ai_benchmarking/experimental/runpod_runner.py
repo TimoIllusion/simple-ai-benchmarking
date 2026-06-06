@@ -39,6 +39,12 @@ Usage::
     export AI_BENCHMARK_DATABASE_TOKEN=...     # database API token
     saib-runpod --gpu "NVIDIA GeForce RTX 4090"          # CV + LLM, auto image
     saib-runpod --gpu "NVIDIA B200" --workload llm        # Blackwell image, auto
+    saib-runpod --gpu "NVIDIA B200" --workload vllm --debug   # stream live console
+
+With ``--debug`` the pod tees its whole stdout/stderr to a file and a background
+``saib-logship`` streams it to the database dashboard's live console
+(``/dashboard/runs/<run_id>/``) for real-time monitoring -- the run also appears
+in the dashboard run table. The console URL is printed when the pod is created.
 
 Dry run (no API key needed, prints the plan and the exact container script)::
 
@@ -146,6 +152,13 @@ VLLM_SAIB_SPEC = (
 
 DONE_MARKER = "SAIB_ALL_DONE"
 
+# --debug live-log streaming. The whole container console (install + benchmark)
+# is teed to RUN_LOG_FILE; a background `saib-logship` tails it to the dashboard
+# and stops once RUN_STOP_FILE appears (written right before self-termination, so
+# the shipper gets a final flush before the pod is torn down).
+RUN_LOG_FILE = "/workspace/saib_run.log"
+RUN_STOP_FILE = "/workspace/saib_run.done"
+
 
 def log(message: str) -> None:
     print(f"[saib-runpod {time.strftime('%H:%M:%S')}] {message}", flush=True)
@@ -182,6 +195,8 @@ class Config:
     capacity_wait: int
     pt_timeout: int
     llm_timeout: int
+    debug: bool
+    run_id: str
     image_was_set: bool = False
     pip_was_set: bool = False
     llm_args_was_set: bool = False
@@ -255,6 +270,65 @@ cleanup() {
 trap cleanup EXIT"""
 
 
+def _run_id_expr(cfg: Config) -> str:
+    """Shell expression for the run id: an explicit --run-id wins, else the pod's
+    own id (unique per pod, and what the saib-runpod caller is told to watch)."""
+    return cfg.run_id if cfg.run_id else "${RUNPOD_POD_ID}"
+
+
+def _debug_header(cfg: Config) -> str:
+    """Tee the entire container console to a file so the log shipper can stream it.
+
+    Placed first (before any other block) so install output is captured too; the
+    shipper itself starts later, once SAIB is installed, and ships the backlog."""
+    return "\n".join(
+        [
+            f'RUN_LOG_FILE="{RUN_LOG_FILE}"',
+            f'RUN_STOP_FILE="{RUN_STOP_FILE}"',
+            f'RUN_ID="{_run_id_expr(cfg)}"',
+            # Benchmark exit code, set by the workload blocks; the footer writes it
+            # to the stop file so the run is reported completed (0) or failed.
+            "SAIB_RC=0",
+            'mkdir -p "$(dirname "$RUN_LOG_FILE")" 2>/dev/null || true',
+            # Capture stdout AND stderr for everything that follows.
+            'exec > >(tee -a "$RUN_LOG_FILE") 2>&1',
+            'echo "== [debug] live console streaming for run ${RUN_ID} =="',
+        ]
+    )
+
+
+def _debug_shipper_launch(cfg: Config) -> str:
+    """Start saib-logship in the background once SAIB is installed. Its own output
+    goes to /tmp (NOT the teed file) so it does not ship its own chatter in a loop.
+    The DB token is read from the pod env, never placed on the command line."""
+    accel = cfg.gpus[0] if cfg.gpus else ""
+    return "\n".join(
+        [
+            'echo "== [debug] starting log shipper =="',
+            # Backgrounded (& cannot be followed by ||); if saib-logship is missing
+            # the subshell just exits and streaming is silently skipped -- the run
+            # itself is never blocked by the side-car.
+            f'( saib-logship "$RUN_LOG_FILE" --run-id "$RUN_ID" --database-url "$URL" '
+            f'--stop-file "$RUN_STOP_FILE" --report --provider runpod '
+            f'--host "${{RUNPOD_POD_ID}}" --accelerator "{accel}" '
+            f'--benchmark-family "{cfg.workload}" '
+            f'>/tmp/saib_logship.log 2>&1 || echo "WARN log shipper exited" ) &',
+        ]
+    )
+
+
+def _debug_footer() -> str:
+    """Signal the shipper that the run is done and give it a moment to flush the
+    tail before the self-terminate trap deletes the pod. The stop file carries the
+    benchmark exit code (SAIB_RC) so the shipper reports completed vs failed."""
+    return "\n".join(
+        [
+            'echo "${SAIB_RC:-0}" > "$RUN_STOP_FILE"',
+            'sleep 10',
+        ]
+    )
+
+
 def _publish_args(cfg: Config) -> str:
     """Inline publish flags for a saib-* benchmark command (empty when --no-publish)."""
     return (
@@ -262,6 +336,15 @@ def _publish_args(cfg: Config) -> str:
         if cfg.publish
         else ""
     )
+
+
+def _capture_failure(message: str) -> str:
+    """Trailing shell clause for a benchmark command: on a non-zero exit, warn and
+    record the code in ``SAIB_RC``. The run must keep going (publish + teardown),
+    so the failure is not fatal, but the captured code lets the debug footer write
+    a real pass/fail marker -- otherwise every run looks 'completed'. Publishing
+    failures deliberately do not touch SAIB_RC: run status reflects the benchmark."""
+    return f'|| {{ rc=$?; echo "WARN {message} rc=$rc"; SAIB_RC=$rc; }}'
 
 
 def _register_publish_lines(csv: str, pub_tool: str, label: str) -> List[str]:
@@ -283,7 +366,7 @@ def _cli_block(cfg: Config, *, label: str, command: str, timeout_var: str,
     lines = [
         f'echo "== [{label}] running (timeout ${{{timeout_var}}}s) =="',
         f'timeout -k 60 "${{{timeout_var}}}" {command}{_publish_args(cfg)} '
-        f'|| echo "WARN {command.split()[0]} rc=$?"',
+        f'{_capture_failure(command.split()[0])}',
     ]
     if cfg.publish:
         lines += _register_publish_lines(csv, pub_tool, label)
@@ -410,7 +493,7 @@ def _vllm_leg(cfg: Config, precision: str) -> List[str]:
         f"--quantization {quant_meta} --requests {cfg.vllm_requests} "
         f"--concurrency {cfg.vllm_concurrency} --prompt-tokens {cfg.vllm_prompt_tokens} "
         f"--generated-tokens {cfg.vllm_generated_tokens} --out-file-base {out_base} "
-        f'|| echo "WARN saib-llm vllm[{precision}] rc=$?"',
+        f'{_capture_failure(f"saib-llm vllm[{precision}]")}',
         # Stop the server and wait for the port to free before the next precision.
         'kill "$VLLM_PID" >/dev/null 2>&1 || true',
         'wait "$VLLM_PID" 2>/dev/null || true',
@@ -452,7 +535,11 @@ def build_container_script(cfg: Config) -> str:
     """The bash exec'd by the pod's dockerStartCmd. The DB token is read from the
     pod env (``AI_BENCHMARK_DATABASE_TOKEN``), never interpolated into the text, so
     it is not baked into the script string."""
-    blocks = [
+    blocks = []
+    if cfg.debug:
+        # Must precede everything so install output is teed too.
+        blocks.append(_debug_header(cfg))
+    blocks += [
         _THREAD_CAPS,
         _SELF_TERMINATE if not cfg.keep else 'echo "== --keep: pod will NOT self-terminate =="',
         f'URL="{cfg.database_url}"',
@@ -462,6 +549,9 @@ def build_container_script(cfg: Config) -> str:
         "python -m pip install --upgrade pip",
         f'pip install "{cfg.pip_spec}"',
     ]
+    if cfg.debug:
+        # SAIB (and thus saib-logship) is installed now; start streaming.
+        blocks.append(_debug_shipper_launch(cfg))
     if cfg.workload in ("pt", "both"):
         blocks.append(_pt_block(cfg))
     if cfg.workload in ("llm", "both"):
@@ -469,6 +559,8 @@ def build_container_script(cfg: Config) -> str:
     if cfg.workload == "vllm":
         blocks.append(_vllm_block(cfg))
     blocks.append(f'echo "{DONE_MARKER}"')
+    if cfg.debug:
+        blocks.append(_debug_footer())
     return "\n".join(blocks)
 
 
@@ -493,7 +585,8 @@ def rest_call(method: str, path: str, key: str, body: Optional[dict] = None) -> 
 
 def build_pod_body(cfg: Config, script: str) -> dict:
     env = {"RUNPOD_API_KEY": cfg.api_key}
-    if cfg.publish:
+    # The DB token is needed to publish results and/or to stream debug logs.
+    if cfg.publish or cfg.debug:
         env["AI_BENCHMARK_DATABASE_TOKEN"] = cfg.db_token or ""
     return {
         "name": f"saib-{cfg.workload}-{int(time.time())}",
@@ -633,6 +726,17 @@ def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
         help="Do not self-terminate the pod (debugging). You must terminate it yourself!",
     )
     parser.add_argument(
+        "--debug", action="store_true",
+        help="Stream the pod's live console output to the database dashboard for "
+        "real-time debugging (tees stdout/stderr and ships it via saib-logship). "
+        "Needs AI_BENCHMARK_DATABASE_TOKEN even with --no-publish.",
+    )
+    parser.add_argument(
+        "--run-id", default="",
+        help="Run identifier for the dashboard console/run table. Default: the "
+        "pod's own id (resolved on the pod).",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Print the plan and container script, then exit (no API key needed).",
     )
@@ -666,6 +770,8 @@ def build_config(args: argparse.Namespace) -> Config:
         capacity_wait=args.capacity_wait,
         pt_timeout=args.pt_timeout,
         llm_timeout=args.llm_timeout,
+        debug=args.debug,
+        run_id=args.run_id,
         image_was_set=args.image is not None,
         pip_was_set=args.pip_spec is not None,
         llm_args_was_set=args.llm_args is not None,
@@ -700,14 +806,15 @@ def main(argv: Optional[List[str]] = None) -> int:
         cfg.api_key = _prompt_secret("Paste your RunPod API key (RUNPOD_API_KEY)")
     if not cfg.api_key:
         raise SystemExit("RUNPOD_API_KEY is required (env, --api-key, or interactive prompt).")
-    if cfg.publish and not cfg.db_token:
+    needs_token = cfg.publish or cfg.debug
+    if needs_token and not cfg.db_token:
         cfg.db_token = _prompt_secret(
             "Paste your AI Benchmark Database token (AI_BENCHMARK_DATABASE_TOKEN)"
         )
-    if cfg.publish and not cfg.db_token:
+    if needs_token and not cfg.db_token:
         raise SystemExit(
-            "AI_BENCHMARK_DATABASE_TOKEN is required to publish "
-            "(env, --db-token, interactive prompt, or pass --no-publish)."
+            "AI_BENCHMARK_DATABASE_TOKEN is required to publish or stream debug logs "
+            "(env, --db-token, interactive prompt, or drop --debug and pass --no-publish)."
         )
 
     # The token lives in the pod env, so rebuild the body now that it is resolved.
@@ -719,6 +826,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         + ("then self-terminate." if not cfg.keep else "and stay up (--keep).")
     )
     log("Fire-and-forget: nothing connects back to the pod. Monitor it in the RunPod console.")
+    if cfg.debug:
+        run_id = cfg.run_id or pod_id
+        console_url = f"{cfg.database_url.rstrip('/')}/dashboard/runs/{run_id}/"
+        log(f"Live console (debug): {console_url}")
     return 0
 
 
