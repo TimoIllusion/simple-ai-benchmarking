@@ -466,6 +466,32 @@ class OpenAICompatibleGeneration(HTTPGenerationWorkload):
     def _get_ai_framework_name(self) -> str:
         return OPENAI_COMPATIBLE_BACKEND
 
+    def _get_ai_framework_version(self) -> str:
+        # For a served model the framework version is the serving engine's version.
+        # vLLM (and similar) expose GET {base_url}/version; query it once so results
+        # carry a real version. The database requires this identity field to be
+        # non-empty, so fall back to the serving-engine label rather than publish a
+        # blank that gets rejected.
+        if self.cfg.ai_framework_version:
+            return self.cfg.ai_framework_version
+        version = self._query_server_version()
+        if version:
+            return version
+        return self.cfg.served_by or OPENAI_COMPATIBLE_BACKEND
+
+    def _query_server_version(self) -> str:
+        """Best-effort ``GET {base_url}/version`` -> the engine version, or ""."""
+        session = getattr(self, "_session", None)
+        if session is None:
+            return ""
+        try:
+            resp = session.get(self.cfg.base_url.rstrip("/") + "/version", timeout=10)
+            if getattr(resp, "ok", False):
+                return str(resp.json().get("version", "") or "")
+        except Exception:  # noqa: BLE001 -- metadata is best-effort, never fatal
+            pass
+        return ""
+
     def _generate_one(self, prompt: str) -> GenerationRequestResult:
         url = self.cfg.base_url.rstrip("/") + "/v1/chat/completions"
         headers = {"Content-Type": "application/json"}

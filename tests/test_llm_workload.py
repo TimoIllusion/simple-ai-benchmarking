@@ -32,14 +32,28 @@ class FakeResponse:
         return False
 
 
+class FakeVersionResponse:
+    def __init__(self, payload, ok=True):
+        self._payload = payload
+        self.ok = ok
+
+    def json(self):
+        return self._payload
+
+
 class FakeSession:
-    def __init__(self, lines):
+    def __init__(self, lines, version="0.6.3"):
         self.lines = lines
+        self.version = version
         self.calls = []
 
     def post(self, url, **kwargs):
         self.calls.append((url, kwargs))
         return FakeResponse(self.lines)
+
+    def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        return FakeVersionResponse({"version": self.version})
 
 
 def _tiny_config(**overrides) -> LLMGenerationConfig:
@@ -166,6 +180,74 @@ def test_openai_compatible_generation_workload_streams_and_counts_tokens():
     assert workload._session.calls[0][1]["headers"]["Authorization"] == "Bearer token"
     assert result.bench_info.backend == OPENAI_COMPATIBLE_BACKEND
     assert result.performance.generated_tokens_per_second > 0
+
+
+def test_openai_compatible_uses_server_version_as_framework_version():
+    # Regression: vLLM/openai-compatible runs left ai_framework_version blank, which
+    # the database rejects ("This field may not be blank."). The version must be
+    # resolved from the engine's GET /version so results publish.
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="test-model",
+            served_by="vllm",
+            requests=1,
+            warmup_requests=0,
+            concurrency=1,
+            generated_tokens=2,
+        )
+    )
+    workload._session = FakeSession(
+        [
+            'data: {"choices":[{"delta":{"content":"hi"}}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":2}}',
+            "data: [DONE]",
+        ],
+        version="0.6.3.post1",
+    )
+    workload.setup()
+    workload.warmup()
+    workload.execute()
+    result = workload.build_result_log()
+
+    assert any(c[0] == "https://example.test/version" for c in workload._session.calls)
+    assert result.sw_info.ai_framework_version == "0.6.3.post1"
+
+
+def test_openai_compatible_falls_back_to_served_by_when_no_version():
+    # If the engine has no /version endpoint, the identity field must still be
+    # non-empty so the row is accepted; fall back to the serving-engine label.
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="test-model",
+            served_by="vllm",
+            requests=1,
+            warmup_requests=0,
+            concurrency=1,
+            generated_tokens=2,
+        )
+    )
+
+    class NoVersionSession(FakeSession):
+        def get(self, url, **kwargs):
+            raise RuntimeError("no /version endpoint")
+
+    workload._session = NoVersionSession(
+        [
+            'data: {"choices":[{"delta":{"content":"hi"}}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":2}}',
+            "data: [DONE]",
+        ]
+    )
+    workload.setup()
+    workload.warmup()
+    workload.execute()
+    result = workload.build_result_log()
+
+    assert result.sw_info.ai_framework_version == "vllm"
 
 
 def test_openai_compatible_reports_zero_when_server_streams_no_tokens():
