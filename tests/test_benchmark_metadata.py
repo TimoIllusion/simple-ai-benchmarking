@@ -57,7 +57,6 @@ def _llm_result(duration_s, generated_tps, ttft):
         performance=LLMPerformanceResult(
             requests=10,
             duration_s=duration_s,
-            prompt_tokens_per_second=0.0,
             generated_tokens_per_second=generated_tps,
             total_tokens_per_second=generated_tps,
             time_to_first_token_s=ttft,
@@ -238,7 +237,6 @@ def test_llm_csv_export_contains_benchmark_metadata():
             performance=LLMPerformanceResult(
                 requests=10,
                 duration_s=60.0,
-                prompt_tokens_per_second=21.3,
                 generated_tokens_per_second=42.5,
                 total_tokens_per_second=63.8,
                 time_to_first_token_s=0.24,

@@ -72,7 +72,6 @@ class LLMBenchInfo:
 class LLMPerformanceResult:
     requests: int
     duration_s: float
-    prompt_tokens_per_second: float
     generated_tokens_per_second: float
     total_tokens_per_second: float
     time_to_first_token_s: float
@@ -105,9 +104,6 @@ class LLMBenchmarkLogger(BaseBenchmarkLogger):
         # aggregate matches how a single run reports throughput; TTFT is a mean.
         requests = sum(p.requests for p in perf_results)
         duration_s = sum(p.duration_s for p in perf_results)
-        prompt_tokens = sum(
-            p.prompt_tokens_per_second * p.duration_s for p in perf_results
-        )
         generated_tokens = sum(
             p.generated_tokens_per_second * p.duration_s for p in perf_results
         )
@@ -117,7 +113,6 @@ class LLMBenchmarkLogger(BaseBenchmarkLogger):
         return LLMPerformanceResult(
             requests=requests,
             duration_s=duration_s,
-            prompt_tokens_per_second=prompt_tokens / duration_s if duration_s else 0.0,
             generated_tokens_per_second=generated_tokens / duration_s
             if duration_s
             else 0.0,

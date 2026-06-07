@@ -154,7 +154,6 @@ class LLMGenerationWorkload(AIWorkload):
         performance = LLMPerformanceResult(
             requests=self.cfg.requests,
             duration_s=duration_s,
-            prompt_tokens_per_second=prompt_tokens / duration_s if duration_s else 0.0,
             generated_tokens_per_second=generated_tokens / duration_s
             if duration_s
             else 0.0,

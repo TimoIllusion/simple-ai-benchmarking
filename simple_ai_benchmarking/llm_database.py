@@ -34,7 +34,6 @@ class LLMBenchmarkData:
     concurrency: int
     requests: int
     duration_s: float
-    prompt_tokens_per_second: float
     generated_tokens_per_second: float
     total_tokens_per_second: float
     time_to_first_token_s: float
@@ -102,9 +101,6 @@ def read_csv_and_create_llm_benchmark_dataset(
                     concurrency=int(row["bench_info_concurrency"]),
                     requests=int(row["performance_requests"]),
                     duration_s=float(row["performance_duration_s"]),
-                    prompt_tokens_per_second=float(
-                        row["performance_prompt_tokens_per_second"]
-                    ),
                     generated_tokens_per_second=float(
                         row["performance_generated_tokens_per_second"]
                     ),
