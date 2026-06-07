@@ -71,7 +71,7 @@ from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 REST_BASE = "https://rest.runpod.io/v1"
-DEFAULT_DATABASE_URL = "https://timoillusion.pythonanywhere.com"
+DEFAULT_DATABASE_URL = "https://benchmarks.timoleitritz.dev"
 
 # Image per GPU generation.
 #  - torch 2.4 / CUDA 12.4 works for everything up to Hopper (sm_90) and is widely

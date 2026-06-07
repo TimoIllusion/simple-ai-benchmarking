@@ -145,7 +145,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("-t", "--token", default=None)
     parser.add_argument(
         "--database-url",
-        default="https://timoillusion.pythonanywhere.com",
+        default="https://benchmarks.timoleitritz.dev",
         help="The URL of the AI Benchmark Database.",
     )
     return parser.parse_args()
