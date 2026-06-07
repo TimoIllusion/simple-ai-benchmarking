@@ -55,7 +55,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-DEFAULT_DATABASE_URL = "https://timoillusion.pythonanywhere.com"
+DEFAULT_DATABASE_URL = "https://benchmarks.timoleitritz.dev"
 LOGS_ENDPOINT = "/dashboard/api/runs/logs/"
 REPORT_ENDPOINT = "/dashboard/api/runs/report/"
 

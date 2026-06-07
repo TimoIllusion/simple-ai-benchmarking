@@ -2,7 +2,7 @@
 
 A simple application to quickly run tests on a variety of hardware and software for AI workloads, to get an intuition on the performance. No downloading of big datasets and only a few dependencies. For more sophisticated and complex benchmarking, I recommend to use [MLPerf Benchmarks](https://mlcommons.org/benchmarks/). 
 
-Visit [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) to see current benchmark database.
+Visit [benchmarks.timoleitritz.dev/benchmarks](https://benchmarks.timoleitritz.dev/benchmarks) to see current benchmark database.
 
 I develop this application in my free time as a hobby.
 
@@ -146,7 +146,7 @@ Common options (see `saib-llm -h` for the full list):
 
 Currently results can only published by authenticated users, but user creation is manually handled currently. Contact me if you want to publish results.
 
-To publish results to [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks), execute these commands:
+To publish results to [benchmarks.timoleitritz.dev/benchmarks](https://benchmarks.timoleitritz.dev/benchmarks), execute these commands:
 
 ```bash
 export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN  
@@ -175,7 +175,7 @@ export AI_BENCHMARK_DATABASE_TOKEN=YOUR_TOKEN
 saib-pub-llm llm_results.csv
 ```
 
-Check [timoillusion.pythonanywhere.com/benchmarks](https://timoillusion.pythonanywhere.com/benchmarks) for the results.
+Check [benchmarks.timoleitritz.dev/benchmarks](https://benchmarks.timoleitritz.dev/benchmarks) for the results.
 
 ### Registering benchmark profiles
 

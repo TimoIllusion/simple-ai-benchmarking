@@ -154,7 +154,7 @@ class TestPublishDatabase(unittest.TestCase):
         self.assertEqual(args.token, "tok")
         self.assertTrue(args.non_interactive)
         self.assertEqual(
-            args.database_url, "https://timoillusion.pythonanywhere.com"
+            args.database_url, "https://benchmarks.timoleitritz.dev"
         )
 
     def test_enrich_benchmark_data_roundtrips_non_interactively(self):
@@ -199,7 +199,7 @@ class TestPublishDatabase(unittest.TestCase):
                 
                 mock_args.return_value = MagicMock(
                     results_csv_path=csv_path,
-                    database_url="https://timoillusion.pythonanywhere.com",
+                    database_url="https://benchmarks.timoleitritz.dev",
                     token="test_token",
                     user=None,
                     password=None

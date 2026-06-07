@@ -317,7 +317,7 @@ def build_publish_parser(description: str) -> argparse.ArgumentParser:
     parser.add_argument(
         "--database-url",
         type=str,
-        default="https://timoillusion.pythonanywhere.com",
+        default="https://benchmarks.timoleitritz.dev",
         help="The URL of the AI Benchmark Database.",
     )
     parser.add_argument(
@@ -588,7 +588,7 @@ def register_profiles_cli():
     parser.add_argument(
         "--database-url",
         type=str,
-        default="https://timoillusion.pythonanywhere.com",
+        default="https://benchmarks.timoleitritz.dev",
         help="The URL of the AI Benchmark Database.",
     )
     parser.add_argument(
