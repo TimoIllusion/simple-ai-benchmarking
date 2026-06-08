@@ -1,6 +1,7 @@
 import pytest
 
 from simple_ai_benchmarking.benchmark_metadata import (
+    LLM_SPEC_VERSION,
     SPEC_VERSION,
     build_cv_profile,
     build_cv_profile_id,
@@ -137,6 +138,25 @@ def test_cv_profile_id_matches_spec_major_version():
 
     spec_major = SPEC_VERSION.split(".", 1)[0]
     assert build_cv_profile_id(profile).endswith(f"_v{spec_major}")
+
+
+def test_llm_profile_id_matches_spec_major_version():
+    # The version suffix is derived from the spec major, not hardcoded, so a future
+    # major spec bump is reflected in the id (mirrors build_cv_profile_id).
+    profile = build_llm_profile(
+        backend="llama.cpp",
+        model="Meta-Llama-3-8B",
+        benchmark_type="inference",
+        compute_precision="FP16",
+        quantization="Q4_K_M",
+        context_length=4096,
+        prompt_tokens=128,
+        generated_tokens=256,
+        concurrency=1,
+    )
+
+    spec_major = LLM_SPEC_VERSION.split(".", 1)[0]
+    assert build_llm_profile_id(profile).endswith(f"_v{spec_major}")
 
 
 def test_llm_profile_hash_changes_for_comparability_parameters():
