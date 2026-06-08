@@ -138,6 +138,10 @@ def test_cv_profile_id_matches_spec_major_version():
 
     spec_major = SPEC_VERSION.split(".", 1)[0]
     assert build_cv_profile_id(profile).endswith(f"_v{spec_major}")
+    # Verify the suffix is *derived* from the spec version, not hardcoded to the
+    # current major: a different major must change the suffix accordingly.
+    bumped = dict(profile, benchmark_spec_version="9.7")
+    assert build_cv_profile_id(bumped).endswith("_v9")
 
 
 def test_llm_profile_id_matches_spec_major_version():
@@ -157,6 +161,11 @@ def test_llm_profile_id_matches_spec_major_version():
 
     spec_major = LLM_SPEC_VERSION.split(".", 1)[0]
     assert build_llm_profile_id(profile).endswith(f"_v{spec_major}")
+    # Verify the suffix is *derived* from the spec version, not hardcoded to the
+    # current major: a different major must change the suffix accordingly. This is
+    # what catches a regression back to a hardcoded `_v2`.
+    bumped = dict(profile, benchmark_spec_version="9.7")
+    assert build_llm_profile_id(bumped).endswith("_v9")
 
 
 def test_llm_profile_hash_changes_for_comparability_parameters():
