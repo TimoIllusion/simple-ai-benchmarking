@@ -10,6 +10,7 @@ from simple_ai_benchmarking.workloads.factory import WorkloadFactory
 from simple_ai_benchmarking.workloads.llm_workload import (
     OLLAMA_BACKEND,
     OPENAI_COMPATIBLE_BACKEND,
+    VLLM_SERVING_ENGINE,
     OllamaGeneration,
     OpenAICompatibleGeneration,
 )
@@ -213,6 +214,93 @@ def test_openai_compatible_uses_server_version_as_framework_version():
 
     assert any(c[0] == "https://example.test/version" for c in workload._session.calls)
     assert result.sw_info.ai_framework_version == "0.6.3.post1"
+
+
+def test_openai_compatible_vllm_resolves_model_params(monkeypatch):
+    import simple_ai_benchmarking.workloads.llm_workload as llm_workload
+
+    seen = {}
+
+    def fake_count(model_id):
+        seen["model_id"] = model_id
+        return 123456789
+
+    monkeypatch.setattr(
+        llm_workload, "_count_huggingface_causal_lm_parameters", fake_count
+    )
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="org/model",
+            served_by=VLLM_SERVING_ENGINE,
+            requests=1,
+            warmup_requests=0,
+            concurrency=1,
+            generated_tokens=2,
+        )
+    )
+    workload._session = FakeSession(
+        [
+            'data: {"choices":[{"delta":{"content":"hi"}}]}',
+            'data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":2}}',
+            "data: [DONE]",
+        ]
+    )
+    workload.setup()
+    workload.warmup()
+    workload.execute()
+    result = workload.build_result_log()
+
+    assert seen["model_id"] == "org/model"
+    assert result.bench_info.model_params == 123456789
+
+
+def test_openai_compatible_keeps_explicit_model_params(monkeypatch):
+    import simple_ai_benchmarking.workloads.llm_workload as llm_workload
+
+    def fail_if_called(model_id):
+        raise AssertionError(f"unexpected resolver call for {model_id}")
+
+    monkeypatch.setattr(
+        llm_workload, "_count_huggingface_causal_lm_parameters", fail_if_called
+    )
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="org/model",
+            served_by=VLLM_SERVING_ENGINE,
+            model_params=42,
+        )
+    )
+    workload._session = FakeSession([])
+    workload.setup()
+
+    assert workload.cfg.model_params == 42
+
+
+def test_openai_compatible_non_vllm_does_not_resolve_model_params(monkeypatch):
+    import simple_ai_benchmarking.workloads.llm_workload as llm_workload
+
+    def fail_if_called(model_id):
+        raise AssertionError(f"unexpected resolver call for {model_id}")
+
+    monkeypatch.setattr(
+        llm_workload, "_count_huggingface_causal_lm_parameters", fail_if_called
+    )
+    workload = OpenAICompatibleGeneration(
+        LLMGenerationConfig(
+            backend=OPENAI_COMPATIBLE_BACKEND,
+            base_url="https://example.test",
+            model="gpt-test",
+            served_by="openai",
+        )
+    )
+    workload._session = FakeSession([])
+    workload.setup()
+
+    assert workload.cfg.model_params == 0
 
 
 def test_openai_compatible_falls_back_to_served_by_when_no_version():
