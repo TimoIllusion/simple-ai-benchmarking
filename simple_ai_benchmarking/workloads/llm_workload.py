@@ -39,6 +39,7 @@ PYTORCH_GENERATION_BACKEND = "pytorch-simple-transformer"
 HF_CAUSAL_BACKEND = "huggingface-causal"
 OPENAI_COMPATIBLE_BACKEND = "openai-compatible"
 OLLAMA_BACKEND = "ollama"
+VLLM_SERVING_ENGINE = "vllm"
 
 # Floating-point precisions applied by a plain dtype cast of the random-weight
 # model (no extra dependency). Low-bit formats (FP8/FP4/int8/int4) are not dtype
@@ -411,6 +412,11 @@ class HTTPGenerationWorkload(LLMGenerationWorkload):
 
         if getattr(self, "_session", None) is None:
             self._session = requests.Session()
+        if self.cfg.model_params == 0:
+            self.cfg.model_params = self._resolve_served_model_parameters()
+
+    def _resolve_served_model_parameters(self) -> int:
+        return 0
 
     def _build_prompt(self) -> str:
         # Roughly one token per simple word for backend-independent prompt targets.
@@ -464,6 +470,11 @@ class OpenAICompatibleGeneration(HTTPGenerationWorkload):
 
     def _get_ai_framework_name(self) -> str:
         return OPENAI_COMPATIBLE_BACKEND
+
+    def _resolve_served_model_parameters(self) -> int:
+        if self._get_serving_engine() != VLLM_SERVING_ENGINE:
+            return 0
+        return _count_huggingface_causal_lm_parameters(self.cfg.model)
 
     def _get_ai_framework_version(self) -> str:
         # For a served model the framework version is the serving engine's version.
@@ -555,6 +566,27 @@ class OpenAICompatibleGeneration(HTTPGenerationWorkload):
             if time_to_first_token_s is not None
             else duration_s,
         )
+
+
+def _count_huggingface_causal_lm_parameters(model_id: str) -> int:
+    """Best-effort architecture parameter count without allocating checkpoint weights.
+
+    vLLM exposes generation over HTTP, not a local ``nn.Module``. For Hugging Face
+    model IDs, build the causal LM skeleton on the PyTorch ``meta`` device from
+    config only and count tensor shapes. Metadata collection must never break the
+    benchmark, so unsupported architectures, missing optional dependencies, or
+    network/cache misses all fall back to 0.
+    """
+    try:
+        import torch
+        from transformers import AutoConfig, AutoModelForCausalLM
+
+        config = AutoConfig.from_pretrained(model_id)
+        with torch.device("meta"):
+            model = AutoModelForCausalLM.from_config(config)
+        return int(sum(p.numel() for p in model.parameters()))
+    except Exception:  # noqa: BLE001 -- best-effort metadata only
+        return 0
 
 
 class OllamaGeneration(HTTPGenerationWorkload):
