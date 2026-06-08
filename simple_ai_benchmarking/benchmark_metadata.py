@@ -26,7 +26,11 @@ SPEC_VERSION = "2.1"
 # the model (vllm / ollama / pytorch / openai) is now part of the benchmark
 # identity, so results are grouped per engine even when they share the
 # openai-compatible protocol. 2.3 results carry fresh profile hashes.
-LLM_SPEC_VERSION = "2.3"
+# Bumped 2.3 -> 2.4 when the portable default benchmark shape was resized to fit an
+# ~8 GB accelerator (prompt 2048 -> 1024, context 4096 -> 2048; other knobs
+# unchanged). The default profile id therefore changes, so 2.4 results carry fresh
+# profile hashes and never mix with the heavier 2.3 default shape.
+LLM_SPEC_VERSION = "2.4"
 
 CV_RUNNER_ID = "saib.cv.classification.v2"
 LLM_RUNNER_ID = "saib.llm.generation.v2"

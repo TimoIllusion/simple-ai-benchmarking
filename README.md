@@ -125,7 +125,9 @@ Four backends are supported — two self-contained local PyTorch backends and tw
   saib-llm --backend ollama --model llama3
   ```
 
-The benchmark performs configurable warmup and measured requests (optionally concurrent), repeats the measurement and averages the result, and reports prompt, generated, and total tokens per second, time to first token, and total duration. Each repetition runs in an isolated process. Results are written to `llm_results.csv` (and `.xlsx` if `openpyxl` is installed).
+The benchmark performs configurable warmup and measured requests (optionally concurrent), repeats the measurement and averages the result, and reports generated and total tokens per second, time to first token, and total duration. Each repetition runs in an isolated process. Results are written to `llm_results.csv` (and `.xlsx` if `openpyxl` is installed).
+
+The local-backend defaults are sized to fit an ~8 GB accelerator (targeting roughly 6 GB peak so the device is well used). Peak memory is driven by the simple-transformer backend, which has no KV cache and computes full-vocab logits every decode step, so it scales with `concurrency`, `--prompt-tokens` and `--generated-tokens`; raise those to use a bigger GPU, or lower them (or pick one backend with `-w`) on smaller/Apple-silicon devices.
 
 Common options (see `saib-llm -h` for the full list):
 
@@ -133,8 +135,8 @@ Common options (see `saib-llm -h` for the full list):
 - `--requests` / `--warmup-requests` — number of measured / warmup requests (default `32` / `2`)
 - `--repetitions` — number of times the measurement is repeated and averaged (default `3`); for paid HTTP endpoints, lower this to reduce cost
 - `--concurrency` — for HTTP backends (`openai-compatible`, `ollama`), the number of in-flight concurrent requests; for the local PyTorch backends, the batch size processed in a single batched forward pass (default `8`)
-- `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `2048` / `256`)
-- `--context-length` — model context window (default `4096`)
+- `--prompt-tokens` / `--generated-tokens` — prompt and generation lengths (default `1024` / `256`)
+- `--context-length` — model context window (default `2048`)
 - `--device` — torch device for the local backends, e.g. `cpu`, `cuda`, `mps` (default `cpu`)
 - `--compute-precision` — for `huggingface-causal`, applied to the model as a plain dtype cast: `FP32`/`FP16`/`BF16` (default BF16). Low-bit (`FP8`/`FP4`) is not supported locally — use a serving engine via `openai-compatible`. Recorded as metadata for the HTTP backends
 - `--quantization` — recorded as metadata (e.g. `fp8`/`nvfp4` for a vLLM server benchmarked over `openai-compatible`); `none` by default. Not applied locally

@@ -98,16 +98,24 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--model", default="SimpleTransformerLM")
-    # Defaults put real load on the device: for the local backends concurrency is
-    # the batch size of one forward pass, so concurrency=8 / requests=32 exercises
-    # batched prefill+decode rather than a single-sequence trickle.
+    # Defaults put real load on the device while fitting an ~8 GB accelerator
+    # (targeting ~6 GB peak so the card is well used, not maxed). For the local
+    # backends concurrency is the batch size of one forward pass, so concurrency=8
+    # / requests=32 exercises batched prefill+decode. Peak memory is driven by the
+    # simple-transformer backend, which has no KV cache: it recomputes the full
+    # forward each decode step over the whole sequence, with logits across the full
+    # vocab, so memory ~ concurrency * seq * vocab. The sequence length (prompt
+    # 1024 / context 2048) is half the earlier default to keep that peak inside
+    # 8 GB; note MPS over-reserves, so on Apple silicon prefer fewer requests or a
+    # single backend via -w. HTTP backends batch server-side -- raise concurrency
+    # there for a heavier serving load test.
     parser.add_argument("--requests", type=int, default=32)
     parser.add_argument("--warmup-requests", type=int, default=2)
     parser.add_argument("--repetitions", type=int, default=3)
     parser.add_argument("--concurrency", type=int, default=8)
-    parser.add_argument("--prompt-tokens", type=int, default=2048)
+    parser.add_argument("--prompt-tokens", type=int, default=1024)
     parser.add_argument("--generated-tokens", type=int, default=256)
-    parser.add_argument("--context-length", type=int, default=4096)
+    parser.add_argument("--context-length", type=int, default=2048)
     parser.add_argument("--timeout-s", type=float, default=120.0)
     parser.add_argument("--api-key", default=None)
     parser.add_argument("--api-key-env", default="OPENAI_API_KEY")
