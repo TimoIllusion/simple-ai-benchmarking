@@ -26,11 +26,13 @@ SPEC_VERSION = "2.1"
 # the model (vllm / ollama / pytorch / openai) is now part of the benchmark
 # identity, so results are grouped per engine even when they share the
 # openai-compatible protocol. 2.3 results carry fresh profile hashes.
-# Bumped 2.3 -> 2.4 when the portable default benchmark shape was resized to fit an
-# ~8 GB accelerator (prompt 2048 -> 1024, context 4096 -> 2048; other knobs
-# unchanged). The default profile id therefore changes, so 2.4 results carry fresh
-# profile hashes and never mix with the heavier 2.3 default shape.
-LLM_SPEC_VERSION = "2.4"
+#
+# NOTE: the spec version tracks *methodology and identity-schema* changes, not
+# configuration defaults. Changing a default shape (e.g. prompt/context length) is
+# already captured by the profile (which hashes prompt/generated/context/concurrency)
+# and by the recorded code version (benchmark_version + commit_id), so it does NOT
+# warrant a spec bump. See the "Versioning" section in AGENTS.md.
+LLM_SPEC_VERSION = "2.3"
 
 CV_RUNNER_ID = "saib.cv.classification.v2"
 LLM_RUNNER_ID = "saib.llm.generation.v2"
@@ -119,12 +121,17 @@ def build_llm_profile(
 def build_llm_profile_id(profile: Mapping[str, Any]) -> str:
     # serving_engine is part of the id so e.g. a vLLM-served and an OpenAI-served
     # run over the same openai-compatible protocol get distinct, readable ids.
+    # The version suffix is derived from the spec major (like build_cv_profile_id)
+    # rather than hardcoded, so a future major spec bump is reflected in the id and
+    # never mislabels a new-spec profile as v2. For all 2.x specs this is "v2", so
+    # existing profile ids are unchanged.
     engine = profile.get("serving_engine") or "na"
+    spec_major = str(profile["benchmark_spec_version"]).split(".", 1)[0]
     return (
         f"llm_{profile['backend_protocol_class']}_{engine}_{profile['model']}_"
         f"{profile['benchmark_type']}_p{profile['prompt_token_target']}_"
         f"g{profile['generated_token_target']}_ctx{profile['context_length']}_"
-        f"c{profile['concurrency']}_v2"
+        f"c{profile['concurrency']}_v{spec_major}"
     ).lower().replace(" ", "_")
 
 

@@ -320,7 +320,7 @@ def test_generation_workload_result_is_exportable():
     row = logger.to_dataframe().iloc[0].to_dict()
 
     assert row["bench_info_benchmark_family"] == "llm"
-    assert row["bench_info_benchmark_spec_version"] == "2.4"
+    assert row["bench_info_benchmark_spec_version"] == "2.3"
     assert row["bench_info_benchmark_payload_hash"]
     # The local PyTorch backend records its engine as "pytorch".
     assert row["bench_info_serving_engine"] == "pytorch"
