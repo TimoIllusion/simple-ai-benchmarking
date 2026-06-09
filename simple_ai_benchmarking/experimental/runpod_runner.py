@@ -251,6 +251,7 @@ export MKL_NUM_THREADS=8
 export NUMEXPR_NUM_THREADS=8
 export VECLIB_MAXIMUM_THREADS=8
 export TOKENIZERS_PARALLELISM=false
+export VLLM_USE_V1=0
 command -v git >/dev/null 2>&1 || (apt-get update -qq && apt-get install -y -qq git) || true
 cd /workspace 2>/dev/null || cd /root 2>/dev/null || cd /"""
 

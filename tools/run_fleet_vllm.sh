@@ -23,7 +23,7 @@
 # Usage:
 #   export RUNPOD_API_KEY=...
 #   export AI_BENCHMARK_DATABASE_TOKEN=...
-#   tools/run_fleet_vllm.sh                       # default 2-GPU spread below
+#   tools/run_fleet_vllm.sh                       # default 8-GPU spread below
 #   VLLM_MODEL=... VLLM_PRECISIONS=bf16,fp8 tools/run_fleet_vllm.sh
 #   tools/run_fleet_vllm.sh --no-publish          # any extra args pass through to each pod
 set -euo pipefail
@@ -46,8 +46,14 @@ fire() {
     ${EXTRA[@]+"${EXTRA[@]}"} "$@" || echo "WARN: launch failed for: $*"
 }
 
-# --- One Blackwell + one Ada card; both run bf16 + fp8 --------------------------
-fire --gpu "NVIDIA RTX PRO 6000 Blackwell Workstation Edition" --cloud-type SECURE   # Blackwell
-fire --gpu "NVIDIA RTX 6000 Ada Generation"                    --cloud-type SECURE   # Ada
+# --- Blackwell, Hopper, and Ada cards; all run bf16 + fp8 ------------------------
+fire --gpu "NVIDIA B300 SXM6 AC"                              --cloud-type SECURE    # Blackwell
+fire --gpu "NVIDIA B200"                                      --cloud-type SECURE    # Blackwell
+fire --gpu "NVIDIA RTX PRO 6000 Blackwell Server Edition"     --cloud-type SECURE    # Blackwell
+fire --gpu "NVIDIA GeForce RTX 5090"                          --cloud-type COMMUNITY # Blackwell
+fire --gpu "NVIDIA H200"                                      --cloud-type SECURE    # Hopper
+fire --gpu "NVIDIA H100 80GB HBM3"                            --cloud-type SECURE    # Hopper
+fire --gpu "NVIDIA RTX 6000 Ada Generation"                   --cloud-type SECURE    # Ada
+fire --gpu "NVIDIA GeForce RTX 4090"                          --cloud-type SECURE    # Ada
 
 echo "All launch calls issued. Pods self-terminate when done; watch the RunPod console."

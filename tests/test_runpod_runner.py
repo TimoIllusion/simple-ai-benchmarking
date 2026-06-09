@@ -95,6 +95,7 @@ def test_script_self_terminates_and_caps_threads_by_default():
     assert "trap cleanup EXIT" in script
     assert "RUNPOD_POD_ID" in script  # the DELETE teardown
     assert "OMP_NUM_THREADS=8" in script
+    assert "VLLM_USE_V1=0" in script
     assert "timeout -k 60" in script
 
 
